@@ -5,8 +5,11 @@ prerrequisito colgado que pasa desapercibido se convierte, meses después, en un
 niño trabado sin explicación.
 """
 
+import json
+
 import pytest
 
+from tutor.config import CURRICULUM
 from tutor.curriculum import ErrorGrafo, GrafoHabilidades, cargar_grafo
 from tutor.models import Habilidad, Materia, TextoLocalizado
 
@@ -139,3 +142,29 @@ def test_filtros_por_materia_y_grado():
     g = cargar_grafo()
     assert g.por_materia(Materia.MATEMATICAS)
     assert g.por_grado(2)
+
+
+def test_schema_json_y_el_modelo_pydantic_no_se_desincronizan():
+    """Hay DOS definiciones del mismo nodo (schema.json y models.Habilidad) y
+    pueden separarse sin que nada avise.
+
+    Pasó de verdad: `verificable_en_codigo` vivió en schema.json desde la fase 0
+    y no estaba en el modelo. El YAML lo declaraba, jsonschema lo validaba, y
+    Pydantic lo tiraba en silencio.
+    """
+    esquema = json.loads((CURRICULUM / "schema.json").read_text(encoding="utf-8"))
+    del_esquema = set(esquema["properties"])
+    del_modelo = set(Habilidad.model_fields)
+
+    assert not (del_esquema - del_modelo), "campos en schema.json que el modelo ignora"
+    assert not (del_modelo - del_esquema), "campos del modelo que el schema no valida"
+
+
+def test_el_curriculum_declara_que_es_verificable_en_codigo():
+    """Matemática se verifica sin modelo. Si un nodo no lo declara,
+    check_answer devolvería REQUIERE_JUICIO y perderíamos el determinismo."""
+    g = cargar_grafo()
+    sin_declarar = [
+        h.id for h in g.por_materia(Materia.MATEMATICAS) if not h.verificable_en_codigo
+    ]
+    assert not sin_declarar, f"habilidades de matemática sin verificación en código: {sin_declarar}"

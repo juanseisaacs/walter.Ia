@@ -1,28 +1,242 @@
 """Los 4 tools del tutor en vivo.
 
-Módulo PURO — sin red. Todo se resuelve en memoria.
+Módulo PURO — sin red, sin I/O. Todo se resuelve en memoria.
 REGLA: ningún tool puede hacer una llamada de red. Ver ARCHITECTURE.md §9.
 
-FASE 4 implementa:
-
-  check_answer(habilidad_id, respuesta_niño, ejercicio) -> bool
-      ~5ms. CÓDIGO DETERMINÍSTICO, jamás un modelo.
-      Un "¡correcto!" a 7+5=13 destruye la confianza del papá para siempre.
-      Para nodos con verificable_en_codigo=false (comprensión, redacción) el
-      juicio vuelve al modelo, pero eso es la excepción explícita.
-
-  get_next_problem(habilidad_id) -> Ejercicio
-      ~0ms. Saca de la lista precargada al inicio de la sesión.
-      NO consulta el banco durante la sesión.
-
-  request_camera(motivo) -> None
-      Pide ver el cuaderno o la tarea. Central en modo Pedido.
-
-  escalate_safety(motivo, evidencia) -> None
-      Segundo camino independiente a la alarma, además del Vigilante.
-      Dos caminos = defensa en profundidad.
-
-DESCARTADOS A PROPÓSITO:
-  · record_observation → el Analista lo extrae después, sin costo de latencia
-  · end_session        → la sesión termina sola (tiempo o cierre natural)
+Los tools devuelven DECISIONES, no efectos. Pedir la cámara o escalar una alerta
+son intenciones que ejecuta session.py; acá solo se decide.
 """
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
+
+from .models import Ejercicio, Habilidad
+
+# ─────────────────────────────────────────────────────────────────────────────
+# check_answer — la verificación determinística
+# ─────────────────────────────────────────────────────────────────────────────
+# LA REGLA MÁS IMPORTANTE DEL PRODUCTO: la aritmética jamás la valida un modelo.
+# Un "¡correcto!" a 7+5=13 destruye la confianza del papá para siempre.
+#
+# Principio: TOLERANTE CON LA FORMA, ESTRICTO CON EL VALOR.
+# El niño habla, no escribe. "cuarenta y dos", "es 42", "42 manzanas" y "42" son
+# la misma respuesta. Pero 41 nunca es 42.
+
+
+class Veredicto(StrEnum):
+    CORRECTO = "correcto"
+    INCORRECTO = "incorrecto"
+
+    REQUIERE_JUICIO = "requiere_juicio"
+    """El código no puede decidir: comprensión lectora, redacción, explicar un
+    razonamiento. Devolver INCORRECTO acá sería mentir — no es que esté mal, es
+    que esta pregunta no se contesta con una comparación."""
+
+
+class ResultadoVerificacion(BaseModel):
+    veredicto: Veredicto
+    valor_interpretado: str | None = Field(
+        default=None, description="Qué se entendió que dijo el niño. Para auditar y depurar."
+    )
+
+
+# Muletillas y unidades que el niño dice alrededor de la respuesta.
+_RELLENO = {
+    "es", "son", "el", "la", "los", "las", "un", "una", "unos", "unas",
+    "da", "queda", "quedan", "resultado", "resultados", "total", "igual", "iguales",
+    "creo", "que", "seria", "sera", "me", "a", "de", "y",
+    "manzanas", "figuritas", "puntos", "pesos", "unidades", "decenas", "centenas",
+    "anos", "veces", "partes", "grupos",
+}
+
+_UNIDADES = {
+    "cero": 0, "uno": 1, "una": 1, "un": 1, "dos": 2, "tres": 3, "cuatro": 4,
+    "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+    "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+    "dieciseis": 16, "diecisiete": 17, "dieciocho": 18, "diecinueve": 19,
+    "veinte": 20, "veintiuno": 21, "veintiuna": 21, "veintidos": 22,
+    "veintitres": 23, "veinticuatro": 24, "veinticinco": 25, "veintiseis": 26,
+    "veintisiete": 27, "veintiocho": 28, "veintinueve": 29,
+}
+
+_DECENAS = {
+    "treinta": 30, "cuarenta": 40, "cincuenta": 50, "sesenta": 60,
+    "setenta": 70, "ochenta": 80, "noventa": 90,
+}
+
+_CENTENAS = {
+    "cien": 100, "ciento": 100, "doscientos": 200, "trescientos": 300,
+    "cuatrocientos": 400, "quinientos": 500, "seiscientos": 600,
+    "setecientos": 700, "ochocientos": 800, "novecientos": 900,
+}
+
+
+def _sin_acentos(texto: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
+
+
+def palabras_a_numero(texto: str) -> int | None:
+    """Convierte números dichos en palabras a entero. Rango 0–1000.
+
+    Es el rango de primaria; más allá no hace falta. Un niño de 7 años dice
+    "cuarenta y dos", no "42" — si no se traduce, todas sus respuestas
+    habladas figuran como incorrectas.
+    """
+    palabras = [p for p in _sin_acentos(texto.lower()).split() if p and p != "y"]
+    if not palabras:
+        return None
+
+    total = 0
+    reconocio_algo = False
+
+    for palabra in palabras:
+        if palabra == "mil":
+            total = (total or 1) * 1000
+            reconocio_algo = True
+        elif palabra in _CENTENAS:
+            total += _CENTENAS[palabra]
+            reconocio_algo = True
+        elif palabra in _DECENAS:
+            total += _DECENAS[palabra]
+            reconocio_algo = True
+        elif palabra in _UNIDADES:
+            total += _UNIDADES[palabra]
+            reconocio_algo = True
+        else:
+            return None  # una palabra desconocida invalida toda la lectura
+
+    return total if reconocio_algo else None
+
+
+def _a_numero(texto: str) -> float | None:
+    """Extrae el valor numérico de lo que dijo el niño, en dígitos o en palabras."""
+    limpio = _sin_acentos(texto.lower().strip())
+    limpio = limpio.replace("$", " ").replace("%", " ")
+
+    # Dígitos: "42", "4,5" (coma decimal, como se usa en Colombia), "-3"
+    if hallazgos := re.findall(r"-?\d+(?:[.,]\d+)?", limpio):
+        if len(hallazgos) == 1:
+            return float(hallazgos[0].replace(",", "."))
+        return None  # varios números: ambiguo, no adivinar
+
+    palabras_utiles = [p for p in re.split(r"[^\w]+", limpio) if p and p not in _RELLENO]
+    numero = palabras_a_numero(" ".join(palabras_utiles))
+    return float(numero) if numero is not None else None
+
+
+def _normalizar_texto(texto: str) -> str:
+    """Para respuestas que no son números: saca acentos, relleno y puntuación."""
+    limpio = _sin_acentos(texto.lower())
+    palabras = [p for p in re.split(r"[^\w]+", limpio) if p and p not in _RELLENO]
+    return " ".join(palabras)
+
+
+def check_answer(
+    ejercicio: Ejercicio, respuesta_nino: str, habilidad: Habilidad | None = None
+) -> ResultadoVerificacion:
+    """Verifica la respuesta del niño. ~5ms, sin red, sin modelo.
+
+    Si la habilidad no es verificable en código (comprensión, redacción), lo dice
+    explícitamente en vez de inventar un veredicto.
+    """
+    if habilidad is not None and not habilidad.verificable_en_codigo:
+        return ResultadoVerificacion(veredicto=Veredicto.REQUIERE_JUICIO)
+
+    esperado_num = _a_numero(ejercicio.respuesta)
+
+    if esperado_num is not None:
+        dicho_num = _a_numero(respuesta_nino)
+        if dicho_num is None:
+            return ResultadoVerificacion(veredicto=Veredicto.INCORRECTO)
+        # Tolerancia mínima por el ida y vuelta de float, no por "casi acertó".
+        correcto = abs(dicho_num - esperado_num) < 1e-9
+        return ResultadoVerificacion(
+            veredicto=Veredicto.CORRECTO if correcto else Veredicto.INCORRECTO,
+            valor_interpretado=f"{dicho_num:g}",
+        )
+
+    dicho = _normalizar_texto(respuesta_nino)
+    esperado = _normalizar_texto(ejercicio.respuesta)
+    return ResultadoVerificacion(
+        veredicto=Veredicto.CORRECTO if dicho == esperado else Veredicto.INCORRECTO,
+        valor_interpretado=dicho or None,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# get_next_problem — del banco precargado, en memoria
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class BancoDeSesion:
+    """Ejercicios cargados en memoria al ABRIR la sesión.
+
+    Durante la sesión no se consulta la base: se saca de esta lista. ~0ms.
+    Ver ARCHITECTURE.md §9 — todo el trabajo pesado va antes de que el niño hable.
+    """
+
+    def __init__(self, ejercicios: list[Ejercicio]) -> None:
+        self._pendientes = list(ejercicios)
+        self._entregados: list[Ejercicio] = []
+
+    def get_next_problem(self) -> Ejercicio | None:
+        """Saca el siguiente. Nunca repite mientras queden sin usar."""
+        if not self._pendientes:
+            return None
+        ejercicio = self._pendientes.pop(0)
+        self._entregados.append(ejercicio)
+        return ejercicio
+
+    @property
+    def restantes(self) -> int:
+        return len(self._pendientes)
+
+    @property
+    def entregados(self) -> list[Ejercicio]:
+        return list(self._entregados)
+
+    def se_esta_agotando(self, umbral: int = 3) -> bool:
+        """Aviso para que session.py recargue antes de quedarse sin nada."""
+        return self.restantes <= umbral
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# request_camera — decisión, no efecto
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class SolicitudCamara(BaseModel):
+    motivo: str = Field(description="Qué necesita ver. El tutor se lo dice al niño.")
+
+
+def request_camera(motivo: str) -> SolicitudCamara:
+    """Pide ver el cuaderno o la tarea. Central en modo Pedido."""
+    return SolicitudCamara(motivo=motivo)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# escalate_safety — el segundo camino a la alarma
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class AlertaSeguridad(BaseModel):
+    """Alerta levantada por el TUTOR (el Vigilante tiene su propio camino).
+
+    Dos caminos independientes a la alarma = defensa en profundidad. Cualquiera
+    de los dos la dispara; ninguno depende del otro.
+    """
+
+    motivo: str
+    evidencia: str | None = None
+    origen: str = "tutor"
+
+
+def escalate_safety(motivo: str, evidencia: str | None = None) -> AlertaSeguridad:
+    return AlertaSeguridad(motivo=motivo, evidencia=evidencia)

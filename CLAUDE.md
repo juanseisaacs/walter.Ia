@@ -123,29 +123,46 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 3 completa** — el ciclo cierra y el aprendizaje persiste.
+**Fase 4 completa** — los 4 tools listos.
 
 - `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
   colgados, IDs duplicados) y lo navega en ambas direcciones
 - `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática
 - `storage.py`: `RepositorioSQLite` completo — WAL, transacciones atómicas,
   migraciones por `user_version`, idempotencia y retención
+- `tools.py`: `check_answer` (entiende números hablados en español, tolerante
+  con la forma y estricto con el valor), `BancoDeSesion`, `request_camera`,
+  `escalate_safety`
 - `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
   ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 73 tests en verde
+- 118 tests en verde
 
 ```
 python -m scripts.demo_planificador    # el cerebro
 python -m scripts.demo_persistencia    # el ciclo completo
+python -m scripts.demo_verificacion    # check_answer con voz
 ```
 
 **Pendiente conocido:** `madurez_vinculo` nunca sube — lo incrementa el Analista,
 que llega en la fase 6. Hasta entonces el tutor siempre cree que conoce poco al
 niño.
 
-Próximo: **fase 4** — los 4 tools, empezando por `check_answer`.
+Próximo: **fase 5** — `voice.py` + `session.py`: el tutor en vivo.
 
 Ver `ARCHITECTURE.md` §16 para el plan de fases.
+
+---
+
+## Lección aprendida (fase 4)
+
+Hay **dos** definiciones del nodo de currículum: `knowledge/curriculum/schema.json`
+(valida los YAML) y `models.Habilidad` (lo que usa el código). Pueden separarse
+sin que nada avise — pasó con `verificable_en_codigo`, que vivió solo en el JSON
+desde la fase 0: el YAML lo declaraba, jsonschema lo validaba, y Pydantic lo
+descartaba en silencio.
+
+→ `test_schema_json_y_el_modelo_pydantic_no_se_desincronizan` compara los dos
+conjuntos de campos. **Al agregar un campo hay que tocar los dos archivos.**
 
 ---
 

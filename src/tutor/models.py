@@ -66,6 +66,16 @@ class Habilidad(BaseModel):
     prerequisitos: list[str] = Field(default_factory=list, description="IDs de otras habilidades")
     alineacion: Alineacion = Field(default_factory=Alineacion)
 
+    verificable_en_codigo: bool = Field(
+        default=False,
+        description=(
+            "Si el código puede verificar la respuesta de forma determinística "
+            "(típico en matemáticas). Si es False, `check_answer` devuelve "
+            "REQUIERE_JUICIO en vez de inventar un veredicto — comprensión "
+            "lectora y redacción no se contestan con una comparación."
+        ),
+    )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ficha del niño  (mitad académica: la escribe el CÓDIGO)
