@@ -1,0 +1,173 @@
+# Grafo de habilidades — Matemáticas
+#
+# Cada nodo es una habilidad atómica. Las flechas (prerequisitos) dicen qué va
+# antes de qué. El planificador navega esto; no hay orden fijo de temario.
+#
+# ⚠️ PENDIENTE DE VERIFICACIÓN: las referencias a DBA son provisionales.
+#    Deben contrastarse con el documento oficial del MEN antes de producción:
+#    https://www.colombiaaprende.edu.co/contenidos/coleccion/derechos-basicos-de-aprendizaje
+#    Lo mismo con Core Knowledge (falta además confirmar licencia de uso).
+#
+# El campo `en` queda vacío hasta la fase de inglés — ver ARCHITECTURE.md §7.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cimientos (arrastre de 1°)
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.numeros.conteo_hasta_100
+  nombre:
+    es: "Contar hasta 100"
+  descripcion:
+    es: "Cuenta, lee y escribe números hasta 100, y reconoce el orden de la secuencia numérica."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos: []
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · conteo y secuencia numérica"
+    core_knowledge: "Grade 1 Mathematics — Numbers and number sense"
+  verificable_en_codigo: true
+
+- id: mat.numeros.valor_posicional_decenas
+  nombre:
+    es: "Decenas y unidades"
+  descripcion:
+    es: "Entiende que en un número de dos cifras la primera vale decenas y la segunda unidades; descompone 47 como 4 decenas y 7 unidades."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.conteo_hasta_100
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · valor posicional"
+    core_knowledge: "Grade 1 Mathematics — Place value: tens and ones"
+  verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Sistema numérico (2°)
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.numeros.valor_posicional_centenas
+  nombre:
+    es: "Centenas"
+  descripcion:
+    es: "Extiende el valor posicional a números de tres cifras; descompone 352 como 3 centenas, 5 decenas y 2 unidades."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.valor_posicional_decenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · valor posicional hasta 999"
+    core_knowledge: "Grade 2 Mathematics — Place value: hundreds"
+  verificable_en_codigo: true
+
+- id: mat.numeros.comparar_ordenar
+  nombre:
+    es: "Comparar y ordenar números"
+  descripcion:
+    es: "Compara dos números de hasta tres cifras usando mayor que, menor que e igual, y ordena una serie de menor a mayor."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.valor_posicional_centenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · comparación y orden"
+    core_knowledge: "Grade 2 Mathematics — Comparing and ordering numbers"
+  verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Suma (2°)
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.suma.sin_reagrupacion
+  nombre:
+    es: "Suma sin llevar"
+  descripcion:
+    es: "Suma dos números de dos cifras cuando ninguna columna pasa de 9, sumando unidades con unidades y decenas con decenas."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.valor_posicional_decenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · adición"
+    core_knowledge: "Grade 2 Mathematics — Addition without regrouping"
+  verificable_en_codigo: true
+
+- id: mat.suma.con_reagrupacion
+  nombre:
+    es: "Suma llevando"
+  descripcion:
+    es: "Suma dos números de dos cifras cuando las unidades pasan de 9, reagrupando diez unidades en una decena."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.suma.sin_reagrupacion
+    - mat.numeros.valor_posicional_decenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · adición con reagrupación"
+    core_knowledge: "Grade 2 Mathematics — Addition with regrouping"
+  verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Resta (2°)
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.resta.sin_desagrupacion
+  nombre:
+    es: "Resta sin prestar"
+  descripcion:
+    es: "Resta dos números de dos cifras cuando cada cifra de arriba es mayor o igual que la de abajo."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.valor_posicional_decenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · sustracción"
+    core_knowledge: "Grade 2 Mathematics — Subtraction without regrouping"
+  verificable_en_codigo: true
+
+- id: mat.resta.con_desagrupacion
+  nombre:
+    es: "Resta prestando"
+  descripcion:
+    es: "Resta dos números de dos cifras cuando hay que desagrupar una decena en diez unidades para poder restar."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.resta.sin_desagrupacion
+    - mat.numeros.valor_posicional_decenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · sustracción con desagrupación"
+    core_knowledge: "Grade 2 Mathematics — Subtraction with regrouping"
+  verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Aplicación (2°)
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.problemas.suma_resta
+  nombre:
+    es: "Problemas de suma y resta"
+  descripcion:
+    es: "Lee un problema en palabras, decide si hay que sumar o restar, y resuelve. Lo difícil no es la cuenta: es elegir la operación."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.suma.con_reagrupacion
+    - mat.resta.con_desagrupacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · problemas de composición y transformación"
+    core_knowledge: "Grade 2 Mathematics — Word problems"
+  verificable_en_codigo: true
+
+- id: mat.multiplicacion.grupos_iguales
+  nombre:
+    es: "Multiplicar como grupos iguales"
+  descripcion:
+    es: "Entiende la multiplicación como sumar varias veces el mismo número: 4 bolsas de 3 manzanas es 3+3+3+3, o sea 4×3."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.suma.con_reagrupacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · multiplicación como adición repetida"
+    core_knowledge: "Grade 2 Mathematics — Multiplication as repeated addition"
+  verificable_en_codigo: true

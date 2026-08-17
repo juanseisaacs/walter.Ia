@@ -118,8 +118,16 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 0 completa** — estructura y contratos. Sin lógica.
+**Fase 1 completa** — el grafo carga, se valida y se navega.
 
-Próximo: **fase 1** — loader y validador del grafo de habilidades.
+- `curriculum.py` implementado: rechaza ciclos, prerrequisitos colgados e IDs
+  duplicados, y dice exactamente dónde está el problema
+- `knowledge/curriculum/matematicas.yaml`: 10 habilidades de 1°-2°, ancladas
+  ⚠️ Las referencias a DBA son **provisionales** — verificar contra el
+  documento oficial del MEN antes de producción
+- 22 tests en verde
+
+Próximo: **fase 2** — `pedagogy.py`: dominio, decaimiento, planificador y
+escalera de pistas.
 
 Ver `ARCHITECTURE.md` §15 para el plan de fases.
