@@ -127,7 +127,7 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 4 completa** — los 4 tools listos.
+**Fase 5 completa** — el tutor en vivo, con la arquitectura de voz verificada.
 
 - `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
   colgados, IDs duplicados) y lo navega en ambas direcciones
@@ -137,21 +137,33 @@ python -m scripts.build_exercise_bank
 - `tools.py`: `check_answer` (entiende números hablados en español, tolerante
   con la forma y estricto con el valor), `BancoDeSesion`, `request_camera`,
   `escalate_safety`
+- `voice.py`: prompt de sesión, declaración de tools, detección de fin de turno
+  calibrada por edad, y token con la configuración **atada** (candado #1)
+- `session.py`: `Orquestador` — abre (precarga + presupuesto + token), registra
+  turnos con los dos niveles de seguridad, cierra y encola para el Analista
+- `knowledge/prompts/`: persona, playbook socrático, política de seguridad
 - `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
   ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 118 tests en verde
+- 161 tests en verde
 
 ```
 python -m scripts.demo_planificador    # el cerebro
 python -m scripts.demo_persistencia    # el ciclo completo
 python -m scripts.demo_verificacion    # check_answer con voz
+python -m scripts.verificar_gemini     # los 2 supuestos contra la API real
 ```
+
+**Arquitectura de voz verificada (2026-08-17):** `live_connect_constraints`
+funciona (el navegador no puede cambiar el prompt) y tool calling anda. El
+modelo `gemini-3.1-flash-live-preview` **solo devuelve AUDIO** — la entrada sí
+acepta texto.
 
 **Pendiente conocido:** `madurez_vinculo` nunca sube — lo incrementa el Analista,
 que llega en la fase 6. Hasta entonces el tutor siempre cree que conoce poco al
 niño.
 
-Próximo: **fase 5** — `voice.py` + `session.py`: el tutor en vivo.
+Próximo: **fase 6** — `pipeline.py` (los 4 agentes offline) + `evals/`.
+Después: `api.py` y el frontend.
 
 Ver `ARCHITECTURE.md` §17 para el plan de fases.
 
