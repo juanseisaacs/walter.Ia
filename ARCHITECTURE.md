@@ -290,12 +290,32 @@ prompt.
 están pensados para adultos; **un nene de 7 años hace pausas largas mientras
 piensa y el sistema le va a cortar la frase**. Ver §9.
 
-### Pendiente de verificar con API key real
+### ✅ Verificado con API key real (2026-08-17)
 
-1. **Que la configuración se pueda atar al token.** Si no existe, el candado 1
-   se cae y hay que reevaluar el proxy.
-2. **Que tool calling funcione en Live API.** Todo el diseño de los 4 tools lo
-   supone.
+`python -m scripts.verificar_gemini` — reproducible.
+
+| Supuesto | Resultado |
+|---|---|
+| **La configuración se puede atar al token** (`live_connect_constraints`) | ✅ **Confirmado.** El candado 1 existe. La persona, el playbook y la política de seguridad quedan fijados del lado del servidor |
+| **Tool calling en Live API** | ✅ **Confirmado.** El modelo llamó `check_answer({'ejercicio_id': 'e1', 'respuesta_nino': '42'})` sin ajustes |
+
+**Hallazgo no documentado:** `gemini-3.1-flash-live-preview` **solo devuelve
+AUDIO**. Pedirle `responseModalities: ["TEXT"]` falla con
+`1007 ... combination of response modalities (TEXT) is not supported`.
+La **entrada** sí acepta texto — que es exactamente lo que necesita la
+alternativa secundaria por escrito.
+
+**Modelos Live disponibles** (consultado con `models.list()`, no adivinado):
+
+| Modelo | Nota |
+|---|---|
+| `gemini-3.1-flash-live-preview` | **El nuestro** — baja latencia |
+| `gemini-2.5-flash-native-audio-latest` | Audio nativo, más expresivo. Vale probarlo |
+| `gemini-2.5-flash-native-audio-preview-12-2025` | Idem, versión fija |
+| `gemini-3.5-live-translate-preview` | Traducción — no aplica |
+
+Todos en *preview*: si un ID devuelve 404, volver a correr `models.list()` en
+vez de adivinar.
 
 ---
 

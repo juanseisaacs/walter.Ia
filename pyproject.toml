@@ -9,6 +9,7 @@ dependencies = [
     "pyyaml>=6.0",
     "jsonschema>=4.23",
     "anthropic>=0.40",
+    "google-genai>=1.0",
     "fastapi>=0.115",
     "uvicorn>=0.32",
     "python-dotenv>=1.0",

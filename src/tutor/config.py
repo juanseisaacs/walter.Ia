@@ -38,7 +38,16 @@ IDIOMA_POR_DEFECTO = "es"
 # Modelos
 # ─────────────────────────────────────────────────────────────────────────────
 
-MODELO_TUTOR_VOZ = os.getenv("MODELO_TUTOR_VOZ", "gemini-live")
+MODELO_TUTOR_VOZ = os.getenv("MODELO_TUTOR_VOZ", "gemini-3.1-flash-live-preview")
+"""Verificado disponible el 2026-08-17 con `client.models.list()`.
+
+Alternativas Live confirmadas en esa misma consulta:
+  · gemini-2.5-flash-native-audio-latest        (audio nativo, más expresivo)
+  · gemini-2.5-flash-native-audio-preview-12-2025
+  · gemini-3.5-live-translate-preview           (traducción, no aplica)
+
+Todas en preview: los IDs pueden cambiar. Si un día devuelve 404, volver a
+correr models.list() en vez de adivinar."""
 MODELO_ANALISTA = "claude-haiku-4-5"
 MODELO_VIGILANTE = "claude-haiku-4-5"
 MODELO_COMPANERO_PAPA = "claude-sonnet-5"
