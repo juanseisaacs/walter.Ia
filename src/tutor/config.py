@@ -1,0 +1,93 @@
+"""Configuración: rutas, llaves, presupuestos y política de retención.
+
+Los presupuestos y la retención NO son detalles operativos — son decisiones de
+arquitectura (ver ARCHITECTURE.md §12). Viven acá para que sean visibles y
+cambiables en un solo lugar.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rutas
+# ─────────────────────────────────────────────────────────────────────────────
+
+RAIZ = Path(__file__).resolve().parents[2]
+
+KNOWLEDGE = RAIZ / "knowledge"
+CURRICULUM = KNOWLEDGE / "curriculum"
+PROMPTS = KNOWLEDGE / "prompts"
+
+DATOS = RAIZ / "data"
+DB = DATOS / "tutor.db"
+TRANSCRIPCIONES = DATOS / "transcripts"
+REPORTES = DATOS / "reports"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Idioma
+# ─────────────────────────────────────────────────────────────────────────────
+
+IDIOMA_POR_DEFECTO = "es"
+"""Los prompts se cargan como {nombre}.{idioma}.md"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Modelos
+# ─────────────────────────────────────────────────────────────────────────────
+
+MODELO_TUTOR_VOZ = os.getenv("MODELO_TUTOR_VOZ", "gemini-live")
+MODELO_ANALISTA = "claude-haiku-4-5"
+MODELO_VIGILANTE = "claude-haiku-4-5"
+MODELO_COMPANERO_PAPA = "claude-sonnet-5"
+MODELO_GENERADOR = "claude-haiku-4-5"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Presupuestos — protegen el margen del negocio
+# ─────────────────────────────────────────────────────────────────────────────
+# Se cobra suscripción fija; sin techo, el costo por niño es ilimitado.
+
+MAX_MINUTOS_SESION = 45
+MAX_TOKENS_SESION = 150_000
+MAX_SESIONES_DIA = 3
+MAX_COSTO_MES_USD_POR_NINO = 8.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retención de datos de menores  (Ley 1581 CO / COPPA US)
+# ─────────────────────────────────────────────────────────────────────────────
+# El activo es la ficha estructurada, NO la conversación cruda. Una vez que el
+# Analista extrajo las señales, la transcripción ya cumplió su función.
+
+DIAS_RETENCION_TRANSCRIPCION = 30
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Latencia y seguridad en vivo
+# ─────────────────────────────────────────────────────────────────────────────
+
+EJERCICIOS_A_PRECARGAR = 15
+"""Se cargan en memoria al inicio. Durante la sesión, get_next_problem es ~0ms."""
+
+VENTANA_VIGILANTE = 4
+"""Turnos por ventana. Ventana y no turno suelto: un turno sin contexto es
+ambiguo; los patrones preocupantes viven ENTRE turnos."""
+
+SILENCIO_FIN_TURNO_MS = 1200
+"""Cuánto silencio esperar para decidir que el niño terminó de hablar.
+
+Los niños hacen pausas largas mientras piensan. Cortarlos ahí es lo peor que
+puede pasar en método socrático. A calibrar por edad."""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auditoría
+# ─────────────────────────────────────────────────────────────────────────────
+
+AUDITAR_PORCENTAJE_SESIONES = 1.0
+"""100%. El Analista ya lee todas las transcripciones; auditar el método sale
+casi gratis y permite decirle al papá 'se cumplió en las 12 sesiones del mes'
+en vez de 'en la muestra que revisamos'."""

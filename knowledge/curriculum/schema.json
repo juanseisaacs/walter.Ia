@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nodo del grafo de habilidades",
+  "description": "Valida los archivos YAML de knowledge/curriculum/. Cada nodo es una habilidad atómica con prerrequisitos explícitos, anclada a estándares curriculares reconocidos.",
+  "type": "object",
+  "required": ["id", "nombre", "descripcion", "materia", "grado_sugerido"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(mat|lec|esc)\\.[a-z0-9_]+(\\.[a-z0-9_]+)*$",
+      "description": "Llave estable, jerárquica, en snake_case. NUNCA se traduce ni se cambia. Ej: mat.suma.con_reagrupacion"
+    },
+    "nombre": {
+      "$ref": "#/$defs/textoLocalizado",
+      "description": "Nombre corto y legible de la habilidad"
+    },
+    "descripcion": {
+      "$ref": "#/$defs/textoLocalizado",
+      "description": "Qué debe poder hacer el niño cuando domina este nodo"
+    },
+    "materia": {
+      "enum": ["matematicas", "lectura", "escritura"]
+    },
+    "grado_sugerido": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Grado de referencia. NO es una restricción: el planificador usa dominio real, no edad"
+    },
+    "prerequisitos": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string",
+        "pattern": "^(mat|lec|esc)\\.[a-z0-9_]+(\\.[a-z0-9_]+)*$"
+      },
+      "description": "IDs de habilidades que deben estar dominadas antes. Forman un DAG — el validador rechaza ciclos"
+    },
+    "alineacion": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Anclaje a estándares. Responde '¿contra qué está alineado?' — criterio #1 de YC",
+      "properties": {
+        "dba_colombia": {
+          "type": "string",
+          "description": "Derecho Básico de Aprendizaje del MEN. Ej: 'DBA Matemáticas 2° · #3'"
+        },
+        "core_knowledge": {
+          "type": "string",
+          "description": "Core Knowledge Sequence. Ej: 'Grade 2 Mathematics — Addition with regrouping'"
+        }
+      }
+    },
+    "verificable_en_codigo": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si true, check_answer puede validar la respuesta de forma determinística (típico en matemáticas). Si false, requiere juicio del modelo (comprensión lectora, redacción)"
+    }
+  },
+  "$defs": {
+    "textoLocalizado": {
+      "type": "object",
+      "required": ["es"],
+      "additionalProperties": false,
+      "properties": {
+        "es": { "type": "string", "minLength": 1 },
+        "en": {
+          "type": "string",
+          "description": "Vacío hasta la fase de inglés. El campo existe desde el día 1 para evitar refactor"
+        }
+      }
+    }
+  }
+}

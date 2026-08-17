@@ -1,0 +1,26 @@
+# Datos en runtime — NUNCA se versionan.
+# Contienen datos de menores. Ver ARCHITECTURE.md §12.
+data/
+
+# Secretos
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Node (fase 7)
+node_modules/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
