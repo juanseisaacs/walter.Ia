@@ -9,10 +9,9 @@ Ver ARCHITECTURE.md §10 (ficha del niño) y §7 (grafo de habilidades).
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Base
@@ -30,7 +29,7 @@ class TextoLocalizado(BaseModel):
     en: str | None = None
 
 
-class Materia(str, Enum):
+class Materia(StrEnum):
     MATEMATICAS = "matematicas"
     LECTURA = "lectura"
     ESCRITURA = "escritura"
@@ -163,7 +162,7 @@ class Ejercicio(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class ModoSesion(str, Enum):
+class ModoSesion(StrEnum):
     GUIADO = "guiado"
     """El planificador elige el tema. Ejercicios del banco."""
 
@@ -171,7 +170,7 @@ class ModoSesion(str, Enum):
     """El niño trae su agenda (tarea, duda). Método socrático MÁS estricto."""
 
 
-class EstadoSesion(str, Enum):
+class EstadoSesion(StrEnum):
     ACTIVA = "activa"
     COMPLETADA = "completada"
     INTERRUMPIDA = "interrumpida"
@@ -203,7 +202,7 @@ class Sesion(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TipoObservacion(str, Enum):
+class TipoObservacion(StrEnum):
     ACIERTO = "acierto"
     ERROR = "error"
     PISTA_NECESARIA = "pista_necesaria"
@@ -250,7 +249,7 @@ class AnalisisSesion(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class NivelSeguridad(str, Enum):
+class NivelSeguridad(StrEnum):
     OK = "ok"
     ATENCION = "atencion"
     ALERTA = "alerta"
