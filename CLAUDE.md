@@ -123,18 +123,27 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 2 completa** — el cerebro pedagógico funciona, todo determinístico.
+**Fase 3 completa** — el ciclo cierra y el aprendizaje persiste.
 
 - `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
   colgados, IDs duplicados) y lo navega en ambas direcciones
-- `pedagogy.py`: dominio por media móvil, olvido con vida media dependiente de
-  consolidación y repeticiones, planificador con prioridad de repaso, y la
-  escalera socrática de 5 escalones
-- `matematicas.yaml`: 10 habilidades de 1°-2° con doble anclaje
+- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática
+- `storage.py`: `RepositorioSQLite` completo — WAL, transacciones atómicas,
+  migraciones por `user_version`, idempotencia y retención
+- `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
   ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 46 tests en verde · `python -m scripts.demo_planificador` para verlo correr
+- 73 tests en verde
 
-Próximo: **fase 3** — implementar `RepositorioSQLite`.
+```
+python -m scripts.demo_planificador    # el cerebro
+python -m scripts.demo_persistencia    # el ciclo completo
+```
+
+**Pendiente conocido:** `madurez_vinculo` nunca sube — lo incrementa el Analista,
+que llega en la fase 6. Hasta entonces el tutor siempre cree que conoce poco al
+niño.
+
+Próximo: **fase 4** — los 4 tools, empezando por `check_answer`.
 
 Ver `ARCHITECTURE.md` §16 para el plan de fases.
 

@@ -7,7 +7,7 @@ El día que haya servidor (necesario para las tiendas), se escribe una nueva
 implementación de esta interfaz y no se toca nada más.
 
 Reparto de responsabilidades — ver ARCHITECTURE.md §8:
-  · SQLite (data/tutor.db) → ficha del niño, sesiones. Escritura concurrente.
+  · SQLite (data/tutor.db) → ficha del niño, sesiones, banco. Escritura concurrente.
   · Archivos JSON          → transcripciones, reportes. Append-only.
   · knowledge/ (git)       → currículum y prompts. NO pasa por acá.
 
@@ -16,15 +16,29 @@ La interfaz se mantiene chica: los métodos que se usan, no un ORM.
 
 from __future__ import annotations
 
+import json
+import sqlite3
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from .models import Ejercicio, Nino, ReporteParaPapa, Sesion
+from .models import (
+    Ejercicio,
+    EstadoSesion,
+    ModoSesion,
+    Nino,
+    PerfilPersonal,
+    RegistroDominio,
+    ReporteParaPapa,
+    Sesion,
+    TextoLocalizado,
+)
 
 
 class Repositorio(ABC):
-    """Contrato de persistencia. Fase 3 implementa; fase 0 solo define."""
+    """Contrato de persistencia."""
 
     # ── Niños ────────────────────────────────────────────────────────────────
 
@@ -109,57 +123,414 @@ class Repositorio(ABC):
     def guardar_reporte(self, reporte: ReporteParaPapa) -> None: ...
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Esquema
+# ─────────────────────────────────────────────────────────────────────────────
+
+VERSION_ESQUEMA = 1
+
+_ESQUEMA_V1 = """
+CREATE TABLE ninos (
+    id          TEXT PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    edad        INTEGER NOT NULL,
+    grado       INTEGER NOT NULL,
+    idioma      TEXT NOT NULL DEFAULT 'es',
+    perfil      TEXT NOT NULL,               -- PerfilPersonal como JSON: es un
+    creado_en   TEXT                         -- documento, nunca se consulta por dentro
+);
+
+-- El dominio SÍ es tabla propia: es la consulta caliente del planificador.
+CREATE TABLE dominio (
+    nino_id             TEXT NOT NULL REFERENCES ninos(id) ON DELETE CASCADE,
+    habilidad_id        TEXT NOT NULL,
+    nivel               REAL NOT NULL DEFAULT 0.0,
+    intentos            INTEGER NOT NULL DEFAULT 0,
+    aciertos            INTEGER NOT NULL DEFAULT 0,
+    pistas_necesitadas  INTEGER NOT NULL DEFAULT 0,
+    primera_practica    TEXT,
+    ultima_practica     TEXT,
+    PRIMARY KEY (nino_id, habilidad_id)
+);
+
+CREATE TABLE sesiones (
+    id                      TEXT PRIMARY KEY,
+    nino_id                 TEXT NOT NULL REFERENCES ninos(id) ON DELETE CASCADE,
+    modo                    TEXT NOT NULL,
+    estado                  TEXT NOT NULL,
+    inicio                  TEXT NOT NULL,
+    fin                     TEXT,
+    habilidades_trabajadas  TEXT NOT NULL DEFAULT '[]',
+    tokens_consumidos       INTEGER NOT NULL DEFAULT 0,
+    analizada               INTEGER NOT NULL DEFAULT 0
+);
+
+-- Cola del Analista: parcial, porque solo interesan las no analizadas.
+CREATE INDEX idx_sesiones_sin_analizar ON sesiones(analizada) WHERE analizada = 0;
+CREATE INDEX idx_sesiones_nino_inicio  ON sesiones(nino_id, inicio);
+
+CREATE TABLE ejercicios (
+    id            TEXT PRIMARY KEY,
+    habilidad_id  TEXT NOT NULL,
+    enunciado     TEXT NOT NULL,
+    respuesta     TEXT NOT NULL,
+    tema          TEXT,
+    validado      INTEGER NOT NULL DEFAULT 0
+);
+
+-- Precarga al inicio de sesión: solo ejercicios validados.
+CREATE INDEX idx_ejercicios_precarga ON ejercicios(habilidad_id, tema) WHERE validado = 1;
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Utilidades de conversión
+# ─────────────────────────────────────────────────────────────────────────────
+# SQLite no tiene tipo fecha. Se guarda ISO-8601 y se convierte a mano: los
+# adaptadores automáticos de sqlite3 están deprecados desde Python 3.12.
+
+
+def _fecha_a_texto(valor: datetime | None) -> str | None:
+    return valor.isoformat() if valor else None
+
+
+def _texto_a_fecha(valor: str | None) -> datetime | None:
+    return datetime.fromisoformat(valor) if valor else None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Implementación
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 class RepositorioSQLite(Repositorio):
-    """Implementación por defecto: SQLite + archivos JSON.
+    """SQLite + archivos JSON.
 
     SQLite NO es un servidor — es un archivo. Sin proceso, sin Docker, sin
     connection string. Se copia, se versiona, se borra como cualquier archivo.
 
-    Fase 3 implementa estos métodos.
+    Configuración que importa (y por qué):
+      · WAL          → un escritor y varios lectores a la vez sin bloquearse.
+                       Es lo que evita el 'database is locked' de la sesión en
+                       vivo compitiendo con el pipeline offline.
+      · busy_timeout → si hay contención, espera en vez de fallar al instante.
+      · foreign_keys → SQLite las ignora salvo que se pidan explícitamente.
     """
 
-    def __init__(self, ruta_db: Path, ruta_datos: Path) -> None:
-        self.ruta_db = ruta_db
-        self.ruta_datos = ruta_datos
+    ESPERA_BLOQUEO_MS = 5_000
 
-    # Fase 3: implementar. El contrato de arriba es la especificación.
+    def __init__(self, ruta_db: Path, ruta_datos: Path) -> None:
+        self.ruta_db = Path(ruta_db)
+        self.ruta_datos = Path(ruta_datos)
+        self.ruta_transcripciones = self.ruta_datos / "transcripts"
+        self.ruta_reportes = self.ruta_datos / "reports"
+
+        self.ruta_db.parent.mkdir(parents=True, exist_ok=True)
+        self.ruta_transcripciones.mkdir(parents=True, exist_ok=True)
+        self.ruta_reportes.mkdir(parents=True, exist_ok=True)
+
+        self._migrar()
+
+    # ── Conexión ─────────────────────────────────────────────────────────────
+
+    @contextmanager
+    def _conectar(self) -> Iterator[sqlite3.Connection]:
+        con = sqlite3.connect(self.ruta_db, timeout=self.ESPERA_BLOQUEO_MS / 1000)
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA foreign_keys = ON")
+        con.execute(f"PRAGMA busy_timeout = {self.ESPERA_BLOQUEO_MS}")
+        try:
+            yield con
+            con.commit()
+        except Exception:
+            con.rollback()
+            raise
+        finally:
+            con.close()
+
+    def _migrar(self) -> None:
+        """Migraciones por `PRAGMA user_version`. Sin dependencias externas."""
+        with self._conectar() as con:
+            con.execute("PRAGMA journal_mode = WAL")  # persistente en el archivo
+            version = con.execute("PRAGMA user_version").fetchone()[0]
+            if version < 1:
+                con.executescript(_ESQUEMA_V1)
+            if version < VERSION_ESQUEMA:
+                con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
+
+    # ── Niños ────────────────────────────────────────────────────────────────
+
     def obtener_nino(self, nino_id: str) -> Nino | None:
-        raise NotImplementedError
+        with self._conectar() as con:
+            fila = con.execute("SELECT * FROM ninos WHERE id = ?", (nino_id,)).fetchone()
+            if fila is None:
+                return None
+
+            dominio = {
+                d["habilidad_id"]: RegistroDominio(
+                    habilidad_id=d["habilidad_id"],
+                    nivel=d["nivel"],
+                    intentos=d["intentos"],
+                    aciertos=d["aciertos"],
+                    pistas_necesitadas=d["pistas_necesitadas"],
+                    primera_practica=_texto_a_fecha(d["primera_practica"]),
+                    ultima_practica=_texto_a_fecha(d["ultima_practica"]),
+                )
+                for d in con.execute("SELECT * FROM dominio WHERE nino_id = ?", (nino_id,))
+            }
+
+        return Nino(
+            id=fila["id"],
+            nombre=fila["nombre"],
+            edad=fila["edad"],
+            grado=fila["grado"],
+            idioma=fila["idioma"],
+            dominio=dominio,
+            perfil=PerfilPersonal.model_validate_json(fila["perfil"]),
+            creado_en=_texto_a_fecha(fila["creado_en"]),
+        )
 
     def guardar_nino(self, nino: Nino) -> None:
-        raise NotImplementedError
+        """Las dos mitades en UNA transacción.
+
+        Si se guardara la ficha personal y fallara el dominio (o al revés), el
+        niño quedaría con mitades de momentos distintos. Acá o entra todo o no
+        entra nada.
+        """
+        with self._conectar() as con:
+            con.execute(
+                """
+                INSERT INTO ninos (id, nombre, edad, grado, idioma, perfil, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    nombre = excluded.nombre,
+                    edad   = excluded.edad,
+                    grado  = excluded.grado,
+                    idioma = excluded.idioma,
+                    perfil = excluded.perfil
+                """,
+                (
+                    nino.id,
+                    nino.nombre,
+                    nino.edad,
+                    nino.grado,
+                    nino.idioma,
+                    nino.perfil.model_dump_json(),
+                    _fecha_a_texto(nino.creado_en or datetime.now()),
+                ),
+            )
+            con.executemany(
+                """
+                INSERT INTO dominio (nino_id, habilidad_id, nivel, intentos, aciertos,
+                                     pistas_necesitadas, primera_practica, ultima_practica)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(nino_id, habilidad_id) DO UPDATE SET
+                    nivel              = excluded.nivel,
+                    intentos           = excluded.intentos,
+                    aciertos           = excluded.aciertos,
+                    pistas_necesitadas = excluded.pistas_necesitadas,
+                    primera_practica   = excluded.primera_practica,
+                    ultima_practica    = excluded.ultima_practica
+                """,
+                [
+                    (
+                        nino.id,
+                        r.habilidad_id,
+                        r.nivel,
+                        r.intentos,
+                        r.aciertos,
+                        r.pistas_necesitadas,
+                        _fecha_a_texto(r.primera_practica),
+                        _fecha_a_texto(r.ultima_practica),
+                    )
+                    for r in nino.dominio.values()
+                ],
+            )
+
+    # ── Sesiones ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _fila_a_sesion(fila: sqlite3.Row) -> Sesion:
+        return Sesion(
+            id=fila["id"],
+            nino_id=fila["nino_id"],
+            modo=ModoSesion(fila["modo"]),
+            estado=EstadoSesion(fila["estado"]),
+            inicio=_texto_a_fecha(fila["inicio"]),
+            fin=_texto_a_fecha(fila["fin"]),
+            habilidades_trabajadas=json.loads(fila["habilidades_trabajadas"]),
+            tokens_consumidos=fila["tokens_consumidos"],
+            analizada=bool(fila["analizada"]),
+        )
 
     def crear_sesion(self, sesion: Sesion) -> None:
-        raise NotImplementedError
+        with self._conectar() as con:
+            con.execute(
+                """
+                INSERT INTO sesiones (id, nino_id, modo, estado, inicio, fin,
+                                      habilidades_trabajadas, tokens_consumidos, analizada)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                self._valores_sesion(sesion),
+            )
 
     def obtener_sesion(self, sesion_id: str) -> Sesion | None:
-        raise NotImplementedError
+        with self._conectar() as con:
+            fila = con.execute("SELECT * FROM sesiones WHERE id = ?", (sesion_id,)).fetchone()
+        return self._fila_a_sesion(fila) if fila else None
 
     def actualizar_sesion(self, sesion: Sesion) -> None:
-        raise NotImplementedError
+        with self._conectar() as con:
+            con.execute(
+                """
+                UPDATE sesiones SET
+                    estado = ?, fin = ?, habilidades_trabajadas = ?,
+                    tokens_consumidos = ?, analizada = ?
+                WHERE id = ?
+                """,
+                (
+                    sesion.estado.value,
+                    _fecha_a_texto(sesion.fin),
+                    json.dumps(sesion.habilidades_trabajadas),
+                    sesion.tokens_consumidos,
+                    int(sesion.analizada),
+                    sesion.id,
+                ),
+            )
+
+    @staticmethod
+    def _valores_sesion(s: Sesion) -> tuple:
+        return (
+            s.id,
+            s.nino_id,
+            s.modo.value,
+            s.estado.value,
+            _fecha_a_texto(s.inicio),
+            _fecha_a_texto(s.fin),
+            json.dumps(s.habilidades_trabajadas),
+            s.tokens_consumidos,
+            int(s.analizada),
+        )
 
     def sesiones_sin_analizar(self) -> list[Sesion]:
-        raise NotImplementedError
+        with self._conectar() as con:
+            filas = con.execute(
+                "SELECT * FROM sesiones WHERE analizada = 0 ORDER BY inicio"
+            ).fetchall()
+        return [self._fila_a_sesion(f) for f in filas]
 
     def sesiones_de(self, nino_id: str, desde: datetime, hasta: datetime) -> list[Sesion]:
-        raise NotImplementedError
+        with self._conectar() as con:
+            filas = con.execute(
+                """
+                SELECT * FROM sesiones
+                WHERE nino_id = ? AND inicio >= ? AND inicio <= ?
+                ORDER BY inicio
+                """,
+                (nino_id, _fecha_a_texto(desde), _fecha_a_texto(hasta)),
+            ).fetchall()
+        return [self._fila_a_sesion(f) for f in filas]
+
+    # ── Banco de ejercicios ──────────────────────────────────────────────────
 
     def ejercicios_de(
         self, habilidad_id: str, limite: int = 15, tema: str | None = None
     ) -> list[Ejercicio]:
-        raise NotImplementedError
+        consulta = "SELECT * FROM ejercicios WHERE habilidad_id = ? AND validado = 1"
+        parametros: list = [habilidad_id]
+        if tema is not None:
+            consulta += " AND tema = ?"
+            parametros.append(tema)
+        # Al azar: el niño no debe recibir siempre los mismos ejercicios.
+        consulta += " ORDER BY RANDOM() LIMIT ?"
+        parametros.append(limite)
+
+        with self._conectar() as con:
+            filas = con.execute(consulta, parametros).fetchall()
+
+        return [
+            Ejercicio(
+                id=f["id"],
+                habilidad_id=f["habilidad_id"],
+                enunciado=TextoLocalizado.model_validate_json(f["enunciado"]),
+                respuesta=f["respuesta"],
+                tema=f["tema"],
+                validado=bool(f["validado"]),
+            )
+            for f in filas
+        ]
 
     def guardar_ejercicios(self, ejercicios: list[Ejercicio]) -> None:
-        raise NotImplementedError
+        with self._conectar() as con:
+            con.executemany(
+                """
+                INSERT INTO ejercicios (id, habilidad_id, enunciado, respuesta, tema, validado)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    enunciado = excluded.enunciado,
+                    respuesta = excluded.respuesta,
+                    tema      = excluded.tema,
+                    validado  = excluded.validado
+                """,
+                [
+                    (
+                        e.id,
+                        e.habilidad_id,
+                        e.enunciado.model_dump_json(),
+                        e.respuesta,
+                        e.tema,
+                        int(e.validado),
+                    )
+                    for e in ejercicios
+                ],
+            )
+
+    # ── Transcripciones (archivos, no SQLite) ────────────────────────────────
+
+    def _ruta_transcripcion(self, sesion_id: str) -> Path:
+        # El id viene de adentro del sistema, pero igual se aísla el nombre:
+        # nunca se construye una ruta con texto sin sanear.
+        return self.ruta_transcripciones / f"{Path(sesion_id).name}.txt"
 
     def guardar_transcripcion(self, sesion_id: str, contenido: str) -> None:
-        raise NotImplementedError
+        self._ruta_transcripcion(sesion_id).write_text(contenido, encoding="utf-8")
 
     def obtener_transcripcion(self, sesion_id: str) -> str | None:
-        raise NotImplementedError
+        ruta = self._ruta_transcripcion(sesion_id)
+        return ruta.read_text(encoding="utf-8") if ruta.exists() else None
 
     def borrar_transcripciones_anteriores_a(self, fecha: datetime) -> int:
-        raise NotImplementedError
+        """Retención de datos de menores.
+
+        La fecha de la sesión manda (es el dato real), no la fecha del archivo.
+        Los archivos huérfanos —sin sesión asociada— se barren por mtime, para
+        que nada quede sin borrar por un hueco en la base.
+        """
+        with self._conectar() as con:
+            viejas = {
+                f["id"]
+                for f in con.execute(
+                    "SELECT id FROM sesiones WHERE inicio < ?", (_fecha_a_texto(fecha),)
+                )
+            }
+            conocidas = {f["id"] for f in con.execute("SELECT id FROM sesiones")}
+
+        borradas = 0
+        for ruta in self.ruta_transcripciones.glob("*.txt"):
+            sesion_id = ruta.stem
+            if sesion_id in viejas:
+                ruta.unlink()
+                borradas += 1
+            elif sesion_id not in conocidas:  # huérfano
+                if datetime.fromtimestamp(ruta.stat().st_mtime) < fecha:
+                    ruta.unlink()
+                    borradas += 1
+        return borradas
+
+    # ── Reportes (archivos) ──────────────────────────────────────────────────
 
     def guardar_reporte(self, reporte: ReporteParaPapa) -> None:
-        raise NotImplementedError
+        nombre = f"{Path(reporte.nino_id).name}_{reporte.hasta:%Y-%m-%d}.json"
+        (self.ruta_reportes / nombre).write_text(
+            reporte.model_dump_json(indent=2), encoding="utf-8"
+        )
