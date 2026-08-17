@@ -158,12 +158,16 @@ funciona (el navegador no puede cambiar el prompt) y tool calling anda. El
 modelo `gemini-3.1-flash-live-preview` **solo devuelve AUDIO** — la entrada sí
 acepta texto.
 
-**Pendiente conocido:** `madurez_vinculo` nunca sube — lo incrementa el Analista,
-que llega en la fase 6. Hasta entonces el tutor siempre cree que conoce poco al
-niño.
+**`pipeline.py` implementado** — Analista (señales + auditoría en una llamada),
+Vigilante, métricas en código y reporte al papá con verificación de que no
+invente números. `aplicar_analisis()` cierra el circuito adaptativo: el
+pendiente de `madurez_vinculo` quedó resuelto, ahora sube en cada sesión.
 
-Próximo: **fase 6** — `pipeline.py` (los 4 agentes offline) + `evals/`.
-Después: `api.py` y el frontend.
+⚠️ **Falta `ANTHROPIC_API_KEY` en `.env`** — sin ella los agentes offline corren
+solo con `ClienteFalso`. Los tests no la necesitan; una prueba real sí.
+
+Próximo: **`evals/`** — los niños simulados que intentan sacarle la respuesta al
+tutor, organizados en los 4 criterios de YC. Después: `api.py` y el frontend.
 
 Ver `ARCHITECTURE.md` §17 para el plan de fases.
 
