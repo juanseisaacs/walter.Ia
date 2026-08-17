@@ -27,7 +27,11 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 `ARCHITECTURE.md`.
 
 ### Latencia
-- **Nada dentro del turno hace una llamada de red, excepto el modelo de voz.**
+- **La respuesta hablada del tutor nunca espera a nuestra infraestructura.**
+  Un tool call es la excepción explícita (ocasional, ~100ms). Lo que no se
+  admite es el backend en el camino de cada palabra.
+- **El audio va directo del navegador a Gemini.** El backend controla, no
+  transporta. Ver `ARCHITECTURE.md` §10.
 - El **Vigilante corre en paralelo** — jamás bloquea la respuesta del tutor.
 - Los ejercicios se **precargan al inicio** de la sesión, nunca durante.
 - El prompt de sesión se mantiene flaco: persona + playbook + resumen compacto +
@@ -149,7 +153,7 @@ niño.
 
 Próximo: **fase 5** — `voice.py` + `session.py`: el tutor en vivo.
 
-Ver `ARCHITECTURE.md` §16 para el plan de fases.
+Ver `ARCHITECTURE.md` §17 para el plan de fases.
 
 ---
 

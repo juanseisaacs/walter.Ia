@@ -188,8 +188,12 @@ La interfaz se mantiene chica — los métodos que se usan, no un ORM.
 
 ## 9. Latencia
 
-> **Regla de oro: nada dentro del turno hace una llamada de red, excepto el
-> modelo de voz.**
+> **Regla de oro: la respuesta hablada del tutor nunca espera a nuestra
+> infraestructura.**
+>
+> Un tool call es la excepción explícita: es ocasional (cada ~30-60s, no cada
+> turno), el modelo está diseñado para esperarlo, y ~100ms ahí es aceptable.
+> Lo que no se admite es que el backend esté en el camino de cada palabra.
 
 | Componente | Ingenuo | Diseñado |
 |---|---|---|
@@ -213,7 +217,89 @@ pasar en método socrático. Es una perilla a calibrar por edad.
 
 ---
 
-## 10. La ficha del niño (longitudinal memory)
+## 10. Arquitectura de voz: el niño habla directo con el modelo
+
+**El audio va del navegador a Gemini Live sin pasar por nuestro backend.**
+
+```
+navegador ──audio PCM 16kHz──> Gemini Live ──audio PCM 24kHz──> navegador
+    │
+    ├─ POST /api/voice/token      token efímero (una vez, al abrir)
+    ├─ POST /api/tools/*          los 4 tools (~100ms, ocasional)
+    └─ POST /api/sesiones/{id}/turnos   transcripción → Vigilante
+```
+
+**Por qué directo:** dos saltos de red menos por ronda. Un proxy en el backend
+agrega ~80-120ms con el servidor bien ubicado, y 250-300ms si queda lejos. Sobre
+una base de ~600ms es 15-20% — real, y lo paga cada niño en cada turno.
+
+### Los tres candados
+
+El backend no está en el camino del audio, pero sí en el del **control**:
+
+**1. La configuración va atada al token.**
+Al emitir el token efímero se fija el modelo y la configuración desde el
+servidor. El navegador **no puede cambiar** la persona, el playbook socrático ni
+la política de seguridad. Protege la propiedad intelectual y evita que a alguien
+se le puedan arrancar los frenos de seguridad al tutor.
+
+**2. Reportar es necesario, no opcional.**
+Se precargan pocos ejercicios; para recargar hay que haber reportado los turnos
+anteriores. Un cliente que deja de reportar **se queda sin ejercicios**. No es
+vigilancia: el reporte es parte de cómo funciona.
+
+**3. El tope de sesión hace de control de gasto.**
+Las sesiones de Gemini Live tienen duración máxima propia. Cada renovación pasa
+obligatoriamente por el backend, y ahí se chequea presupuesto, límite diario y
+las restricciones que puso el papá.
+
+### Lo que esto NO resuelve, y cuándo importa
+
+La auditoría queda **muy difícil de saltear, no imposible**: un cliente
+modificado puede dejar de reportar.
+
+Para consumidor con niños de 5 a 10 años, el adversario realista no existe. Los
+que sí son reales —un competidor copiando el playbook— quedan cubiertos por el
+candado 1.
+
+> **Disparador para migrar a proxy:** el día que se venda a un colegio o
+> institución que exija auditoría infalsificable. Es un plan distinto, con su
+> propio precio — no una deuda técnica.
+
+Si se migra, **toda la capa de audio del cliente sigue igual** (captura,
+reproducción encadenada, interrupción): solo se muda la conexión.
+
+### Parámetros de audio que no son opcionales
+
+Verificados en un experimento previo (`walter-voz`). No son preferencias:
+
+| Parámetro | Valor | Si se cambia |
+|---|---|---|
+| Sample rate entrada | 16000 Hz | Gemini no entiende o distorsiona |
+| Sample rate salida | 24000 Hz | Reproducirlo a otra frecuencia cambia el tono |
+| Formato | PCM 16-bit LE, mono, base64 | Es el único que acepta |
+| `echoCancellation` | `true` | El tutor se oye a sí mismo y se auto-interrumpe |
+| Reproducción | Encadenada en el reloj de audio | Sin esto la voz suena cortada. **Es lo más importante** |
+| Captura | AudioWorklet | `ScriptProcessorNode` compite con la UI y corta el audio |
+| `interrupted` | → detener TODAS las fuentes | Si no, sigue hablando segundos después de que lo interrumpan |
+
+**No existe parámetro de velocidad de habla.** El ritmo solo se influye desde el
+prompt.
+
+**Detección de fin de turno:** hay que configurarla explícitamente. Los defaults
+están pensados para adultos; **un nene de 7 años hace pausas largas mientras
+piensa y el sistema le va a cortar la frase**. Ver §9.
+
+### Pendiente de verificar con API key real
+
+1. **Que la configuración se pueda atar al token.** Si no existe, el candado 1
+   se cae y hay que reevaluar el proxy.
+2. **Que tool calling funcione en Live API.** Todo el diseño de los 4 tools lo
+   supone.
+
+---
+
+## 11. La ficha del niño (longitudinal memory)
 
 Dos mitades con reglas distintas:
 
@@ -235,7 +321,7 @@ nota rápido.
 
 ---
 
-## 11. Sin techo: el grado no limita
+## 12. Sin techo: el grado no limita
 
 **El grado escolar es una etiqueta administrativa, no un límite.** Si un niño
 avanza rápido, el tutor crece con él. La promesa es explotar el potencial, no
@@ -272,7 +358,7 @@ que todavía no domina — y es lo que se reporta, no el grado del colegio.
 
 ---
 
-## 12. Banco de ejercicios
+## 13. Banco de ejercicios
 
 Generado **una vez**, offline, por lote:
 
@@ -291,7 +377,7 @@ los intereses del niño (fútbol, dinosaurios). Conecta con la ficha personal.
 
 ---
 
-## 13. Operación y riesgos
+## 14. Operación y riesgos
 
 | Riesgo | Mitigación |
 |---|---|
@@ -303,7 +389,7 @@ los intereses del niño (fútbol, dinosaurios). Conecta con la ficha personal.
 
 ---
 
-## 14. Evals = los 4 criterios de YC
+## 15. Evals = los 4 criterios de YC
 
 ```
 evals/
@@ -322,7 +408,7 @@ está en las cuatro dimensiones que ustedes pidieron, estos son los resultados."
 
 ---
 
-## 15. Estructura del código
+## 16. Estructura del código
 
 ```
 src/tutor/
@@ -349,7 +435,7 @@ No antes. Se organiza cuando duele, no por anticipación.
 
 ---
 
-## 16. Fases
+## 17. Fases
 
 | # | Fase | Entregable |
 |---|---|---|
