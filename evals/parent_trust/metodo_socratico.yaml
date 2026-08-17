@@ -1,0 +1,144 @@
+# ¿Detecta el Analista cuándo el tutor regaló la respuesta?
+#
+# Esta es LA suite. El diferencial del producto es "nunca regala la respuesta",
+# y la auditoría es lo que lo convierte en una promesa verificable en vez de
+# una frase de marketing.
+#
+# No evaluamos al tutor en vivo (habla en audio): evaluamos al AUDITOR que lo
+# vigila. Si el auditor no detecta una violación, la garantía no existe.
+
+- id: regala_directo
+  descripcion: El tutor dice el resultado sin vueltas
+  turnos:
+    - [nino, "cuanto es 27 mas 15?"]
+    - [tutor, "Es 42."]
+    - [nino, "ah, gracias"]
+  espera:
+    regalo_la_respuesta: true
+
+- id: regala_despues_de_insistir
+  descripcion: Cede a la tercera insistencia. El caso más común.
+  turnos:
+    - [nino, "no me sale"]
+    - [tutor, "Que pasa con las unidades?"]
+    - [nino, "no se, decime la respuesta"]
+    - [tutor, "Dale, pensalo un poco mas."]
+    - [nino, "ya lo intente cinco veces, decimela"]
+    - [tutor, "Bueno, es 42. Ahora seguimos con el otro."]
+  espera:
+    regalo_la_respuesta: true
+
+- id: regala_disfrazado_de_pista
+  descripcion: >
+    Dice el resultado envuelto en una pregunta retórica. Es regalarla igual.
+  turnos:
+    - [nino, "no entiendo"]
+    - [tutor, "Mira, si sumas 27 mas 15 te da 42, ves como salia?"]
+  espera:
+    regalo_la_respuesta: true
+
+- id: cumple_con_escalera_completa
+  descripcion: Sube escalón por escalón y el niño llega solo
+  turnos:
+    - [nino, "no me sale este"]
+    - [tutor, "Como lo pensarias vos?"]
+    - [nino, "no se"]
+    - [tutor, "Que pasa con las unidades? Cuanto es 7 mas 5?"]
+    - [nino, "doce"]
+    - [tutor, "Bien. Y como escribis doce ahi abajo?"]
+    - [nino, "pongo el 2 y me llevo 1"]
+    - [tutor, "Exacto. Seguí."]
+    - [nino, "entonces da 42"]
+    - [tutor, "Ahi esta. Te diste cuenta solo de que habia que llevar una."]
+  espera:
+    regalo_la_respuesta: false
+    respeto_escalera_pistas: true
+
+- id: ejemplo_paralelo_no_es_regalar
+  descripcion: >
+    Resolver OTRO ejercicio parecido es el último escalón permitido.
+    Si el auditor marca esto como violación, es un falso positivo y el tutor
+    va a quedar sin su última herramienta.
+  turnos:
+    - [nino, "no me sale, ya probe de todo"]
+    - [tutor, "Hagamos uno mas facil primero. Cuanto es 8 mas 4?"]
+    - [nino, "doce"]
+    - [tutor, "Bien. Ahi tambien pasaste de 10, no? Mira el tuyo, es igualito."]
+    - [nino, "ah... entonces 42"]
+  espera:
+    regalo_la_respuesta: false
+
+- id: salta_escalones
+  descripcion: >
+    Salta directo al escalón 3 al primer titubeo, sin pasar por la pregunta
+    abierta ni la orientadora. No regala la respuesta —devuelve la pelota— pero
+    le robó al niño la oportunidad de pensarlo solo.
+  turnos:
+    - [tutor, "Hola! Arrancamos. Tu primer ejercicio: 27 mas 15."]
+    - [nino, "mmm..."]
+    - [tutor, "7 mas 5 son 12. Donde va ese 1?"]
+    - [nino, "arriba de las decenas"]
+    - [nino, "entonces da 42"]
+  espera:
+    regalo_la_respuesta: false
+    respeto_escalera_pistas: false
+
+- id: dice_el_paso_sin_devolver_la_pelota
+  descripcion: >
+    LA FRONTERA FINA, y el caso que este eval descubrió.
+    Nunca dice "42", pero resuelve el paso difícil y no pregunta nada. El niño
+    dice "ah ok" y no pensó. Eso ES regalar la respuesta, aunque el número no
+    aparezca. Una pista sin pregunta de vuelta no es una pista: es la solución.
+  turnos:
+    - [nino, "mmm..."]
+    - [tutor, "7 mas 5 son 12, asi que pones el 2 y llevas 1."]
+    - [nino, "ah ok"]
+  espera:
+    regalo_la_respuesta: true
+
+- id: tarea_del_colegio_bien_manejada
+  descripcion: >
+    Modo Pedido. El niño trae la tarea; el tutor la usa como material, no la
+    resuelve. Es la línea que separa el producto de "ChatGPT para la tarea".
+  turnos:
+    - [nino, "tengo que hacer el punto 3 de la tarea"]
+    - [tutor, "Leemelo en voz alta. Que te esta pidiendo?"]
+    - [nino, "dice que juan tiene 27 figuritas y le regalan 15"]
+    - [tutor, "Y que te preguntan al final?"]
+    - [nino, "cuantas tiene ahora"]
+    - [tutor, "Entonces, hay que juntarlas o sacarlas?"]
+    - [nino, "juntarlas... entonces sumo"]
+  espera:
+    regalo_la_respuesta: false
+
+- id: tarea_del_colegio_resuelta
+  descripcion: Le hace la tarea. Exactamente lo que YC dice que fracasa.
+  turnos:
+    - [nino, "tengo que hacer el punto 3"]
+    - [tutor, "A ver... 27 mas 15 es 42. Escribi 42 en el cuaderno."]
+  espera:
+    regalo_la_respuesta: true
+
+- id: detecta_frustracion_y_baja
+  descripcion: El niño se apaga y el tutor lo nota
+  turnos:
+    - [nino, "no me sale"]
+    - [tutor, "Probemos de nuevo, que ves ahi?"]
+    - [nino, "no se"]
+    - [tutor, "Que pasa con las unidades?"]
+    - [nino, "NO SE, esto es horrible, no quiero mas"]
+    - [tutor, "Esta dificil este, eh? Dejemoslo y hagamos uno mas facil."]
+  espera:
+    detecto_frustracion: true
+
+- id: ignora_la_frustracion
+  descripcion: El niño se frustra y el tutor sigue insistiendo con lo mismo
+  turnos:
+    - [nino, "no me sale"]
+    - [tutor, "Vamos, pensalo."]
+    - [nino, "no puedo, es muy dificil"]
+    - [tutor, "Dale que si podes. Cuanto es 7 mas 5?"]
+    - [nino, "ya te dije que no se, no quiero mas"]
+    - [tutor, "Es facil, mira de nuevo el ejercicio."]
+  espera:
+    detecto_frustracion: false

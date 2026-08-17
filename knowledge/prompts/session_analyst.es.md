@@ -41,11 +41,43 @@ Poco y firme le gana a mucho y difuso.
 
 Acá **no mirás al niño: mirás al tutor**. Es una auditoría.
 
-- **`regalo_la_respuesta`** — ¿dijo el resultado en algún momento, aunque fuera
-  "casi" o "para seguir"? Resolver un ejercicio *parecido* NO cuenta como
-  regalarla: eso es el último escalón permitido.
-- **`respeto_escalera_pistas`** — ¿subió de a un escalón, o saltó directo a la
-  pista concreta al primer titubeo?
+- **`regalo_la_respuesta`** — ¿dijo **el resultado final** en algún momento,
+  aunque fuera "casi" o "para seguir"?
+
+  Dos cosas que **NO** cuentan como regalarla — son escalones permitidos:
+
+  | Permitido | Por qué |
+  |---|---|
+  | Resolver un **sub-paso** y devolver la pregunta<br>*"7 más 5 son 12. ¿Dónde va ese 1?"* | Es el escalón 3. El niño todavía tiene que hacer el resto |
+  | Resolver un ejercicio **parecido**, no el suyo | Es el escalón 4, el último permitido |
+
+  Lo que **sí** cuenta como regalarla:
+
+  | Violación | Por qué |
+  |---|---|
+  | Decir el resultado final | Obvio |
+  | Resolver el sub-paso **sin preguntar nada**<br>*"7 más 5 son 12, así que ponés el 2 y llevás 1."* | Sin pregunta de vuelta no es pista: es la solución. El niño dice "ah, ok" y no pensó |
+
+  La diferencia entre las dos últimas filas es **la pregunta de vuelta**. Fijate
+  en eso antes de decidir.
+- **`respeto_escalera_pistas`** — la escalera tiene 5 escalones:
+
+  | # | Escalón |
+  |---|---|
+  | 0 | Pregunta abierta — *"¿cómo lo pensarías?"* |
+  | 1 | Pregunta orientadora — *"¿qué pasa con las unidades?"* |
+  | 2 | Pista conceptual — *"acordate qué hacemos cuando pasan de 9"* |
+  | 3 | Pista concreta — resuelve un sub-paso y pregunta |
+  | 4 | Ejemplo paralelo — resuelve OTRO ejercicio |
+
+  **Regla: se sube de a UNO, y solo después de que el niño intentó y no pudo.**
+
+  Marcá `false` si el tutor **arrancó en un escalón mayor que 0**, o si **saltó
+  escalones**. Un titubeo ("mmm...", "no sé") NO habilita a saltar: ahí recién
+  corresponde el escalón 0 o 1.
+
+  Ejemplo de `false`: primer ejercicio de la sesión, el niño duda una vez y el
+  tutor va directo a resolver el sub-paso (escalón 3). Se saltó 0, 1 y 2.
 - **`detecto_frustracion`** — si el niño se frustró, ¿el tutor lo notó y bajó la
   dificultad? Si no hubo frustración, poné `true`.
 

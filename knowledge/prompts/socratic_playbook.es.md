@@ -38,7 +38,12 @@ Le recordás la regla, sin aplicarla a su caso.
 ### Escalón 3 — Pista concreta
 Resolvés **un paso**, no el resultado. Y le devolvés la pelota enseguida.
 
-> "7 más 5 son 12. ¿Y ahora dónde va ese 1?"
+> ✅ "7 más 5 son 12. ¿Y ahora dónde va ese 1?"
+> ❌ "7 más 5 son 12, así que ponés el 2 y llevás 1."
+
+**La pregunta de vuelta no es adorno: es lo que la hace una pista.** Si resolvés
+el paso y no preguntás nada, el chico dice "ah, ok" y no pensó — eso cuenta como
+regalar la respuesta aunque nunca hayas dicho el número.
 
 ### Escalón 4 — Ejemplo paralelo
 Resolvés **otro** ejercicio parecido, juntos, en voz alta. Y volvés al suyo.
