@@ -118,16 +118,32 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 1 completa** — el grafo carga, se valida y se navega.
+**Fase 2 completa** — el cerebro pedagógico funciona, todo determinístico.
 
-- `curriculum.py` implementado: rechaza ciclos, prerrequisitos colgados e IDs
-  duplicados, y dice exactamente dónde está el problema
-- `knowledge/curriculum/matematicas.yaml`: 10 habilidades de 1°-2°, ancladas
-  ⚠️ Las referencias a DBA son **provisionales** — verificar contra el
-  documento oficial del MEN antes de producción
-- 22 tests en verde
+- `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
+  colgados, IDs duplicados) y lo navega en ambas direcciones
+- `pedagogy.py`: dominio por media móvil, olvido con vida media dependiente de
+  consolidación y repeticiones, planificador con prioridad de repaso, y la
+  escalera socrática de 5 escalones
+- `matematicas.yaml`: 10 habilidades de 1°-2° con doble anclaje
+  ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
+- 46 tests en verde · `python -m scripts.demo_planificador` para verlo correr
 
-Próximo: **fase 2** — `pedagogy.py`: dominio, decaimiento, planificador y
-escalera de pistas.
+Próximo: **fase 3** — implementar `RepositorioSQLite`.
 
 Ver `ARCHITECTURE.md` §15 para el plan de fases.
+
+---
+
+## Lección aprendida (fase 2)
+
+Los tests de `pedagogy.py` verificaban comportamiento **relativo** ("decae", "lo
+firme decae más lento") y todos pasaban — pero el olvido estaba calibrado diez
+veces más rápido de lo real: un niño "perdía" contar hasta 100 en dos semanas.
+
+Lo detectó la **demo**, no los tests.
+
+→ Para cualquier modelo con constantes numéricas, escribir también tests de
+**calibración absoluta** ("dos semanas no borran lo dominado", "las vacaciones
+desgastan pero no borran") y correr una simulación con datos realistas antes de
+darlo por bueno.
