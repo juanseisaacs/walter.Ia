@@ -50,6 +50,11 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 - **Ayudar con la tarea ≠ hacer la tarea.** La tarea es materia prima para
   tutoría socrática. Si se cruza esa línea, somos lo que YC dice que fracasa.
 - El modo Pedido exige método socrático **más estricto**, no más laxo.
+- **SIN TECHO: el grado escolar nunca limita.** Si el niño tiene los
+  prerrequisitos, se le ofrece el contenido — tenga la edad que tenga. Ningún
+  filtro puede descartar una habilidad por `grado_sugerido`; el planificador
+  decide por dominio. Cuando va adelantado, el tutor lo sabe (no lo frena) y el
+  papá se entera (va en el reporte).
 
 ### Datos
 - **Las transcripciones se borran a los N días.** El activo es la ficha
@@ -131,7 +136,7 @@ python -m scripts.build_exercise_bank
 
 Próximo: **fase 3** — implementar `RepositorioSQLite`.
 
-Ver `ARCHITECTURE.md` §15 para el plan de fases.
+Ver `ARCHITECTURE.md` §16 para el plan de fases.
 
 ---
 

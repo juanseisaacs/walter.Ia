@@ -235,7 +235,44 @@ nota rápido.
 
 ---
 
-## 11. Banco de ejercicios
+## 11. Sin techo: el grado no limita
+
+**El grado escolar es una etiqueta administrativa, no un límite.** Si un niño
+avanza rápido, el tutor crece con él. La promesa es explotar el potencial, no
+contenerlo dentro de lo que "corresponde" a su edad.
+
+Esto no es una feature aparte: es una consecuencia de que el planificador decida
+por **dominio** y no por grado. `habilidades_disponibles` devuelve todo lo que
+tenga prerrequisitos cumplidos, sin mirar `grado_sugerido`.
+
+**Asimetría deliberada en el planificador:**
+
+```python
+distancia_grado = max(0, nino.grado - h.grado_sugerido)
+```
+
+Subir de grado **no se penaliza nunca**; solo se prefiere no bajar sin
+necesidad. Si un niño llegó a contenido de tres grados más arriba es porque
+tiene los prerrequisitos — y entonces se lo ganó.
+
+**Tres consecuencias:**
+
+| Dónde | Qué pasa |
+|---|---|
+| **El planificador** | Ofrece contenido superior en cuanto los prerrequisitos están dominados |
+| **El tutor** | El resumen de sesión le avisa: *"VA ADELANTADO — no lo frenes ni bajes la exigencia"* |
+| **El papá** | `adelanto_grados` va en el reporte. *"Tu hijo trabaja un grado por encima"* es de lo más potente que puede leer |
+
+**Implicación para el currículum:** el grafo tiene que tener siempre cabeza de
+pista por encima del grado del niño. Un grafo que termina en 5° le pone un techo
+real a un chico de 5° veloz. Cuando el contenido se agote, se extiende.
+
+`grado_de_trabajo()` mide dónde está el niño **de verdad** — el grado más bajo
+que todavía no domina — y es lo que se reporta, no el grado del colegio.
+
+---
+
+## 12. Banco de ejercicios
 
 Generado **una vez**, offline, por lote:
 
@@ -254,7 +291,7 @@ los intereses del niño (fútbol, dinosaurios). Conecta con la ficha personal.
 
 ---
 
-## 12. Operación y riesgos
+## 13. Operación y riesgos
 
 | Riesgo | Mitigación |
 |---|---|
@@ -266,7 +303,7 @@ los intereses del niño (fútbol, dinosaurios). Conecta con la ficha personal.
 
 ---
 
-## 13. Evals = los 4 criterios de YC
+## 14. Evals = los 4 criterios de YC
 
 ```
 evals/
@@ -285,7 +322,7 @@ está en las cuatro dimensiones que ustedes pidieron, estos son los resultados."
 
 ---
 
-## 14. Estructura del código
+## 15. Estructura del código
 
 ```
 src/tutor/
@@ -312,7 +349,7 @@ No antes. Se organiza cuando duele, no por anticipación.
 
 ---
 
-## 15. Fases
+## 16. Fases
 
 | # | Fase | Entregable |
 |---|---|---|

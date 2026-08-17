@@ -171,3 +171,53 @@
     dba_colombia: "DBA Matemáticas 2° · multiplicación como adición repetida"
     core_knowledge: "Grade 2 Mathematics — Multiplication as repeated addition"
   verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cabeza de pista (3°) — SIN TECHO
+#
+# Estos nodos existen para que un niño de 2° que avanza rápido tenga a dónde
+# seguir. El grado es una etiqueta, no un límite: si tiene los prerrequisitos,
+# el planificador se lo ofrece. Ver ARCHITECTURE.md §11.
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: mat.multiplicacion.tablas
+  nombre:
+    es: "Tablas de multiplicar"
+  descripcion:
+    es: "Recuerda de memoria los productos hasta 10×10 y los usa para resolver sin contar de a uno."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.multiplicacion.grupos_iguales
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · multiplicación"
+    core_knowledge: "Grade 3 Mathematics — Multiplication facts"
+  verificable_en_codigo: true
+
+- id: mat.division.reparto_equitativo
+  nombre:
+    es: "Dividir repartiendo en partes iguales"
+  descripcion:
+    es: "Entiende la división como repartir en grupos iguales y la reconoce como la operación inversa de multiplicar."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.multiplicacion.tablas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · división"
+    core_knowledge: "Grade 3 Mathematics — Division as equal sharing"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.medios_tercios_cuartos
+  nombre:
+    es: "Fracciones simples"
+  descripcion:
+    es: "Reconoce medios, tercios y cuartos como partes iguales de un entero, y los compara entre sí."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.division.reparto_equitativo
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · fracciones"
+    core_knowledge: "Grade 3 Mathematics — Simple fractions"
+  verificable_en_codigo: true

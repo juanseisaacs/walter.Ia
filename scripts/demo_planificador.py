@@ -12,7 +12,9 @@ from tutor.curriculum import cargar_grafo
 from tutor.models import Nino, RegistroDominio
 from tutor.pedagogy import (
     actualizar_dominio,
+    adelanto,
     esta_dominada,
+    grado_de_trabajo,
     habilidades_para_repasar,
     nivel_efectivo,
     resumen_para_prompt,
@@ -71,7 +73,33 @@ def main() -> None:
         print(f"   El planificador elige: {proximo.nombre.es}   <- repaso, no avance")
 
     print("\n" + "-" * 68)
-    print("  LO QUE ENTRA AL PROMPT DEL TUTOR")
+    print("  SIN TECHO: SOFIA DOMINA TODO 1RO Y 2DO")
+    print("-" * 68 + "\n")
+
+    hoy = datetime(2026, 8, 17, 16, 0)
+    sofia = Nino(id="n2", nombre="Sofia", edad=7, grado=2)
+    for h in grafo:
+        if h.grado_sugerido <= 2:
+            sofia.dominio[h.id] = RegistroDominio(
+                habilidad_id=h.id, nivel=0.95, intentos=10, aciertos=9, ultima_practica=hoy
+            )
+
+    print(f"   Grado en el colegio:    {sofia.grado}")
+    print(f"   Grado de trabajo real:  {grado_de_trabajo(sofia, grafo, hoy)}")
+    print(f"   Adelanto:               +{adelanto(sofia, grafo, hoy)} grado(s)")
+
+    proximo = siguiente_habilidad(sofia, grafo, hoy)
+    print(
+        f"\n   El planificador NO la frena. Le ofrece: "
+        f"{proximo.nombre.es} ({proximo.grado_sugerido}ro)"
+    )
+
+    print("\n   Lo que ve el tutor:\n")
+    for linea in resumen_para_prompt(sofia, grafo, hoy).splitlines():
+        print(f"      {linea}")
+
+    print("\n" + "-" * 68)
+    print("  LO QUE ENTRA AL PROMPT DEL TUTOR (Juan)")
     print("-" * 68 + "\n")
 
     nino.perfil.intereses = ["futbol", "dinosaurios"]

@@ -289,6 +289,17 @@ class MetricasReporte(BaseModel):
         ge=0.0, le=1.0, description="% de sesiones donde el método socrático se sostuvo"
     )
 
+    grado_de_trabajo: int = Field(
+        description="En qué grado está trabajando de verdad, según lo que domina"
+    )
+    adelanto_grados: int = Field(
+        default=0,
+        description=(
+            "Grados por encima (+) o por debajo (−) del grado escolar. "
+            "Positivo se destaca en el reporte: es de lo más potente que puede leer un papá."
+        ),
+    )
+
 
 class ReporteParaPapa(BaseModel):
     nino_id: str

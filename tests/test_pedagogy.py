@@ -12,7 +12,9 @@ from tutor.pedagogy import (
     UMBRAL_DOMINIO,
     NivelPista,
     actualizar_dominio,
+    adelanto,
     esta_dominada,
+    grado_de_trabajo,
     habilidades_disponibles,
     habilidades_para_repasar,
     necesita_repaso,
@@ -20,6 +22,7 @@ from tutor.pedagogy import (
     resumen_para_prompt,
     siguiente_habilidad,
     siguiente_pista,
+    va_adelantado,
     valor_evidencia,
 )
 
@@ -215,6 +218,65 @@ def test_el_repaso_gana_sobre_avanzar():
     )
     assert habilidades_para_repasar(n, g, AHORA)
     assert siguiente_habilidad(n, g, AHORA).id == "mat.numeros.conteo_hasta_100"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SIN TECHO — el grado escolar no limita
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _juan_veloz() -> Nino:
+    """Un nino de 2do que ya domino todo el contenido de 1ro y 2do."""
+    g = cargar_grafo()
+    hasta_segundo = [h.id for h in g if h.grado_sugerido <= 2]
+    return _nino({hid: _dominado(hid) for hid in hasta_segundo}, grado=2)
+
+
+def test_el_grado_no_pone_techo():
+    """LA CARACTERISTICA: si tiene los prerrequisitos, se lo ofrece igual.
+
+    Un nino de 2do que ya domino 2do NO se queda esperando a marzo.
+    """
+    g = cargar_grafo()
+    disponibles = habilidades_disponibles(_juan_veloz(), g, AHORA)
+    assert disponibles, "tiene que haber a donde seguir"
+    assert all(h.grado_sugerido > 2 for h in disponibles), "todo lo de 2do ya lo domina"
+
+    proximo = siguiente_habilidad(_juan_veloz(), g, AHORA)
+    assert proximo.grado_sugerido == 3, "el planificador lo deja subir de grado"
+
+
+def test_mide_el_grado_real_no_el_administrativo():
+    g = cargar_grafo()
+    assert grado_de_trabajo(_juan_veloz(), g, AHORA) == 3
+    assert grado_de_trabajo(_nino(), g, AHORA) == 1, "un nino nuevo arranca por lo basico"
+
+
+def test_detecta_al_nino_adelantado_para_avisarle_al_papa():
+    g = cargar_grafo()
+    assert adelanto(_juan_veloz(), g, AHORA) == 1
+    assert va_adelantado(_juan_veloz(), g, AHORA)
+    assert not va_adelantado(_nino(), g, AHORA)
+
+
+def test_el_tutor_se_entera_de_que_va_adelantado():
+    """Sin esto el tutor lo trataria como a un nino promedio de 2do y lo frenaria."""
+    g = cargar_grafo()
+    resumen = resumen_para_prompt(_juan_veloz(), g, AHORA)
+    assert "ADELANTADO" in resumen
+    assert "No lo frenes" in resumen
+
+
+def test_subir_de_grado_no_se_penaliza_como_bajar():
+    """El sesgo del planificador es asimetrico: adelante gratis, atras con costo."""
+    g = cargar_grafo()
+    n = _juan_veloz()
+    # Le "desdominamos" algo de 1ro para que compita contra contenido de 3ro
+    n.dominio["mat.numeros.comparar_ordenar"] = RegistroDominio(
+        habilidad_id="mat.numeros.comparar_ordenar", nivel=0.1, ultima_practica=AHORA
+    )
+    ids = {h.id for h in habilidades_disponibles(n, g, AHORA)}
+    assert "mat.multiplicacion.tablas" in ids, "lo de 3ro sigue disponible"
 
 
 def test_un_nino_nuevo_arranca_por_la_raiz():

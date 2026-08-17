@@ -196,7 +196,11 @@ def siguiente_habilidad(
         return None
 
     def prioridad(h: Habilidad) -> tuple:
-        distancia_grado = abs(h.grado_sugerido - nino.grado)
+        # SIN TECHO: subir de grado no se penaliza nunca. Solo se prefiere no
+        # bajar, porque volver atrás sin necesidad aburre. Si el niño llegó a
+        # contenido de tres grados más arriba, es porque tiene los
+        # prerrequisitos — y entonces se lo gana.
+        distancia_grado = max(0, nino.grado - h.grado_sugerido)
         # Con prerrequisitos más firmes, el próximo paso es más seguro
         firmeza = (
             min(nivel_efectivo(_registro(nino, p), ahora) for p in h.prerequisitos)
@@ -208,6 +212,42 @@ def siguiente_habilidad(
         return (distancia_grado, -avance, -firmeza, h.id)
 
     return min(disponibles, key=prioridad)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sin techo: dónde está realmente el niño
+# ─────────────────────────────────────────────────────────────────────────────
+# El grado escolar es una etiqueta administrativa, no un límite. El sistema
+# mide dónde está el niño por lo que domina, y lo deja llegar tan lejos como
+# pueda. Ver ARCHITECTURE.md §11.
+
+
+def grado_de_trabajo(nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None) -> int:
+    """En qué grado está trabajando el niño DE VERDAD.
+
+    Es el grado más bajo que todavía no domina: lo que tiene enfrente. Un niño
+    de 2° que ya dominó todo 2° trabaja en 3°, y así se lo reporta.
+    """
+    if disponibles := habilidades_disponibles(nino, grafo, ahora):
+        return min(h.grado_sugerido for h in disponibles)
+    grados = [h.grado_sugerido for h in grafo]
+    return max(grados) if grados else nino.grado
+
+
+def adelanto(nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None) -> int:
+    """Grados por encima (+) o por debajo (−) del grado escolar.
+
+    Positivo NO es un problema a corregir: es el producto funcionando.
+    """
+    return grado_de_trabajo(nino, grafo, ahora) - nino.grado
+
+
+def va_adelantado(nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None) -> bool:
+    """¿Amerita contárselo al papá?
+
+    Es de lo más potente que puede leer: "tu hijo trabaja un grado por encima".
+    """
+    return adelanto(nino, grafo, ahora) >= 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -276,6 +316,14 @@ def resumen_para_prompt(
     dominadas = [hid for hid, reg in nino.dominio.items() if esta_dominada(reg, ahora)]
     if dominadas:
         lineas.append(f"Ya domina {len(dominadas)} habilidades.")
+
+    if (delta := adelanto(nino, grafo, ahora)) >= 1:
+        grados = "grado" if delta == 1 else "grados"
+        lineas.append(
+            f"VA ADELANTADO: ya trabaja {delta} {grados} por encima del suyo "
+            f"(está en {grado_de_trabajo(nino, grafo, ahora)}°). "
+            "No lo frenes ni bajes la exigencia — seguí subiendo mientras responda."
+        )
 
     if (objetivo := siguiente_habilidad(nino, grafo, ahora)) is not None:
         lineas.append(f"Hoy: {objetivo.nombre.es} — {objetivo.descripcion.es}")
