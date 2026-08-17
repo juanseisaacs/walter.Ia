@@ -137,6 +137,15 @@ class Nino(BaseModel):
     grado: int = Field(ge=1, le=5)
     idioma: str = "es"
 
+    email_papa: str | None = Field(
+        default=None,
+        description=(
+            "A dónde llegan el reporte semanal y las alertas de seguridad. "
+            "Lo captura el Compañero del Papá en el onboarding — sin esto, una "
+            "alerta no le llega a nadie."
+        ),
+    )
+
     dominio: dict[str, RegistroDominio] = Field(
         default_factory=dict, description="habilidad_id → registro. Mitad académica."
     )

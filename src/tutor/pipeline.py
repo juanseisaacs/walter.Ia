@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TypeVar
+from typing import ClassVar, TypeVar
 
 from pydantic import BaseModel
 
@@ -334,6 +334,116 @@ def generar_reporte(
     )
     return ReporteParaPapa(
         nino_id=nino.id, desde=desde, hasta=hasta, metricas=metricas, contenido=contenido
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Agente: Compañero del Papá — modo entrevista (onboarding)
+# ─────────────────────────────────────────────────────────────────────────────
+# Resuelve el arranque en frío: sin esto, la primera sesión es a ciegas.
+#
+# Dos piezas con responsabilidades separadas:
+#   · el EXTRACTOR decide si ya alcanza (completitud)
+#   · el CONVERSADOR decide qué preguntar (tono)
+# Así ninguna tiene que hacer bien las dos cosas a la vez.
+
+
+class FichaInicial(BaseModel):
+    """Lo que se saca de la entrevista. Todo opcional: se llena de a poco."""
+
+    email_papa: str | None = None
+    nombre_nino: str | None = None
+    edad: int | None = None
+    grado: int | None = None
+
+    intereses: list[str] = []
+    dificultades: list[str] = []
+    motivadores: list[str] = []
+    estilo_comunicacion: str | None = None
+    notas: str | None = None
+
+    OBLIGATORIOS: ClassVar[tuple[str, ...]] = ("email_papa", "nombre_nino", "edad", "grado")
+
+    def falta(self) -> list[str]:
+        """Sin estos cuatro el sistema no arranca — y una alerta no le llega
+        a nadie."""
+        return [campo for campo in self.OBLIGATORIOS if getattr(self, campo) is None]
+
+    @property
+    def completa(self) -> bool:
+        return not self.falta()
+
+
+def _historial_a_texto(historial: list[tuple[str, str]]) -> str:
+    return "\n".join(f"{quien}: {texto}" for quien, texto in historial)
+
+
+def extraer_ficha(
+    historial: list[tuple[str, str]], cliente: ClienteLLM | None = None
+) -> FichaInicial:
+    """Lee la conversación y saca los datos. No inventa: lo que no se dijo
+    queda en None."""
+    cliente = cliente or cliente_por_defecto()
+    return cliente.extraer(
+        cfg.MODELO_ANALISTA,  # extracción estructurada: alcanza con el barato
+        "Extraés datos de una conversación entre un asesor y el padre de un "
+        "niño de primaria. Solo lo que se dijo explícitamente: si un dato no "
+        "aparece, dejalo vacío. No infieras ni completes.",
+        f"--- CONVERSACIÓN ---\n{_historial_a_texto(historial)}",
+        FichaInicial,
+    )
+
+
+def siguiente_pregunta(
+    historial: list[tuple[str, str]],
+    ficha: FichaInicial,
+    cliente: ClienteLLM | None = None,
+) -> str:
+    """El turno del entrevistador. Sonnet: acá la calidez es el producto."""
+    cliente = cliente or cliente_por_defecto()
+
+    if ficha.completa:
+        pendiente = (
+            "Ya tenés todo lo necesario. Cerrá la conversación: decile en dos "
+            "frases qué entendiste de su hijo, con lo que él te contó, y que ya "
+            "pueden empezar. No preguntes nada más."
+        )
+    else:
+        pendiente = "Todavía te falta: " + ", ".join(ficha.falta()) + ". Una pregunta por vez."
+
+    conversacion = _historial_a_texto(historial) if historial else "(todavía no empezó)"
+    return cliente.redactar(
+        cfg.MODELO_COMPANERO_PAPA,
+        cargar_prompt("parent_interview"),
+        f"--- CONVERSACIÓN HASTA AHORA ---\n{conversacion}\n\n--- ESTADO ---\n{pendiente}",
+    )
+
+
+def crear_nino_desde_ficha(ficha: FichaInicial, nino_id: str) -> Nino:
+    """Convierte la entrevista en la ficha del niño.
+
+    La mitad académica arranca vacía a propósito: lo que el papá cree que su
+    hijo sabe no es dato. El dominio se mide en las primeras sesiones — por eso
+    las primeras son exploratorias.
+    """
+    if not ficha.completa:
+        raise ValueError(f"Faltan datos obligatorios: {', '.join(ficha.falta())}")
+
+    return Nino(
+        id=nino_id,
+        nombre=ficha.nombre_nino,
+        edad=ficha.edad,
+        grado=ficha.grado,
+        email_papa=ficha.email_papa,
+        perfil=PerfilPersonal(
+            intereses=ficha.intereses[:MAX_ITEMS_PERFIL],
+            motivadores=ficha.motivadores[:MAX_ITEMS_PERFIL],
+            frustraciones=ficha.dificultades[:MAX_ITEMS_PERFIL],
+            estilo_comunicacion=ficha.estilo_comunicacion,
+            notas=ficha.notas,
+            madurez_vinculo=0,  # el tutor todavía no lo conoce: se lo contaron
+        ),
+        creado_en=datetime.now(),
     )
 
 

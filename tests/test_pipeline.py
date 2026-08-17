@@ -7,6 +7,8 @@ que está bajo nuestro control.
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from tutor.curriculum import cargar_grafo
 from tutor.models import (
     AnalisisSesion,
@@ -26,12 +28,16 @@ from tutor.models import (
 from tutor.pipeline import (
     MAX_ITEMS_PERFIL,
     ClienteFalso,
+    FichaInicial,
     _SalidaAnalista,
     analizar_sesion,
     aplicar_analisis,
     calcular_metricas,
+    crear_nino_desde_ficha,
     evaluar_seguridad,
+    extraer_ficha,
     generar_reporte,
+    siguiente_pregunta,
     verificar_reporte,
 )
 
@@ -290,3 +296,83 @@ def test_el_verificador_exige_mencionar_que_va_adelantado():
         _reporte("Juan viene bien.", adelanto_grados=1, grado_de_trabajo=3)
     )
     assert any("adelantado" in p for p in problemas)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Onboarding: la entrevista al papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _ficha_completa(**kw) -> FichaInicial:
+    base = dict(email_papa="ana@ej.com", nombre_nino="Juan", edad=7, grado=2)
+    base.update(kw)
+    return FichaInicial(**base)
+
+
+def test_la_ficha_sabe_que_le_falta():
+    """Sin los cuatro obligatorios, una alerta de seguridad no le llega a nadie."""
+    vacia = FichaInicial()
+    assert set(vacia.falta()) == {"email_papa", "nombre_nino", "edad", "grado"}
+    assert not vacia.completa
+    assert _ficha_completa().completa
+
+
+def test_el_email_es_obligatorio():
+    sin_mail = _ficha_completa(email_papa=None)
+    assert "email_papa" in sin_mail.falta()
+
+
+def test_el_extractor_recibe_la_conversacion_entera():
+    cliente = ClienteFalso(_ficha_completa())
+    extraer_ficha([("asesor", "Hola"), ("papa", "Se llama Juan, tiene 7")], cliente)
+
+    mensaje = cliente.llamadas[0]["mensaje"]
+    assert "Juan" in mensaje and "Hola" in mensaje
+    assert "no infieras" in cliente.llamadas[0]["sistema"].lower()
+
+
+def test_el_entrevistador_sabe_que_le_falta():
+    cliente = ClienteFalso(texto="¿Cómo se llama tu hijo?")
+    siguiente_pregunta([], FichaInicial(), cliente)
+
+    assert "Todavía te falta" in cliente.llamadas[0]["mensaje"]
+    assert "email_papa" in cliente.llamadas[0]["mensaje"]
+    assert "sonnet" in cliente.llamadas[0]["modelo"], "acá la calidez es el producto"
+
+
+def test_cuando_ya_tiene_todo_le_dice_que_cierre():
+    """Sin esto sigue preguntando de más y la entrevista se vuelve un formulario."""
+    cliente = ClienteFalso(texto="Listo, arranquemos.")
+    siguiente_pregunta([("papa", "todo dicho")], _ficha_completa(), cliente)
+
+    mensaje = cliente.llamadas[0]["mensaje"]
+    assert "Cerrá la conversación" in mensaje
+    assert "No preguntes nada más" in mensaje
+
+
+def test_la_ficha_se_convierte_en_nino():
+    ficha = _ficha_completa(
+        intereses=["futbol", "dinosaurios"],
+        dificultades=["se frustra rapido"],
+        motivadores=["competir"],
+        estilo_comunicacion="directo",
+    )
+    nino = crear_nino_desde_ficha(ficha, "n1")
+
+    assert nino.nombre == "Juan"
+    assert nino.email_papa == "ana@ej.com", "sin esto las alertas no llegan"
+    assert nino.perfil.intereses == ["futbol", "dinosaurios"]
+    assert nino.perfil.frustraciones == ["se frustra rapido"]
+
+
+def test_el_nino_arranca_sin_dominio_academico():
+    """Lo que el papá CREE que su hijo sabe no es dato. El dominio se mide en
+    las primeras sesiones — por eso son exploratorias."""
+    nino = crear_nino_desde_ficha(_ficha_completa(), "n1")
+    assert nino.dominio == {}
+    assert nino.perfil.madurez_vinculo == 0, "se lo contaron, no lo conoce"
+
+
+def test_no_se_puede_crear_un_nino_a_medias():
+    with pytest.raises(ValueError, match="Faltan datos"):
+        crear_nino_desde_ficha(FichaInicial(nombre_nino="Juan"), "n1")
