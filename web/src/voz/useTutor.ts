@@ -41,6 +41,11 @@ export function useTutor(ninoId: string) {
   const indiceRef = useRef(0);
   const ejercicioActualRef = useRef<string | null>(null);
   const arrancandoRef = useRef(false);
+  const arranquesRef = useRef(0);
+
+  /** Identidad de ESTA pestaña. Sirve para ignorar los avisos propios. */
+  const pestanaRef = useRef(Math.random().toString(36).slice(2, 8));
+  const canalRef = useRef<BroadcastChannel | null>(null);
 
   // El techo de tokens por sesión y el tope mensual por niño existen en
   // config.py desde la fase 1, y hasta ahora eran ficción: el cierre mandaba
@@ -190,6 +195,39 @@ export function useTutor(ninoId: string) {
     [soltarRecursos],
   );
 
+  /* ── Una sola pestaña a la vez ──────────────────────────────────────────
+
+     El backend ya cierra la sesión previa del niño cuando abre otra, pero eso
+     es contabilidad: la conexión Live de la pestaña vieja tiene su token y
+     Gemini no sabe nada de nuestra base. Sigue hablando por los mismos
+     parlantes aunque su sesión ya esté cerrada.
+
+     Recargar la página no necesita esto — el navegador mata el WebSocket al
+     descargar. Dos pestañas sí: son dos JS vivos al mismo tiempo. */
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return; // navegador viejo
+    const canal = new BroadcastChannel("rbh-tutor-sesion");
+
+    canal.onmessage = (evento) => {
+      const dato = evento.data;
+      if (dato?.tipo !== "arranco" || dato.pestana === pestanaRef.current) return;
+      if (!sesionRef.current) return; // esta pestaña no tenía nada abierto
+
+      console.warn("[sesion] otra pestaña tomó el tutor: esta se cierra");
+      void terminar(true).then(() => {
+        setError("Abriste el tutor en otra pestaña. Aquí quedó cerrado.");
+        setEstado("error");
+      });
+    };
+
+    canalRef.current = canal;
+    return () => {
+      canal.close();
+      canalRef.current = null;
+    };
+  }, [terminar]);
+
   /* ── Arranque ──────────────────────────────────────────────────────────── */
 
   const empezar = useCallback(async () => {
@@ -204,7 +242,20 @@ export function useTutor(ninoId: string) {
     //
     // Lo disparaba "Probar de nuevo": onerror ponía el estado en "error" sin
     // soltar nada, y el reintento abría la segunda sobre la primera viva.
-    if (arrancandoRef.current) return;
+    // Instrumentación: la prueba del 18/08 mostró TRES POST /api/sesiones y
+    // nadie supo de dónde salieron. Ahora el navegador lo dice.
+    arranquesRef.current += 1;
+    console.info(
+      `[sesion] arranque #${arranquesRef.current} en la pestaña ${pestanaRef.current}`,
+    );
+    if (arranquesRef.current > 1) {
+      console.warn("[sesion] esta pestaña ya había arrancado el tutor antes");
+    }
+
+    if (arrancandoRef.current) {
+      console.warn("[sesion] arranque ignorado: ya hay uno en curso");
+      return;
+    }
     arrancandoRef.current = true;
 
     // Si quedó algo de un intento anterior, se cierra ANTES de abrir.
@@ -354,6 +405,9 @@ export function useTutor(ninoId: string) {
         }
       });
       micRef.current = captura;
+
+      // Avisar al resto: si otra pestaña tenía el tutor abierto, se cierra.
+      canalRef.current?.postMessage({ tipo: "arranco", pestana: pestanaRef.current });
 
       setEstado("escuchando");
     } catch (e: any) {

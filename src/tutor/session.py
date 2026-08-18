@@ -60,6 +60,14 @@ class ErrorPresupuesto(ErrorSesion):
 
 # OJO: los patrones van SIN ACENTOS — el texto se normaliza antes de comparar.
 # Un patrón con tilde nunca engancha. Ya pasó una vez.
+VENTANA_SESIONES_HUERFANAS_DIAS = 1
+"""Hasta dónde mirar atrás buscando sesiones que quedaron ACTIVA.
+
+Una sesión activa de ayer no es una sesión: es basura que dejó un backend que
+se cayó. Un día alcanza para barrerla sin recorrer la historia entera del niño
+en cada arranque."""
+
+
 _SENALES_CRITICAS = [
     r"\bme (pega|pegan|pego)\b",
     r"\bme (lastim|golpe|grit)\w*",
@@ -169,6 +177,7 @@ class Orquestador:
         if nino is None:
             raise ErrorSesion(f"No existe el niño '{nino_id}'")
 
+        self._cerrar_sesiones_activas(nino_id, ahora)
         self._verificar_presupuesto(nino_id, ahora)
 
         objetivo = siguiente_habilidad(nino, self.grafo, ahora)
@@ -363,6 +372,37 @@ class Orquestador:
         return abierta
 
     # ── Internos ─────────────────────────────────────────────────────────────
+
+    def _cerrar_sesiones_activas(self, nino_id: str, ahora: datetime) -> list[str]:
+        """Un niño no puede tener dos sesiones de voz a la vez.
+
+        El candado vive acá y no en el navegador porque el navegador tiene
+        demasiadas puertas: recargar la página, el hot-reload de Vite, dos
+        pestañas abiertas, un doble clic. Cada una abre una conexión Live nueva
+        y las viejas siguen hablando por los mismos parlantes — el niño oye dos
+        tutores encima y el audio se traba. Se taparon de a una hasta que quedó
+        claro que el candado estaba del lado que no controlamos.
+
+        Lo vimos en la prueba del 18/08: tres POST /api/sesiones seguidos y una
+        sola sesión con turnos. Las otras dos nunca se cerraron.
+
+        **Gana la última.** Cerrar la previa y no rechazar la nueva: si se
+        rechazara, recargar la página dejaría al niño sin poder empezar hasta
+        que venciera algo que él no ve. Se marcan INTERRUMPIDA porque eso es lo
+        que fueron — se les cayó el canal, aunque el motivo sea otra pestaña.
+
+        `cerrar()` no encola al Analista (eso lo hace la API), así que limpiar
+        una sesión fantasma no le manda basura.
+        """
+        desde = ahora - timedelta(days=VENTANA_SESIONES_HUERFANAS_DIAS)
+        previas = [
+            s
+            for s in self.repo.sesiones_de(nino_id, desde, ahora)
+            if s.estado == EstadoSesion.ACTIVA
+        ]
+        for previa in previas:
+            self.cerrar(previa.id, ahora=ahora, interrumpida=True)
+        return [s.id for s in previas]
 
     def _transcribir(self, sesion_id: str) -> str:
         return "\n".join(

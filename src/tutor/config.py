@@ -25,7 +25,13 @@ RAIZ = Path(__file__).resolve().parents[2]
 
 KNOWLEDGE = RAIZ / "knowledge"
 CURRICULUM = KNOWLEDGE / "curriculum"
-PROMPTS = KNOWLEDGE / "prompts"
+PROMPTS = Path(os.environ["PROMPTS_DIR"]) if os.getenv("PROMPTS_DIR") else KNOWLEDGE / "prompts"
+"""Los prompts son datos: el directorio se puede apuntar a otro lado para
+comparar dos versiones sin tocar código ni perder las actuales.
+
+    $env:PROMPTS_DIR = "knowledge/prompts_ab_flaco"
+
+Sin la variable, los de siempre."""
 
 DATOS = RAIZ / "data"
 DB = DATOS / "tutor.db"
@@ -79,10 +85,7 @@ MODELO_GENERADOR = "claude-haiku-4-5"
 
 MAX_MINUTOS_SESION = 45
 MAX_TOKENS_SESION = 150_000
-# Se sube por entorno para probar sin tocar el valor de producto:
-#   PowerShell:  $env:MAX_SESIONES_DIA = "20"
-#   bash:        export MAX_SESIONES_DIA=20
-MAX_SESIONES_DIA = int(os.getenv("MAX_SESIONES_DIA", "3"))
+MAX_SESIONES_DIA = 3
 MAX_COSTO_MES_USD_POR_NINO = 8.0
 
 

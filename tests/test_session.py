@@ -273,3 +273,45 @@ def test_las_sesiones_donde_si_trabajo_cuentan(orq):
 
     with pytest.raises(ErrorPresupuesto, match="tope"):
         orq.abrir("n1", ahora=AHORA)
+
+
+def test_un_nino_no_puede_tener_dos_sesiones_de_voz_a_la_vez(orq, repo):
+    """El cuarto candado, y el único que el navegador no puede evadir.
+
+    Cada puerta del navegador abre una conexión Live nueva y deja viva la
+    anterior: recargar la página, el hot-reload de Vite, dos pestañas, un doble
+    clic. Las viejas siguen hablando por los mismos parlantes — el niño oye dos
+    tutores encima y el audio se traba.
+
+    En la prueba del 18/08 el backend registró tres POST /api/sesiones seguidos
+    y una sola sesión con turnos: las otras dos nunca se cerraron. Se taparon de
+    a una en el frontend hasta que quedó claro que el candado estaba del lado
+    que no controlamos.
+    """
+    primera = orq.abrir("n1", ahora=AHORA)
+    segunda = orq.abrir("n1", ahora=AHORA + timedelta(seconds=3))
+
+    assert primera.sesion_id != segunda.sesion_id
+
+    vieja = repo.obtener_sesion(primera.sesion_id)
+    assert vieja is not None
+    assert vieja.estado == EstadoSesion.INTERRUMPIDA, (
+        "la sesión anterior quedó viva: dos conexiones Live hablando a la vez"
+    )
+    assert vieja.fin is not None, "se cerró sin registrar cuándo"
+
+    nueva = repo.obtener_sesion(segunda.sesion_id)
+    assert nueva is not None
+    assert nueva.estado == EstadoSesion.ACTIVA, "gana la última, no la primera"
+
+
+def test_recargar_la_pagina_no_deja_al_nino_sin_poder_empezar(orq):
+    """Gana la última: se cierra la previa, no se rechaza la nueva.
+
+    Si el candado rechazara la segunda, recargar la página dejaría al niño
+    trabado hasta que venciera algo que él no ve — que es peor que el bug.
+    """
+    orq.abrir("n1", ahora=AHORA)
+    for i in range(1, 4):
+        abierta = orq.abrir("n1", ahora=AHORA + timedelta(seconds=i * 5))
+        assert abierta.token, f"la recarga #{i} se quedó sin sesión"
