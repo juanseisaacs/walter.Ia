@@ -109,8 +109,45 @@ def test_abrir_deja_todo_listo(orq):
     # Cuál habilidad toca lo decide el planificador y ya tiene sus propios
     # tests. Acá solo importa que la sesión venga con una de verdad.
     assert a.habilidad_id in {h.id for h in cargar_grafo()}
-    assert len(a.ejercicios) == 15, "precargados en memoria: durante la sesión no se consulta"
+    assert len(a.ejercicios) > 15, "vienen la habilidad del día MÁS las vecinas"
     assert a.deteccion.silencio_ms >= 1200, "paciencia calibrada por edad"
+
+
+def test_el_banco_trae_mas_de_una_habilidad(orq):
+    """Para que "mejor hagamos restas" no obligue al tutor a improvisar.
+
+    Con banco de una sola habilidad, el niño que cambia de tema deja al tutor
+    sin nada que entregar: inventa el ejercicio, llama a check_answer con un id
+    que no existe, y la sesión no escribe dominio porque nada quedó atado a un
+    nodo. Pasó el 18/08 en ses_88be006b825f, teniendo los ejercicios de resta
+    en la base sin cargar.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    banco = orq.banco(a.sesion_id)
+
+    assert len(banco.temas) > 1, "el banco volvió a traer una sola habilidad"
+    assert banco.principal in banco.temas, "falta la habilidad que eligió el planificador"
+
+
+def test_se_puede_pedir_un_tema_y_se_respeta(orq):
+    """El tema lo elige el niño; el ejercicio sale del banco validado."""
+    a = orq.abrir("n1", ahora=AHORA)
+    banco = orq.banco(a.sesion_id)
+    otro = next(t for t in banco.temas if t != banco.principal)
+
+    ejercicio = banco.get_next_problem(otro)
+    assert ejercicio is not None
+    assert ejercicio.habilidad_id == otro, "entregó de otra habilidad, no de la pedida"
+
+
+def test_un_tema_que_no_esta_devuelve_nada_y_no_otra_cosa(orq):
+    """Antes que dar un ejercicio que nadie pidió, el tutor tiene que poder
+    decir "de eso hoy no tengo". Entregar otra habilidad en silencio lo dejaría
+    corrigiendo una respuesta contra un enunciado distinto del que el niño oyó.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    banco = orq.banco(a.sesion_id)
+    assert banco.get_next_problem("mat.no.existe") is None
 
 
 def test_candado_1_lo_que_viaja_atado_al_token(orq):
@@ -207,8 +244,9 @@ def test_candado_2_sin_reportar_no_hay_recarga(orq):
 def test_el_banco_entrega_sin_tocar_la_base(orq):
     a = orq.abrir("n1", ahora=AHORA)
     banco = orq.banco(a.sesion_id)
+    antes = banco.restantes
     assert banco.get_next_problem() is not None
-    assert banco.restantes == 14
+    assert banco.restantes == antes - 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────

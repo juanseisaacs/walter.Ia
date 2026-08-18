@@ -197,9 +197,18 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
     Al adoptar la Constitución completa pasó de ~11 KB a ~31 KB. Ese salto fue
     una decisión tomada; el próximo tiene que ser otra decisión tomada, no el
     resultado de que cada quien agregue su párrafo.
+
+    Subido a 38 KB el 18/08, y esta es la decisión: entraron "Los ejercicios no
+    los inventas tú" en el playbook y la lista de temas del banco. Las dos
+    cambian lo que el tutor HACE — sin ellas improvisaba los ejercicios y la
+    sesión no escribía dominio. No es doctrina: es qué tiene en la mano.
+
+    Queda dicho que el prompt está gordo (~36,7 KB de un techo de 38) y que
+    adelgazarlo es deuda abierta. NO es costo — entra una vez por sesión, ~$0,20
+    al mes, medido el 18/08. Es latencia de la primera frase.
     """
     texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.")
-    assert len(texto) < 36_000, (
+    assert len(texto) < 38_000, (
         f"el prompt de sesión llegó a {len(texto)} caracteres. "
         "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
         "Lo que solo explica el porqué va en knowledge/product/."

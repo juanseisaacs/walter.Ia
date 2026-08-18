@@ -184,8 +184,23 @@ DECLARACIONES_TOOLS: list[dict] = [
     },
     {
         "name": "get_next_problem",
-        "description": "Trae el siguiente ejercicio para practicar la habilidad de hoy.",
-        "parameters": {"type": "object", "properties": {}},
+        "description": (
+            "Trae el siguiente ejercicio ya revisado. Sin `habilidad_id` viene "
+            "del tema de hoy. Con `habilidad_id` viene de ese tema, para cuando "
+            "el niño quiere cambiar. Todo ejercicio que le pongas sale de acá."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "habilidad_id": {
+                    "type": "string",
+                    "description": (
+                        "Tema pedido, tal cual aparece en la lista de ejercicios "
+                        "de hoy. Se omite para seguir con el tema de la sesión."
+                    ),
+                }
+            },
+        },
     },
     {
         "name": "request_camera",
@@ -237,8 +252,33 @@ def cargar_prompt(nombre: str, idioma: str = cfg.IDIOMA_POR_DEFECTO) -> str:
     return ruta.read_text(encoding="utf-8").strip()
 
 
+def _bloque_temas(temas: list[tuple[str, str]], principal: str | None) -> str:
+    """Los temas que el banco tiene cargados HOY, con su id.
+
+    Sin esto el tutor no puede ofrecer lo que tiene ni pedirlo por id, y termina
+    inventando ejercicios — que es como se pierde el registro del trabajo del
+    niño (ver `BancoDeSesion`). Es la única parte del prompt que cambia en cada
+    sesión: lo demás es quién es el tutor; esto es qué tiene en la mano.
+    """
+    lineas = ["# Los ejercicios que tienes hoy", ""]
+    for hid, nombre in temas:
+        marca = "   ← el de hoy" if hid == principal else ""
+        lineas.append(f"- **{nombre}** · `{hid}`{marca}")
+    lineas += [
+        "",
+        "Pides uno y te llega revisado. Sin decir tema, viene del de hoy; "
+        "diciendo el tema, viene de ese. Si el niño quiere cambiar a otro de "
+        "esta lista, se lo pides por su `código`.",
+    ]
+    return "\n".join(lineas)
+
+
 def construir_instruccion_sistema(
-    resumen_nino: str, modo: str = "guiado", idioma: str = cfg.IDIOMA_POR_DEFECTO
+    resumen_nino: str,
+    modo: str = "guiado",
+    idioma: str = cfg.IDIOMA_POR_DEFECTO,
+    temas: list[tuple[str, str]] | None = None,
+    tema_principal: str | None = None,
 ) -> str:
     """Persona + método + valores + seguridad + este niño.
 
@@ -260,6 +300,9 @@ def construir_instruccion_sistema(
         cargar_prompt("safety_policy", idioma),
         f"# Este niño\n\n{resumen_nino}",
     ]
+
+    if temas:
+        partes.append(_bloque_temas(temas, tema_principal))
 
     if modo == "pedido":
         partes.append(

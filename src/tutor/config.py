@@ -113,7 +113,13 @@ hijo se trabó."""
 # ─────────────────────────────────────────────────────────────────────────────
 
 EJERCICIOS_A_PRECARGAR = 15
-"""Se cargan en memoria al inicio. Durante la sesión, get_next_problem es ~0ms."""
+"""De la habilidad del día. En memoria al inicio: get_next_problem es ~0ms."""
+
+EJERCICIOS_POR_VECINA = 4
+"""De cada habilidad de la frontera del niño, para cuando cambia de tema.
+
+Pocos a propósito: alcanzan para sostener el desvío sin inflar la precarga.
+Si el niño se queda en el tema nuevo, `recargar_ejercicios` trae más."""
 
 VENTANA_VIGILANTE = 4
 """Turnos por ventana. Ventana y no turno suelto: un turno sin contexto es

@@ -279,31 +279,96 @@ class BancoDeSesion:
 
     Durante la sesión no se consulta la base: se saca de esta lista. ~0ms.
     Ver ARCHITECTURE.md §9 — todo el trabajo pesado va antes de que el niño hable.
+
+    Guarda MÁS DE UNA habilidad, y esa es la razón de ser de esta clase.
+
+    Un niño cambia de tema a mitad de sesión — "mejor hagamos restas de un solo
+    dígito" — y hasta el 18/08 el banco traía solo la habilidad del día. El
+    tutor no tenía qué entregarle, así que improvisaba. Improvisando inventa
+    ejercicios que nadie validó, llama a `check_answer` con ids que no existen
+    (404 en ses_88be006b825f) y, sobre todo, nada queda atado a un nodo del
+    grafo: `habilidades_trabajadas` sale vacío, el Analista no puede escribir
+    dominio, y el tutor no aprende nada del niño. Se rompe justo la promesa
+    central del producto por no tener a mano un ejercicio de resta que SÍ
+    estaba en la base.
+
+    Que el niño elija tema no significa que el modelo invente el ejercicio: el
+    tema lo elige el niño, el ejercicio sale del banco validado en código.
     """
 
-    def __init__(self, ejercicios: list[Ejercicio]) -> None:
-        self._pendientes = list(ejercicios)
+    def __init__(
+        self, ejercicios: list[Ejercicio], principal: str | None = None
+    ) -> None:
+        self._por_habilidad: dict[str, list[Ejercicio]] = {}
+        for ejercicio in ejercicios:
+            self._por_habilidad.setdefault(ejercicio.habilidad_id, []).append(ejercicio)
+
+        # La habilidad del día: la que decidió el planificador. Es de donde se
+        # sirve cuando el tutor no pide nada en particular.
+        self._principal = principal or (ejercicios[0].habilidad_id if ejercicios else None)
         self._entregados: list[Ejercicio] = []
 
-    def get_next_problem(self) -> Ejercicio | None:
-        """Saca el siguiente. Nunca repite mientras queden sin usar."""
-        if not self._pendientes:
+    def get_next_problem(self, habilidad_id: str | None = None) -> Ejercicio | None:
+        """Saca el siguiente. Nunca repite mientras queden sin usar.
+
+        Sin argumento sirve la habilidad del día, y si esa se agotó cae en
+        cualquier otra que quede — antes que dejar al tutor sin nada, porque
+        sin ejercicio improvisa.
+
+        Con `habilidad_id` sirve ESE tema y solo ese: si no hay, devuelve None
+        en vez de entregar otra cosa. El tutor tiene que poder decir "de eso hoy
+        no tengo, ¿probamos con...?" en vez de dar un ejercicio que nadie pidió.
+        """
+        if habilidad_id is not None:
+            return self._sacar(habilidad_id)
+
+        if (ejercicio := self._sacar(self._principal)) is not None:
+            return ejercicio
+        for otra in self._por_habilidad:
+            if (ejercicio := self._sacar(otra)) is not None:
+                return ejercicio
+        return None
+
+    def _sacar(self, habilidad_id: str | None) -> Ejercicio | None:
+        cola = self._por_habilidad.get(habilidad_id or "")
+        if not cola:
             return None
-        ejercicio = self._pendientes.pop(0)
+        ejercicio = cola.pop(0)
         self._entregados.append(ejercicio)
         return ejercicio
 
     @property
+    def temas(self) -> list[str]:
+        """Habilidades con ejercicios sin entregar. Van al prompt de sesión.
+
+        El tutor no puede ofrecer lo que no sabe que tiene, y no puede pedir por
+        id una habilidad que nadie le nombró.
+        """
+        return sorted(h for h, cola in self._por_habilidad.items() if cola)
+
+    @property
+    def principal(self) -> str | None:
+        return self._principal
+
+    @property
     def restantes(self) -> int:
-        return len(self._pendientes)
+        return sum(len(cola) for cola in self._por_habilidad.values())
+
+    def restantes_de(self, habilidad_id: str) -> int:
+        return len(self._por_habilidad.get(habilidad_id, []))
 
     @property
     def entregados(self) -> list[Ejercicio]:
         return list(self._entregados)
 
     def se_esta_agotando(self, umbral: int = 3) -> bool:
-        """Aviso para que session.py recargue antes de quedarse sin nada."""
-        return self.restantes <= umbral
+        """Aviso para que session.py recargue antes de quedarse sin nada.
+
+        Mira la habilidad del día, no el total: con quince ejercicios de resta
+        y cero de lo que toca hoy, el banco está agotado para lo que importa.
+        """
+        principal = self.restantes_de(self._principal) if self._principal else 0
+        return principal <= umbral
 
 
 # ─────────────────────────────────────────────────────────────────────────────

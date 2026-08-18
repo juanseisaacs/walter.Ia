@@ -32,7 +32,7 @@ from .models import (
     NivelSeguridad,
     Sesion,
 )
-from .pedagogy import resumen_para_prompt, siguiente_habilidad
+from .pedagogy import habilidades_disponibles, resumen_para_prompt, siguiente_habilidad
 from .storage import Repositorio
 from .tools import BancoDeSesion
 from .voice import (
@@ -186,22 +186,31 @@ class Orquestador:
                 "El niño domina todo el grafo alcanzable. Hay que extender el currículum."
             )
 
-        ejercicios = self._precargar(nino, objetivo)
+        ejercicios = self._precargar(nino, objetivo, ahora)
 
         sesion = Sesion(
             id=f"ses_{uuid4().hex[:12]}", nino_id=nino_id, modo=modo, inicio=ahora
         )
         self.repo.crear_sesion(sesion)
 
+        # El banco se arma ANTES del prompt: el tutor tiene que saber qué temas
+        # tiene en la mano, o no puede ofrecerlos ni pedirlos, y termina
+        # inventando ejercicios.
+        banco = BancoDeSesion(ejercicios, principal=objetivo.id)
+
         configuracion = ConfiguracionSesion(
             instruccion_sistema=construir_instruccion_sistema(
-                resumen_para_prompt(nino, self.grafo, ahora), modo.value, nino.idioma
+                resumen_para_prompt(nino, self.grafo, ahora),
+                modo.value,
+                nino.idioma,
+                temas=self._temas_para_prompt(banco),
+                tema_principal=objetivo.id,
             ),
             deteccion=deteccion_para_edad(nino.edad),
         )
         token = self.emisor.emitir(configuracion)
 
-        self._bancos[sesion.id] = BancoDeSesion(ejercicios)
+        self._bancos[sesion.id] = banco
         self._turnos[sesion.id] = []
         self._alertas[sesion.id] = []
         self._reportado_desde_recarga[sesion.id] = 0
@@ -216,19 +225,68 @@ class Orquestador:
             ejercicios=ejercicios,
         )
 
-    def _precargar(self, nino: Nino, objetivo: Habilidad) -> list[Ejercicio]:
-        """Ejercicios a memoria. Se prefieren los temáticos si sabemos qué le gusta."""
+    def _precargar(
+        self, nino: Nino, objetivo: Habilidad, ahora: datetime | None = None
+    ) -> list[Ejercicio]:
+        """Ejercicios a memoria: la habilidad del día MÁS las vecinas.
+
+        Las vecinas son la frontera del niño — lo que ya puede aprender. Van
+        pocas de cada una y sirven para una sola cosa: que cuando diga "mejor
+        hagamos restas" el tutor tenga restas de verdad a mano.
+
+        Hasta el 18/08 se precargaba solo el objetivo. El niño pidió cambiar de
+        tema, el tutor no tenía nada, improvisó, y esa sesión no escribió
+        dominio (ver `BancoDeSesion`). Los ejercicios de resta existían en la
+        base; nunca se cargaron.
+
+        Sigue siendo trabajo previo: al abrir se sabe todo lo que se va a
+        necesitar y durante la sesión no se consulta la base (§9).
+        """
+        ejercicios = self._de_una_habilidad(nino, objetivo.id, cfg.EJERCICIOS_A_PRECARGAR)
+
+        vistos = {e.id for e in ejercicios}
+        for vecina in habilidades_disponibles(nino, self.grafo, ahora):
+            if vecina.id == objetivo.id:
+                continue
+            nuevos = [
+                e
+                for e in self._de_una_habilidad(nino, vecina.id, cfg.EJERCICIOS_POR_VECINA)
+                if e.id not in vistos
+            ]
+            ejercicios += nuevos
+            vistos.update(e.id for e in nuevos)
+
+        return ejercicios
+
+    def _temas_para_prompt(self, banco: BancoDeSesion) -> list[tuple[str, str]]:
+        """(id, nombre humano) de lo que el banco tiene cargado.
+
+        El id es la llave con la que el tutor pide; el nombre es lo que puede
+        decir en voz alta. Un nodo que no esté en el grafo se descarta en vez de
+        llegar al prompt con el id crudo — el niño no tiene por qué oír
+        `mat.resta.sin_desagrupacion`.
+        """
+        temas = []
+        for hid in banco.temas:
+            if self.grafo.existe(hid):
+                temas.append((hid, self.grafo.habilidad(hid).nombre.es))
+        return temas
+
+    def _de_una_habilidad(self, nino: Nino, habilidad_id: str, cuantos: int) -> list[Ejercicio]:
+        """Se prefieren los temáticos si sabemos qué le gusta.
+
+        Acá es donde el banco genérico se vuelve personal: el ejercicio está
+        validado en código, pero el que llega es el que habla de dinosaurios.
+        """
         tema = nino.perfil.intereses[0] if nino.perfil.intereses else None
         ejercicios: list[Ejercicio] = []
         if tema:
-            ejercicios = self.repo.ejercicios_de(
-                objetivo.id, cfg.EJERCICIOS_A_PRECARGAR, tema=tema
-            )
-        if len(ejercicios) < cfg.EJERCICIOS_A_PRECARGAR:
-            faltan = cfg.EJERCICIOS_A_PRECARGAR - len(ejercicios)
+            ejercicios = self.repo.ejercicios_de(habilidad_id, cuantos, tema=tema)
+        if len(ejercicios) < cuantos:
+            faltan = cuantos - len(ejercicios)
             vistos = {e.id for e in ejercicios}
             ejercicios += [
-                e for e in self.repo.ejercicios_de(objetivo.id, faltan) if e.id not in vistos
+                e for e in self.repo.ejercicios_de(habilidad_id, faltan) if e.id not in vistos
             ]
         return ejercicios
 
@@ -313,7 +371,9 @@ class Orquestador:
         objetivo = siguiente_habilidad(nino, self.grafo)
         nuevos = self._precargar(nino, objetivo) if objetivo else []
 
-        self._bancos[sesion_id] = BancoDeSesion(nuevos)
+        self._bancos[sesion_id] = BancoDeSesion(
+            nuevos, principal=objetivo.id if objetivo else None
+        )
         self._reportado_desde_recarga[sesion_id] = 0
         return nuevos
 

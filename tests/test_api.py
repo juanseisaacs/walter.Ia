@@ -65,7 +65,7 @@ def test_abrir_devuelve_token_y_ejercicios_no_la_configuracion(cliente):
     datos = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()
 
     assert datos["token"]
-    assert len(datos["ejercicios"]) == 15
+    assert len(datos["ejercicios"]) >= 15, "la habilidad del día más las vecinas"
     assert "instruccion_sistema" not in datos
     assert "playbook" not in str(datos).lower()
 
