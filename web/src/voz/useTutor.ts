@@ -41,6 +41,19 @@ export function useTutor(ninoId: string) {
   const indiceRef = useRef(0);
   const ejercicioActualRef = useRef<string | null>(null);
 
+  // El techo de tokens por sesión y el tope mensual por niño existen en
+  // config.py desde la fase 1, y hasta ahora eran ficción: el cierre mandaba
+  // `tokens_consumidos: 0` fijo. Todas las sesiones figuran con 0 gastado.
+  //
+  // Se suman los `totalTokenCount` que manda el servidor, asumiendo que cada uno
+  // es de SU request. La documentación del SDK dice "the entire request", que se
+  // lee así — pero no está confirmado con datos reales, y si en verdad fuera
+  // acumulativo de la sesión, sumarlos la sobreestimaría. Por eso se loguean los
+  // dos números: la próxima sesión resuelve la duda mirando la consola. Si el
+  // "turno" crece monótono (500, 1200, 2100...), es acumulativo y hay que
+  // reportar `ultimo` en vez de `suma`.
+  const tokensRef = useRef({ suma: 0, ultimo: 0 });
+
   /* ── Reporte de turnos ─────────────────────────────────────────────────
      No bloquea nada: sale en paralelo mientras el tutor sigue hablando. */
 
@@ -161,6 +174,13 @@ export function useTutor(ninoId: string) {
         callbacks: {
           onmessage: (mensaje: LiveServerMessage) => {
             const contenido = mensaje.serverContent as any;
+
+            const gastados = (mensaje as any).usageMetadata?.totalTokenCount;
+            if (gastados) {
+              tokensRef.current.suma += gastados;
+              tokensRef.current.ultimo = gastados;
+              console.info(`[tokens] turno=${gastados} suma=${tokensRef.current.suma}`);
+            }
 
             for (const parte of contenido?.modelTurn?.parts ?? []) {
               if (parte.inlineData?.data) {
@@ -295,13 +315,16 @@ export function useTutor(ninoId: string) {
         if (pendientesRef.current.length) {
           await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
         }
-        await api.cerrarSesion(sesion.sesion_id, interrumpida).catch(() => {});
+        await api
+          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.suma)
+          .catch(() => {});
       }
       sesionRef.current = null;
       acumNinoRef.current = "";
       acumTutorRef.current = "";
       bancoRef.current = [];
       indiceRef.current = 0;
+      tokensRef.current = { suma: 0, ultimo: 0 };
       setEstado("inicio");
       setTextoNino("");
       setTextoTutor("");

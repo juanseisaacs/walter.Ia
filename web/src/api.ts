@@ -53,10 +53,10 @@ export const api = {
       body: JSON.stringify({ turnos }),
     }),
 
-  cerrarSesion: (sesionId: string, interrumpida = false) =>
+  cerrarSesion: (sesionId: string, interrumpida = false, tokensConsumidos = 0) =>
     pedir(`/sesiones/${sesionId}/cerrar`, {
       method: "POST",
-      body: JSON.stringify({ interrumpida, tokens_consumidos: 0 }),
+      body: JSON.stringify({ interrumpida, tokens_consumidos: tokensConsumidos }),
     }),
 
   /* ── Tools ─────────────────────────────────────────────────────────────
