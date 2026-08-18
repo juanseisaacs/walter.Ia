@@ -37,6 +37,22 @@ class Veredicto(StrEnum):
     razonamiento. Devolver INCORRECTO acá sería mentir — no es que esté mal, es
     que esta pregunta no se contesta con una comparación."""
 
+    NO_SE_ENTENDIO = "no_se_entendio"
+    """Llegó algo que no se puede leer como respuesta. NO es un error del niño.
+
+    La transcripción es lo único que tenemos de su voz, y a veces la pierde. Al
+    descomponer 729 un niño dijo "siete de cien, dos de diez, nueve de uno" y
+    llegó `7102191`: el reconocedor pasó cada palabra a dígito y los pegó. La
+    respuesta era CORRECTA. El tutor le dijo que se había equivocado.
+
+    Hasta el 18/08 esto devolvía INCORRECTO, que es la misma falla de la fase 6
+    mirando al niño en vez de al papá: tratar la ausencia de evidencia como
+    evidencia. No pudimos leerlo no significa que esté mal.
+
+    De todos los errores que este sistema puede cometer, decirle "te
+    equivocaste" a un niño que acertó es el que más daño hace: castiga
+    exactamente la conducta que queremos. Ante la duda se vuelve a preguntar."""
+
 
 class ResultadoVerificacion(BaseModel):
     veredicto: Veredicto
@@ -138,6 +154,30 @@ def _normalizar_texto(texto: str) -> str:
     return " ".join(palabras)
 
 
+# Cuántos dígitos de más hacen sospechar de la transcripción y no del niño.
+# Tres: "729" contra "7102191" son cuatro de más. Un niño que se equivoca de
+# orden suele irse uno o dos ("7290"), y eso SÍ se corrige.
+DIGITOS_ABSURDOS = 3
+
+
+def _huele_a_transcripcion_rota(dicho: float, esperado: float) -> bool:
+    """¿El número que llegó es absurdo para la pregunta que se hizo?
+
+    Al descomponer 729 un niño dijo "siete de cien, dos de diez, nueve de uno" y
+    llegó `7102191`: el reconocedor pasó cada palabra a dígito y las pegó. Es un
+    número perfectamente válido, así que `_a_numero` lo acepta — y el niño, que
+    había acertado, recibió un "te equivocaste".
+
+    Esto es una HEURÍSTICA y no puede pretender otra cosa. Se sostiene porque el
+    costo de equivocarse es asimétrico: confundir un error con una duda cuesta
+    una repregunta; confundir un acierto con un error le enseña al niño que
+    responder bien no sirve. Ante la duda, se pregunta de nuevo.
+    """
+    if dicho <= 0 or esperado <= 0:
+        return False
+    return len(str(int(dicho))) - len(str(int(esperado))) >= DIGITOS_ABSURDOS
+
+
 def check_answer(
     ejercicio: Ejercicio, respuesta_nino: str, habilidad: Habilidad | None = None
 ) -> ResultadoVerificacion:
@@ -154,7 +194,13 @@ def check_answer(
     if esperado_num is not None:
         dicho_num = _a_numero(respuesta_nino)
         if dicho_num is None:
-            return ResultadoVerificacion(veredicto=Veredicto.INCORRECTO)
+            # No se pudo leer. Puede ser transcripción rota, puede ser un "no
+            # sé", puede ser que estuviera explicando. Ninguna de las tres es
+            # una respuesta equivocada.
+            return ResultadoVerificacion(veredicto=Veredicto.NO_SE_ENTENDIO)
+        if _huele_a_transcripcion_rota(dicho_num, esperado_num):
+            return ResultadoVerificacion(veredicto=Veredicto.NO_SE_ENTENDIO)
+
         # Tolerancia mínima por el ida y vuelta de float, no por "casi acertó".
         correcto = abs(dicho_num - esperado_num) < 1e-9
         return ResultadoVerificacion(
@@ -164,9 +210,11 @@ def check_answer(
 
     dicho = _normalizar_texto(respuesta_nino)
     esperado = _normalizar_texto(ejercicio.respuesta)
+    if not dicho:
+        return ResultadoVerificacion(veredicto=Veredicto.NO_SE_ENTENDIO)
     return ResultadoVerificacion(
         veredicto=Veredicto.CORRECTO if dicho == esperado else Veredicto.INCORRECTO,
-        valor_interpretado=dicho or None,
+        valor_interpretado=dicho,
     )
 
 
@@ -252,7 +300,8 @@ def verify_arithmetic(operacion: str, respuesta_nino: str) -> ResultadoAritmetic
 
     dicho = _a_numero(respuesta_nino)
     if dicho is None:
-        return ResultadoAritmetica(veredicto=Veredicto.INCORRECTO)
+        # Igual que en check_answer: no haberlo entendido no lo vuelve un error.
+        return ResultadoAritmetica(veredicto=Veredicto.NO_SE_ENTENDIO)
 
     error = abs(dicho - esperado)
     if error < 1e-9:

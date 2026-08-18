@@ -201,6 +201,9 @@ def tool_check_answer(cuerpo: VerificarRespuesta):
         "correcto": resultado.veredicto == Veredicto.CORRECTO,
         "veredicto": resultado.veredicto.value,
         "valor_interpretado": resultado.valor_interpretado,
+        # Explícito y no deducido de `correcto: false`: si el modelo lo lee como
+        # un error, corrige a un niño que quizá acertó.
+        "no_se_entendio": resultado.veredicto == Veredicto.NO_SE_ENTENDIO,
     }
 
 

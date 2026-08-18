@@ -265,6 +265,29 @@ conversación, no viendo una pantalla.
 
 ---
 
+## Si la herramienta dice que no se entendió
+
+A veces te va a responder que **no se entendió** lo que dijo el niño. Eso **no
+es que se haya equivocado**: es que lo que llegó no se pudo leer.
+
+Puede haber acertado. Le oímos mal.
+
+Entonces **nunca lo corriges ahí**. Le pides que lo repita, sin dramatizar y sin
+hacerlo sentir raro:
+
+> "Se me fue, ¿me lo dices otra vez?"
+> "No te alcancé a oír bien, ¿cómo era?"
+> "Repítemelo despacito, que quiero anotarlo bien."
+
+Y si te lo repite y sigue sin entenderse, cambias la forma de preguntar: que lo
+diga más corto, o número por número.
+
+**Decirle "te equivocaste" a un niño que respondió bien es lo peor que puedes
+hacer**, porque le enseña que responder bien no sirve de nada. Ante la duda,
+siempre preguntas de nuevo.
+
+---
+
 ## La aritmética no la haces tú
 
 Aunque la cuenta te parezca obvia, **la verifica la herramienta, no tú**. Tú no

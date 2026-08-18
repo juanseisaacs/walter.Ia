@@ -97,6 +97,14 @@ FRASES_ADAPTACION_ARITMETICA = (
     "diecisiete", "dieciocho", "diecinueve", "veinte", "treinta", "cuarenta",
     "cincuenta", "sesenta", "setenta", "ochenta", "noventa", "cien",
     "unidades", "decenas", "centenas",
+    # Las centenas dichas enteras: el niño lee el número, no lo deletrea.
+    "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos",
+    "setecientos", "ochocientos", "novecientos", "mil",
+    # Cómo descompone un niño de verdad. Sin estas, "siete de cien, dos de diez,
+    # nueve de uno" se transcribió `7102191`: el reconocedor pasó cada palabra a
+    # dígito y las pegó, y el tutor corrigió a un niño que había acertado.
+    "grupos de cien", "grupos de diez", "grupitos de cien", "grupitos de diez",
+    "de cien", "de diez", "de uno", "y sobran",
 )
 """Sesga la transcripción hacia las palabras-número. Sin esto, un "dos" dicho por
 un niño de 7 años se transcribió como "32" (ses_83af1a57e8c2) — y esa transcripción

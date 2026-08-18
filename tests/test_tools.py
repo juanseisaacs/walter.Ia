@@ -271,3 +271,66 @@ def test_no_ejecuta_lo_que_le_manden():
 def test_multiplicacion_con_las_tres_formas_de_escribirla():
     for op in ["12 x 3", "12 * 3", "12 × 3"]:
         assert verify_arithmetic(op, "36").veredicto == Veredicto.CORRECTO
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# No entenderlo no es que se haya equivocado
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _ejercicio_numerico() -> Ejercicio:
+    return Ejercicio(
+        id="e1",
+        habilidad_id="mat.numeros.valor_posicional_centenas",
+        enunciado=TextoLocalizado(es="¿Cómo se descompone 729?"),
+        respuesta="729",
+        validado=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "llega",
+    [
+        "7102191",  # "siete de cien, dos de diez, nueve de uno" — CORRECTA
+        "no sé",
+        "mmm déjame pensar",
+        "",
+        "   ",
+    ],
+)
+def test_lo_que_no_se_entiende_no_se_declara_incorrecto(llega):
+    """De todos los errores posibles, el peor es decirle "te equivocaste" a un
+    niño que acertó: castiga exactamente la conducta que queremos.
+
+    Al descomponer 729 un niño dijo "siete de cien, dos de diez, nueve de uno" y
+    la transcripción lo pegó como `7102191`. La respuesta era correcta y el
+    tutor lo corrigió. Es la falla de la fase 6 —la ausencia de evidencia
+    tratada como evidencia— mirando al niño en vez de al papá.
+    """
+    r = check_answer(_ejercicio_numerico(), llega)
+    assert r.veredicto == Veredicto.NO_SE_ENTENDIO, (
+        f"{llega!r} se declaró {r.veredicto}: el tutor va a corregir a un niño "
+        "que quizá acertó"
+    )
+
+
+def test_una_respuesta_que_si_se_entiende_y_esta_mal_sigue_siendo_incorrecta():
+    """El arreglo no puede volverse una excusa para no corregir nunca."""
+    assert check_answer(_ejercicio_numerico(), "731").veredicto == Veredicto.INCORRECTO
+    assert check_answer(_ejercicio_numerico(), "729").veredicto == Veredicto.CORRECTO
+
+
+def test_verify_arithmetic_tampoco_confunde_no_entender_con_error():
+    assert verify_arithmetic("9 - 3", "no sé").veredicto == Veredicto.NO_SE_ENTENDIO
+    assert verify_arithmetic("9 - 3", "seis").veredicto == Veredicto.CORRECTO
+    assert verify_arithmetic("9 - 3", "cuatro").veredicto == Veredicto.INCORRECTO
+
+
+def test_un_error_de_orden_creible_sigue_siendo_un_error():
+    """La heurística no puede tragarse los errores de verdad.
+
+    Un niño que dice 7290 para 729 se equivocó y hay que decírselo. La sospecha
+    empieza cuando el número es absurdo para la pregunta, no cuando es grande.
+    """
+    assert check_answer(_ejercicio_numerico(), "7290").veredicto == Veredicto.INCORRECTO
+    assert check_answer(_ejercicio_numerico(), "72900").veredicto == Veredicto.INCORRECTO
