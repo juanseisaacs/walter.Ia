@@ -60,6 +60,13 @@ class ErrorPresupuesto(ErrorSesion):
 
 # OJO: los patrones van SIN ACENTOS — el texto se normaliza antes de comparar.
 # Un patrón con tilde nunca engancha. Ya pasó una vez.
+GRACIA_CLIENTE_VIVO_SEG = 90
+"""Sin señales por más de esto, se asume que del otro lado ya no hay nadie.
+
+Holgado a propósito: el precio de equivocarse es asimétrico. Dejar viva una
+sesión de más cuesta un lugar del cupo; cerrar una que el niño está usando le
+corta la conversación y borra lo que dijo."""
+
 VENTANA_SESIONES_HUERFANAS_DIAS = 1
 """Hasta dónde mirar atrás buscando sesiones que quedaron ACTIVA.
 
@@ -161,6 +168,7 @@ class Orquestador:
         self._turnos: dict[str, list[Turno]] = {}
         self._alertas: dict[str, list[EvaluacionSeguridad]] = {}
         self._reportado_desde_recarga: dict[str, int] = {}
+        self._ultima_actividad: dict[str, datetime] = {}
 
     # ── Abrir ────────────────────────────────────────────────────────────────
 
@@ -214,6 +222,7 @@ class Orquestador:
         self._turnos[sesion.id] = []
         self._alertas[sesion.id] = []
         self._reportado_desde_recarga[sesion.id] = 0
+        self._ultima_actividad[sesion.id] = ahora
 
         return SesionAbierta(
             sesion_id=sesion.id,
@@ -324,6 +333,7 @@ class Orquestador:
 
         self._turnos[sesion_id].extend(turnos)
         self._reportado_desde_recarga[sesion_id] += len(turnos)
+        self._ultima_actividad[sesion_id] = datetime.now()
         self.repo.guardar_transcripcion(sesion_id, self._transcribir(sesion_id))
 
         alertas: list[EvaluacionSeguridad] = []
@@ -455,14 +465,36 @@ class Orquestador:
         una sesión fantasma no le manda basura.
         """
         desde = ahora - timedelta(days=VENTANA_SESIONES_HUERFANAS_DIAS)
-        previas = [
-            s
-            for s in self.repo.sesiones_de(nino_id, desde, ahora)
-            if s.estado == EstadoSesion.ACTIVA
-        ]
-        for previa in previas:
+        cerradas = []
+        for previa in self.repo.sesiones_de(nino_id, desde, ahora):
+            if previa.estado != EstadoSesion.ACTIVA:
+                continue
+            if self._tiene_cliente_vivo(previa.id, ahora):
+                continue
             self.cerrar(previa.id, ahora=ahora, interrumpida=True)
-        return [s.id for s in previas]
+            cerradas.append(previa.id)
+        return cerradas
+
+    def _tiene_cliente_vivo(self, sesion_id: str, ahora: datetime) -> bool:
+        """¿Hay alguien del otro lado usando esta sesión ahora mismo?
+
+        La primera versión del candado no preguntaba esto y cerraba cualquier
+        sesión ACTIVA. El 18/08 a las 17:50 eso dejó a un niño hablando 99
+        segundos contra una sesión muerta: 32 POST de turnos con 404, y
+        `get_next_problem` también en 404, así que el tutor no pudo entregar un
+        solo ejercicio y volvió a improvisar. La transcripción entera se perdió.
+
+        El arreglo era pasarse de conservador. Dos sesiones vivas a la vez
+        molestan y el lock entre pestañas ya las cubre; matar la que el niño
+        está usando rompe la sesión completa y se lleva lo que dijo.
+
+        Sin registro en memoria = sesión de un proceso anterior. Ahí no hay
+        cliente que proteger: el navegador que la abrió ya no existe.
+        """
+        visto = self._ultima_actividad.get(sesion_id)
+        if visto is None:
+            return False
+        return (ahora - visto) < timedelta(seconds=GRACIA_CLIENTE_VIVO_SEG)
 
     def _transcribir(self, sesion_id: str) -> str:
         return "\n".join(
@@ -470,5 +502,11 @@ class Orquestador:
         )
 
     def _olvidar(self, sesion_id: str) -> None:
-        for estado in (self._bancos, self._turnos, self._alertas, self._reportado_desde_recarga):
+        for estado in (
+            self._bancos,
+            self._turnos,
+            self._alertas,
+            self._reportado_desde_recarga,
+            self._ultima_actividad,
+        ):
             estado.pop(sesion_id, None)

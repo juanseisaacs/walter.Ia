@@ -13,7 +13,7 @@
 import { GoogleGenAI, type LiveServerMessage, Modality } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
+import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
 import { ReproductorContinuo, aPcm16Base64 } from "./audio";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 
@@ -29,6 +29,7 @@ export function useTutor(ninoId: string) {
   const [textoNino, setTextoNino] = useState("");
   const [textoTutor, setTextoTutor] = useState("");
   const [nivelMic, setNivelMic] = useState(0);
+  const [sesionMurio, setSesionMurio] = useState(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
   const liveRef = useRef<any>(null);
@@ -77,7 +78,13 @@ export function useTutor(ninoId: string) {
     const sesion = sesionRef.current;
     if (!sesion) return;
     const lote = pendientesRef.current.splice(0);
-    void api.reportarTurnos(sesion.sesion_id, lote).catch(() => {
+    void api.reportarTurnos(sesion.sesion_id, lote).catch((e) => {
+      if (e instanceof ErrorApi && e.sesionMurio) {
+        // No se reintenta: no hay a dónde. Seguir acumulando turnos para una
+        // sesión que ya no existe fue lo que dejó al niño hablando solo.
+        setSesionMurio(true);
+        return;
+      }
       pendientesRef.current.unshift(...lote); // reintentar en el próximo
     });
   }, []);
@@ -269,6 +276,22 @@ export function useTutor(ninoId: string) {
     };
   }, [terminar]);
 
+  /* ── La sesión murió del lado del servidor ──────────────────────────────
+
+     Cortar y decirlo. Callar es peor: el niño le sigue hablando a un tutor que
+     no puede entregarle nada ni guardar lo que dice, y no tiene cómo saberlo.
+     El 18/08 eso duró 99 segundos y se perdió la conversación entera. */
+
+  useEffect(() => {
+    if (!sesionMurio) return;
+    console.warn("[sesion] el servidor ya no la reconoce: se corta");
+    void terminar(true).then(() => {
+      setError("Se cerró la sesión. Toca el botón y seguimos.");
+      setEstado("error");
+      setSesionMurio(false);
+    });
+  }, [sesionMurio, terminar]);
+
   /* ── Arranque ──────────────────────────────────────────────────────────── */
 
   const empezar = useCallback(async () => {
@@ -305,6 +328,7 @@ export function useTutor(ninoId: string) {
     if (sesionRef.current) await terminar(true);
 
     setError(null);
+    setSesionMurio(false);
     setEstado("conectando");
 
     try {
@@ -417,6 +441,12 @@ export function useTutor(ninoId: string) {
                     // mucho mejor que el silencio.
                     respuesta = { error: e?.message ?? "falló la herramienta" };
                     console.warn(`[tool] ${fc.name} falló:`, e);
+                    if (e instanceof ErrorApi && e.sesionMurio) {
+                      // Sin sesión no hay banco: el tutor no puede entregar un
+                      // ejercicio ni verificar una respuesta. Seguir sería
+                      // dejarlo improvisar sobre la nada.
+                      setSesionMurio(true);
+                    }
                   }
                   return { id: fc.id, name: fc.name, response: respuesta };
                 }),

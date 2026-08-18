@@ -19,6 +19,7 @@ from tutor.models import (
     TextoLocalizado,
 )
 from tutor.session import (
+    GRACIA_CLIENTE_VIVO_SEG,
     ErrorPresupuesto,
     ErrorSesion,
     Orquestador,
@@ -327,7 +328,8 @@ def test_un_nino_no_puede_tener_dos_sesiones_de_voz_a_la_vez(orq, repo):
     que no controlamos.
     """
     primera = orq.abrir("n1", ahora=AHORA)
-    segunda = orq.abrir("n1", ahora=AHORA + timedelta(seconds=3))
+    # Pasada la gracia: del otro lado ya no hay nadie.
+    segunda = orq.abrir("n1", ahora=AHORA + timedelta(seconds=GRACIA_CLIENTE_VIVO_SEG + 5))
 
     assert primera.sesion_id != segunda.sesion_id
 
@@ -351,5 +353,32 @@ def test_recargar_la_pagina_no_deja_al_nino_sin_poder_empezar(orq):
     """
     orq.abrir("n1", ahora=AHORA)
     for i in range(1, 4):
-        abierta = orq.abrir("n1", ahora=AHORA + timedelta(seconds=i * 5))
+        abierta = orq.abrir(
+            "n1", ahora=AHORA + timedelta(seconds=i * (GRACIA_CLIENTE_VIVO_SEG + 5))
+        )
         assert abierta.token, f"la recarga #{i} se quedó sin sesión"
+
+
+def test_no_se_cierra_la_sesion_que_el_nino_esta_usando(orq, repo):
+    """El candado no puede matar una sesión con alguien del otro lado.
+
+    Pasó el 18/08 a las 17:50: una segunda apertura cerró la sesión en curso y
+    el niño quedó 99 segundos hablando contra una sesión muerta — 32 POST de
+    turnos con 404, `get_next_problem` también en 404 (así que el tutor no pudo
+    entregar un solo ejercicio y volvió a improvisar), y la transcripción
+    completa perdida.
+
+    Dos sesiones vivas molestan y el lock entre pestañas ya las cubre. Matar la
+    que el niño usa rompe la sesión entera y se lleva lo que dijo.
+    """
+    en_uso = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(en_uso.sesion_id, _turnos("cuarenta y dos"))
+
+    orq.abrir("n1", ahora=AHORA + timedelta(seconds=10))
+
+    viva = repo.obtener_sesion(en_uso.sesion_id)
+    assert viva is not None
+    assert viva.estado == EstadoSesion.ACTIVA, (
+        "le cerraron la sesión al niño mientras hablaba"
+    )
+    assert orq.banco(en_uso.sesion_id), "sin banco el tutor no puede entregar ejercicios"

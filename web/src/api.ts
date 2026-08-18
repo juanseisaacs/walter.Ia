@@ -27,6 +27,29 @@ export interface Turno {
   texto: string;
 }
 
+/** Un error del backend, con su código. El código es lo que decide qué hacer. */
+export class ErrorApi extends Error {
+  constructor(
+    readonly status: number,
+    mensaje: string,
+  ) {
+    super(mensaje);
+    this.name = "ErrorApi";
+  }
+
+  /**
+   * La sesión ya no existe del lado del servidor.
+   *
+   * Distinguirlo importa: mientras se trató como un error cualquiera, el
+   * navegador siguió reportando turnos a una sesión muerta — 32 POST con 404
+   * el 18/08 — y el niño estuvo 99 segundos hablándole a un tutor que no podía
+   * entregarle un ejercicio ni guardar lo que decía.
+   */
+  get sesionMurio(): boolean {
+    return this.status === 404;
+  }
+}
+
 async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
   const r = await fetch(`/api${ruta}`, {
     headers: { "Content-Type": "application/json" },
@@ -34,7 +57,7 @@ async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
   });
   if (!r.ok) {
     const detalle = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(detalle.detail ?? `Error ${r.status}`);
+    throw new ErrorApi(r.status, detalle.detail ?? `Error ${r.status}`);
   }
   return r.json() as Promise<T>;
 }
