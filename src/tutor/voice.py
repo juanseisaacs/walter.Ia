@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from datetime import UTC
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import config as cfg
 
@@ -78,6 +78,44 @@ def deteccion_para_edad(edad: int) -> DeteccionFinTurno:
     if edad <= 8:
         return DeteccionFinTurno(silencio_ms=1500)
     return DeteccionFinTurno(silencio_ms=cfg.SILENCIO_FIN_TURNO_MS)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Voz y acento
+# ─────────────────────────────────────────────────────────────────────────────
+
+IDIOMA_VOZ = "es-CO"
+"""Español de Colombia. Inclina el acento del habla hacia el bogotano.
+
+Ojo: el acento es SOLO la mitad. Las palabras ("listo", "chévere", "un
+momentico" vs. "tenés", "dale") salen del prompt, no de acá — el modelo imita
+el registro de sus propias instrucciones. Ver tutor_persona.es.md."""
+
+VOZ_POR_DEFECTO = "Leda"
+"""La documentada como juvenil.
+
+Historial de esta constante, porque el oído es el único juez acá:
+  · Charon  — grave y adulta. Sonaba a locutor, no a hermano mayor.
+  · Puck    — animada, pero al escucharla seguía siendo un adulto.
+  · Leda    — juvenil                                        ← actual
+
+Si tampoco convence, las que quedan: Achird (amistosa), Zephyr (brillante),
+Aoede (suelta), Sulafat (cálida). Es cambiar esta constante y recargar: nada
+más en el sistema depende de cuál sea."""
+
+VOCES_CONOCIDAS = frozenset({
+    "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede",
+    "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba",
+    "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+    "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi",
+    "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
+})
+"""Por qué existe esta lista, si parece redundante:
+
+`auth_tokens.create` acepta CUALQUIER nombre de voz sin chistar — se verificó
+el 2026-08-17 mandando "NoExiste123" y devolvió un token válido. El error
+recién aparece cuando el navegador intenta conectarse, o sea **con el niño
+sentado enfrente**. Preferimos fallar acá, al abrir la sesión."""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,17 +239,32 @@ class ConfiguracionSesion(BaseModel):
     """
 
     modelo: str = cfg.MODELO_TUTOR_VOZ
-    voz: str = "Charon"
+    voz: str = VOZ_POR_DEFECTO
+    idioma_voz: str = IDIOMA_VOZ
     instruccion_sistema: str
     deteccion: DeteccionFinTurno
     tools: list[dict] = Field(default_factory=lambda: list(DECLARACIONES_TOOLS))
+
+    @field_validator("voz")
+    @classmethod
+    def _voz_conocida(cls, v: str) -> str:
+        if v not in VOCES_CONOCIDAS:
+            raise ValueError(
+                f"Voz desconocida: {v!r}. Google acepta el token igual y "
+                f"revienta al conectar, con el niño esperando. "
+                f"Conocidas: {', '.join(sorted(VOCES_CONOCIDAS))}"
+            )
+        return v
 
     def a_dict_gemini(self) -> dict:
         """La forma que espera `ai.live.connect(config=...)`."""
         return {
             "responseModalities": ["AUDIO"],
             "systemInstruction": self.instruccion_sistema,
-            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.voz}}},
+            "speechConfig": {
+                "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": self.voz}},
+                "languageCode": self.idioma_voz,
+            },
             # Sin estos dos no hay transcripción, y sin transcripción no hay
             # Analista, ni Vigilante, ni auditoría del método.
             "inputAudioTranscription": {},

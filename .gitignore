@@ -28,3 +28,6 @@ Thumbs.db
 # Node (fase web)
 web/node_modules/
 web/dist/
+
+# Artefacto de build de TypeScript
+web/tsconfig.tsbuildinfo
