@@ -163,6 +163,34 @@ def test_la_seguridad_distingue_el_riesgo_de_la_travesura():
     assert "escalas el riesgo, no la travesura" in politica
 
 
+def test_el_tutor_llega_a_la_sesion_con_su_nombre():
+    """Sin nombre fijo el modelo se inventa uno distinto cada sesión, y un tutor
+    que ayer se llamaba otra cosa no es el que lo conoce desde marzo."""
+    from tutor import config as cfg
+
+    texto = construir_instruccion_sistema("Juan, 7 años.")
+    assert cfg.NOMBRE_TUTOR in texto, "el tutor no sabe cómo se llama"
+    assert "nunca te presentas con un nombre distinto" in texto.lower()
+
+
+def test_la_voz_no_usa_regionalismos_cerrados():
+    """El registro es colombiano neutro: un toque, no un disfraz. Las palabras
+    muy locales las entiende menos gente que el producto quiere alcanzar."""
+    persona = cargar_prompt("tutor_persona").lower()
+    assert "chévere" in persona, "se perdió el toque colombiano"
+    assert "español colombiano neutro" in persona, "se perdió el registro neutro"
+    for jerga in ["parce", "güevón", "sisas"]:
+        assert jerga in persona, f"dejó de vetarse la jerga: {jerga}"
+
+
+def test_los_valores_no_invaden_lo_academico():
+    """El riesgo del prompt de valores es que el tutor pare una suma para dar una
+    lección de liderazgo. Formar es cómo trata al niño, no un tema con turno."""
+    valores = cargar_prompt("valores").lower()
+    assert "nunca interrumpes lo académico" in valores
+    assert "el tema entra solo si el niño lo trae" in valores
+
+
 def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
     """Regla dura: el prompt de sesión se mantiene flaco (ARCHITECTURE.md §9).
 

@@ -90,33 +90,15 @@ detalle de derivación en `ARCHITECTURE.md` §18). Lo que **no** se implementó:
   ⚠️ Cuando se implemente, nace en `None` y llega en `None` hasta el prompt —
   aplica la lección de la fase 6: la ausencia de evidencia no se completa con un
   default que parece un dato. El prompt tiene que saber leerlo vacío.
-- 🔬 **La auditoría del elogio inflado no se pudo agregar** — y lo interesante
-  es *por qué*. Línea roja 14, el campo más verificable de toda la Constitución:
-  se agregó `elogio_inflado: bool` a `AuditoriaCumplimiento` y
-  `curriculum_fidelity` cayó de **4/4 a 0/4** sin que nada del currículum se
-  hubiera tocado. Aislado con tres corridas:
+- ✅ **La auditoría del elogio inflado ya corre** (era el pendiente 🔬 de esta
+  lista). El campo rompía la extracción porque las dos mitades del Analista
+  compartían un schema y competían: sin campos extra 4/4, con un campo trivial
+  3/4, con uno que exige juicio 0/4. Se partió en dos llamadas
+  (`ARCHITECTURE.md` §18) y ahora `elogio_inflado` audita la línea roja 14 con
+  tres casos en `evals/parent_trust/`. La extracción volvió a 4/4 estable.
 
-  | `models.py` | prompt Analista | Resultado |
-  |---|---|---|
-  | HEAD | HEAD | 4/4 |
-  | **+ el campo** | HEAD | 0/4 |
-  | HEAD | reescrito | 4/4 |
-
-  **Es el campo, no el prompt.** Un boolean más en el schema y el Analista
-  devuelve `observaciones: []` — llena la auditoría impecable y deja vacía la
-  extracción. Moverlo al final del modelo no lo arregla (probado). Subir
-  `max_tokens` tampoco (se subió igual: el truncamiento era real y silencioso,
-  ver `MAX_TOKENS_EXTRACCION`).
-
-  Se revirtió el campo. La hipótesis para la próxima: **las dos preguntas del
-  Analista compiten, y agregar peso a la auditoría se lo saca a la extracción.**
-  Si es cierto, la salida es partirlo en dos llamadas — pero eso contradice
-  "señales + auditoría en una llamada" y es una decisión de arquitectura, no un
-  arreglo. Mientras tanto el prompt del tutor sí prohíbe el elogio inflado; lo
-  que falta es que alguien lo verifique.
-
-- **El tutor no tiene nombre.** El System Prompt derivado asume
-  `[NOMBRE DEL AVATAR]`. Decisión de producto sin tomar.
+- ✅ **El tutor se llama Walter.** Vive en `config.NOMBRE_TUTOR`, no en el .md,
+  porque es lo primero que va a variar (por país, o si la familia lo elige).
 - **Notificación suave al papá cuando surge un tema de familia** (§7.4 y §8.6):
   religión, sexualidad, política, noticias difíciles. El tutor ya devuelve la
   pregunta a la casa; falta que el papá se entere de que surgió, para que la

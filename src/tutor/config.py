@@ -41,6 +41,17 @@ IDIOMA_POR_DEFECTO = "es"
 """Los prompts se cargan como {nombre}.{idioma}.md"""
 
 
+NOMBRE_TUTOR = "Walter"
+"""Cómo se llama el tutor cuando el niño le pregunta.
+
+No es decoración: sin un nombre fijo el modelo se inventaba uno distinto cada
+sesión, y un tutor que ayer se llamaba otra cosa no es el mismo que lo conoce
+desde marzo. Eso pega justo donde el producto promete memoria longitudinal.
+
+Vive acá y no en el .md porque es lo primero que va a variar: por país, o el día
+que la familia pueda elegirlo. Un solo lugar que cambiar."""
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Modelos
 # ─────────────────────────────────────────────────────────────────────────────

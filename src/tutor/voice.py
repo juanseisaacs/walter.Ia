@@ -253,6 +253,7 @@ def construir_instruccion_sistema(
     modelo necesita "jamás compares", no el principio que lo justifica.
     """
     partes = [
+        f"Te llamas **{cfg.NOMBRE_TUTOR}**. Es tu nombre siempre, en toda sesión.",
         cargar_prompt("tutor_persona", idioma),
         cargar_prompt("socratic_playbook", idioma),
         cargar_prompt("valores", idioma),

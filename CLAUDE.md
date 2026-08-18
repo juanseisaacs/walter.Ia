@@ -180,7 +180,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   de entrada con idioma fijo + sesgo aritmético
 - `session.py`: `Orquestador` — abre (precarga + presupuesto + token), registra
   turnos con los dos niveles de seguridad, cierra y encola para el Analista
-- `pipeline.py`: Analista (señales + auditoría en una llamada), Vigilante,
+- `pipeline.py`: Analista (señales y auditoría en dos llamadas — §18), Vigilante,
   métricas en código, reporte al papá verificado contra la fuente, y las tareas
   que drenan las dos colas
 - `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
@@ -214,22 +214,36 @@ Ver `ARCHITECTURE.md` §17 para el plan de fases.
 
 ## Lección aprendida (fase 7)
 
-**Agregar un campo a la salida del Analista le quita calidad a los otros
-campos.** Se sumó un boolean a `AuditoriaCumplimiento` y `curriculum_fidelity`
-cayó de 4/4 a 0/4: el modelo devolvía la auditoría impecable y
-`observaciones: []`. Nada del currículum se había tocado.
+**El schema pesa más que el prompt.** Toda esta tanda salió de agregar un
+boolean a `AuditoriaCumplimiento`: `curriculum_fidelity` cayó de 4/4 a 0/4 sin
+que nada del currículum se tocara. El modelo devolvía la auditoría impecable y
+`observaciones: []`.
 
-Lo aislado con tres corridas está en `PENDIENTE.md`. Dos cosas que quedan:
+Cuatro cosas que quedaron, todas medidas:
 
-1. **El síntoma miente.** "Observaciones vacías" se lee como "el prompt está
-   mal", y se pierde una tarde corrigiendo el prompt. Lo que estaba mal era el
-   schema. Ante una regresión en evals después de tocar un modelo Pydantic, la
-   primera prueba es **volver el modelo a HEAD dejando el prompt nuevo** — eso
-   separa las dos causas en una sola corrida.
-2. **Y el baseline hay que medirlo bien.** La primera medición fue con el
-   `models.py` nuevo y el prompt viejo — la peor de las tres combinaciones — y
-   dio 0/4, lo que parecía probar que la regresión era preexistente. No lo era.
-   **Un baseline con una variable a medias no es un baseline.**
+1. **Un schema tiene presupuesto de atención, y se reparte.** Medido:
+   sin campos extra 4/4 · con un campo trivial 3/4 · con un campo que exige
+   juicio 0/4. Cuando dos trabajos distintos comparten una salida estructurada,
+   **el que pierde es el que no estás mirando**. La salida fue partir el Analista
+   en dos llamadas (`ARCHITECTURE.md` §18).
+2. **El síntoma miente.** "Observaciones vacías" se lee como "el prompt está
+   mal", y se pierde una tarde corrigiendo el prompt. Ante una regresión en evals
+   después de tocar un modelo Pydantic, la primera prueba es **volver el modelo a
+   HEAD dejando el prompt nuevo**: separa las dos causas en una corrida.
+3. **Un baseline con una variable a medias no es un baseline.** La primera
+   medición se hizo con el `models.py` nuevo y el prompt viejo — la peor de las
+   tres combinaciones — y dio 0/4, lo que parecía probar que la regresión era
+   preexistente. No lo era.
+4. **Una descripción de campo enfática puede colgar al modelo.** Un
+   `description` largo y en mayúsculas ("OBLIGATORIO…") hizo que Haiku entrara en
+   un loop generando `‌` hasta agotar `max_tokens`, y el JSON truncado se
+   descartaba entero. La misma regla, dicha corta y en tono neutro: 4/4 estable
+   en tres corridas. En salida estructurada, **el campo se describe, no se grita.**
+
+Y una que es de método, no de modelos: cuando el mismo síntoma vuelve tres veces
+con arreglos distintos, el arreglo está en el lugar equivocado. `habilidad_id`
+se resolvió cuando se dejó de pedirle al modelo lo que el código ya sabía — si
+la sesión trabajó una sola habilidad, no había nada que inferir.
 
 ---
 

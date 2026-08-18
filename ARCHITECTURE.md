@@ -62,14 +62,20 @@ El sistema tiene dos planos con reglas opuestas.
 | 1 | **Compañero del Papá** | Onboarding + semanal | Sonnet 5 | Conversación / datos → ficha inicial / reporte |
 | 2 | **Tutor** | En vivo | Gemini Live + 4 tools | Voz + ficha → voz |
 | 3 | **Vigilante** | En vivo, **paralelo** | Haiku 4.5 | Ventana de turnos → alerta / nada |
-| 4 | **Analista de sesión** | Post-sesión, **100%** | Haiku 4.5 | Transcripción → señales + auditoría |
+| 4 | **Analista de sesión** | Post-sesión, **100%** | Haiku 4.5 | Transcripción → señales + auditoría (2 llamadas) |
 | — | *Generador de ejercicios* | *Build-time* | *Haiku 4.5* | *Nodo → ejercicios validados* |
 
 ### Decisiones de fusión
 
-- **Analista + Supervisor de calidad → uno solo.** Mismo input, mismo momento,
-  mismo modelo. Fusionados, la auditoría del método socrático pasa de muestreo
-  del 10% a **cobertura del 100%** al mismo costo.
+- **Analista + Supervisor de calidad → un agente, dos llamadas.** Mismo input,
+  mismo momento, mismo modelo: por eso la auditoría del método cubre el **100%**
+  de las sesiones y no un muestreo del 10%.
+
+  Estuvieron en **una sola llamada** hasta que se midió el costo. Ver §18: con
+  el schema fusionado, cada campo que se le agregaba a la auditoría se pagaba en
+  observaciones que el modelo dejaba de anotar. Siguen siendo el mismo agente y
+  el mismo disparo — lo que se separó es el pedido al modelo, para que cada
+  llamada tenga un solo trabajo.
 - **Entrevistador + Reportero → Compañero del Papá.** Misma persona hablándole al
   papá. Un agente, dos modos. Deja lugar para un modo Q&A futuro.
 
