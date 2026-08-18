@@ -13,17 +13,21 @@ El audio NO pasa por acá (ARCHITECTURE.md §10). Este es el plano de control:
 
 from __future__ import annotations
 
+import os
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import config as cfg
 from .curriculum import cargar_grafo
 from .models import Ejercicio, ModoSesion, Nino
 from .notificaciones import Notificador, aviso_de_alerta, notificador_por_defecto
+from .panel import render_error, render_panel
 from .pedagogy import adelanto, esta_dominada, grado_de_trabajo
+from .pipeline import cliente_por_defecto, procesar_sesion
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
 from .tools import Veredicto, check_answer
@@ -36,6 +40,12 @@ _repo = RepositorioSQLite(cfg.DB, cfg.DATOS)
 _grafo = cargar_grafo()
 _orquestador = Orquestador(_repo, _grafo, emisor_por_defecto())
 _notificador: Notificador = notificador_por_defecto()
+
+# El Analista corre offline con este cliente. Sin ANTHROPIC_API_KEY es un
+# ClienteFalso sin guion: no puede analizar, así que ni se dispara y la sesión
+# queda en cola para `scripts/procesar_pendientes.py` cuando haya llave.
+_cliente_analista = cliente_por_defecto()
+_HAY_ANALISTA = type(_cliente_analista).__name__ != "ClienteFalso"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -133,15 +143,23 @@ class CerrarSesion(BaseModel):
 
 
 @app.post("/api/sesiones/{sesion_id}/cerrar", tags=["niño"])
-def cerrar_sesion(sesion_id: str, cuerpo: CerrarSesion):
+def cerrar_sesion(sesion_id: str, cuerpo: CerrarSesion, fondo: BackgroundTasks):
     try:
-        return _orquestador.cerrar(
+        sesion = _orquestador.cerrar(
             sesion_id,
             interrumpida=cuerpo.interrumpida,
             tokens_consumidos=cuerpo.tokens_consumidos,
         )
     except ErrorSesion as e:
         raise HTTPException(404, str(e)) from e
+
+    # Cierra el circuito adaptativo FUERA del camino de respuesta: el Analista lee
+    # la transcripción recién guardada y escribe el dominio. Corre después de que
+    # el niño ya recibió el 200, así que nunca lo hace esperar.
+    if _HAY_ANALISTA:
+        fondo.add_task(procesar_sesion, _repo, _grafo, sesion, _cliente_analista)
+
+    return sesion
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -269,6 +287,66 @@ def cumplimiento(nino_id: str, dias: int = 30, autorizado: str = Depends(papa_au
     }
 
 
+def _metodo_sostenido(sesiones_auditadas: list) -> float | None:
+    """Fracción de sesiones donde el tutor NO regaló la respuesta, según el
+    veredicto persistido del Analista. None si todavía no hay veredictos —
+    no se inventa un 100% cuando no se midió nada."""
+    veredictos = [_repo.obtener_auditoria(s.id) for s in sesiones_auditadas]
+    veredictos = [v for v in veredictos if v is not None]
+    if not veredictos:
+        return None
+    cumplidas = sum(1 for v in veredictos if not v.regalo_la_respuesta)
+    return cumplidas / len(veredictos)
+
+
+@app.get("/panel/{nino_id}", response_class=HTMLResponse, tags=["papá"])
+def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
+    """El panel del papá, renderizado en el servidor. El link inteligente cae acá.
+
+    Superficie de VERIFICACIÓN: números en código contra la fuente, estables entre
+    visitas. Ver panel.py para por qué no es un SPA ni un agente que genera HTML.
+    """
+    try:
+        autorizado = _canjear(token)
+    except HTTPException:
+        return HTMLResponse(render_error("El enlace venció o no es válido. Pedí uno nuevo."), 401)
+    if autorizado != nino_id:
+        return HTMLResponse(render_error("Ese enlace no da acceso a este niño."), 403)
+
+    nino = _repo.obtener_nino(nino_id)
+    if nino is None:
+        return HTMLResponse(render_error("No encontramos a ese niño."), 404)
+
+    ahora = datetime.now()
+    domina, trabajando = [], []
+    for hid, registro in nino.dominio.items():
+        if not _grafo.existe(hid):
+            continue
+        nombre = _grafo.habilidad(hid).nombre.es
+        (domina if esta_dominada(registro, ahora) else trabajando).append(nombre)
+
+    sesiones = _repo.sesiones_de(nino_id, ahora - timedelta(days=dias), ahora)
+    auditadas = [s for s in sesiones if s.analizada]
+    reporte = _repo.ultimo_reporte(nino_id)
+
+    html = render_panel(
+        nombre=nino.nombre,
+        grado_escolar=nino.grado,
+        grado_de_trabajo=grado_de_trabajo(nino, _grafo, ahora),
+        adelanto_grados=adelanto(nino, _grafo, ahora),
+        ya_domina=sorted(domina),
+        esta_trabajando=sorted(trabajando),
+        intereses=nino.perfil.intereses,
+        sesiones_total=len(sesiones),
+        sesiones_auditadas=len(auditadas),
+        metodo_sostenido=_metodo_sostenido(auditadas),
+        dias=dias,
+        reporte_narrativo=reporte.contenido if reporte else None,
+        generado_en=ahora,
+    )
+    return HTMLResponse(html)
+
+
 class PedirEnlace(BaseModel):
     nino_id: str
     email: str
@@ -290,7 +368,9 @@ def pedir_enlace(cuerpo: PedirEnlace):
 # Internos
 # ─────────────────────────────────────────────────────────────────────────────
 
-BASE_PANEL = "http://localhost:5173/panel"
+# El panel lo sirve ESTE backend (server-rendered), no el frontend del niño.
+# En producción se apunta con URL_PUBLICA_BACKEND al dominio real.
+BASE_PANEL = os.getenv("URL_PUBLICA_BACKEND", "http://localhost:8000") + "/panel"
 
 
 def _url_panel(nino_id: str, token: str) -> str:
