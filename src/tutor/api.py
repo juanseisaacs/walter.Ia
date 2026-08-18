@@ -227,16 +227,30 @@ def tool_verify_arithmetic(cuerpo: VerificarCuenta):
 
 
 @app.post("/api/tools/get_next_problem", tags=["tools"])
-def tool_get_next_problem(sesion_id: str):
-    """Sale del banco precargado en memoria. No toca la base."""
+def tool_get_next_problem(sesion_id: str, habilidad_id: str | None = None):
+    """Sale del banco precargado en memoria. No toca la base.
+
+    `habilidad_id` es el tema que pidió el niño. El tema lo elige él; el
+    ejercicio sale del banco validado en código — nunca lo inventa el modelo.
+    """
     try:
         banco = _orquestador.banco(sesion_id)
     except ErrorSesion as e:
         raise HTTPException(404, str(e)) from e
 
-    ejercicio = banco.get_next_problem()
+    ejercicio = banco.get_next_problem(habilidad_id)
     if ejercicio is None:
-        raise HTTPException(409, "Banco agotado. Recargá reportando turnos.")
+        # Se devuelven los temas que SÍ hay. Un "no tengo" a secas deja al tutor
+        # sin nada que ofrecer, y sin nada que ofrecer improvisa.
+        return {
+            "ejercicio": None,
+            "temas_disponibles": banco.temas,
+            "mensaje": (
+                f"No quedan ejercicios de '{habilidad_id}'."
+                if habilidad_id
+                else "Banco agotado."
+            ),
+        }
     return {"ejercicio": ejercicio, "se_agota": banco.se_esta_agotando()}
 
 

@@ -90,9 +90,15 @@ export const api = {
       body: JSON.stringify({ operacion, respuesta_nino: respuestaNino }),
     }),
 
-  getNextProblem: (sesionId: string) =>
-    pedir<{ ejercicio: Ejercicio; se_agota: boolean }>(
-      `/tools/get_next_problem?sesion_id=${encodeURIComponent(sesionId)}`,
+  getNextProblem: (sesionId: string, habilidadId?: string) =>
+    pedir<{
+      ejercicio: Ejercicio | null;
+      se_agota?: boolean;
+      temas_disponibles?: string[];
+      mensaje?: string;
+    }>(
+      `/tools/get_next_problem?sesion_id=${encodeURIComponent(sesionId)}` +
+        (habilidadId ? `&habilidad_id=${encodeURIComponent(habilidadId)}` : ""),
       { method: "POST" },
     ),
 

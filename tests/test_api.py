@@ -388,3 +388,44 @@ def test_el_endpoint_no_le_pasa_el_resultado_al_modelo(cliente):
         json={"operacion": "135 + 241", "respuesta_nino": "780"},
     )
     assert "376" not in r.text
+
+
+def test_el_tutor_puede_pedir_un_tema_distinto(cliente):
+    """El niño dice "mejor hagamos restas" y el tutor tiene que poder pedirlo.
+
+    El tema lo elige el niño; el ejercicio sale del banco validado en código.
+    Sin esto el tutor improvisa, y lo que improvisa no queda atado a un nodo del
+    grafo: la sesión no escribe dominio (18/08, ses_88be006b825f).
+    """
+    abierta = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()
+    sid = abierta["sesion_id"]
+    otro = next(
+        e["habilidad_id"]
+        for e in abierta["ejercicios"]
+        if e["habilidad_id"] != abierta["habilidad_id"]
+    )
+
+    r = cliente.post(
+        "/api/tools/get_next_problem", params={"sesion_id": sid, "habilidad_id": otro}
+    ).json()
+
+    assert r["ejercicio"] is not None
+    assert r["ejercicio"]["habilidad_id"] == otro, "entregó de otro tema, no del pedido"
+
+
+def test_un_tema_sin_ejercicios_no_devuelve_otra_cosa(cliente):
+    """Responde qué SÍ hay, en vez de un error a secas.
+
+    Un "no tengo" sin alternativas deja al tutor sin nada que ofrecer, y sin
+    nada que ofrecer inventa. Tampoco puede entregar otro tema en silencio: el
+    tutor terminaría corrigiendo contra un enunciado que el niño nunca oyó.
+    """
+    sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+
+    r = cliente.post(
+        "/api/tools/get_next_problem",
+        params={"sesion_id": sid, "habilidad_id": "mat.no.existe"},
+    ).json()
+
+    assert r["ejercicio"] is None
+    assert r["temas_disponibles"], "no le dijo al tutor qué sí tiene"

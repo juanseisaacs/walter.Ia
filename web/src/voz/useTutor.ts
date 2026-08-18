@@ -38,7 +38,7 @@ export function useTutor(ninoId: string) {
   const acumNinoRef = useRef("");
   const acumTutorRef = useRef("");
   const bancoRef = useRef<Ejercicio[]>([]);
-  const indiceRef = useRef(0);
+  const entregadosRef = useRef<Set<string>>(new Set());
   const ejercicioActualRef = useRef<string | null>(null);
   const arrancandoRef = useRef(false);
   const arranquesRef = useRef(0);
@@ -131,20 +131,55 @@ export function useTutor(ninoId: string) {
       case "get_next_problem": {
         // Los ejercicios YA vinieron al abrir la sesión. Ir a buscarlos por red
         // es un viaje de ida y vuelta por nada: se sirven de acá, ~0ms.
-        const local = bancoRef.current[indiceRef.current];
+        //
+        // El tema lo pide el tutor cuando el niño quiere cambiar. El ejercicio
+        // igual sale del banco validado: el niño elige DE QUÉ, nunca CUÁL.
+        const tema = args.habilidad_id ? String(args.habilidad_id) : null;
+
+        // ORDEN IDÉNTICO AL DEL BACKEND, y no es un detalle de estilo: los dos
+        // bancos parten de la misma lista y avanzan en paralelo. Si entregaran
+        // distinto, `check_answer` verificaría contra un enunciado que el niño
+        // nunca oyó — y le diría que se equivocó por resolver bien otro
+        // ejercicio. Sin tema se sirve la habilidad del día y, si se agotó,
+        // cualquier otra; con tema, solo ese. Igual que BancoDeSesion.
+        const libre = (h: string | null) =>
+          bancoRef.current.find(
+            (e) => !entregadosRef.current.has(e.id) && (h === null || e.habilidad_id === h),
+          );
+        const local = tema ? libre(tema) : (libre(sesion.habilidad_id) ?? libre(null));
+
         if (local) {
-          indiceRef.current += 1;
+          entregadosRef.current.add(local.id);
           ejercicioActualRef.current = local.id;
           // El backend igual tiene que enterarse: su BancoDeSesion alimenta
           // habilidades_trabajadas y decide cuándo recargar. Pero que se entere
           // NO puede costarle el silencio al niño — sale sin esperarlo.
-          void api.getNextProblem(sesion.sesion_id).catch(() => {});
-          return medir({ ejercicio_id: local.id, enunciado: local.enunciado.es });
+          void api.getNextProblem(sesion.sesion_id, tema ?? undefined).catch(() => {});
+          return medir({
+            ejercicio_id: local.id,
+            enunciado: local.enunciado.es,
+            tema: local.habilidad_id,
+          });
         }
-        // Se acabó el precargado: acá sí toca esperar.
-        const { ejercicio } = await api.getNextProblem(sesion.sesion_id);
-        ejercicioActualRef.current = ejercicio.id;
-        return medir({ ejercicio_id: ejercicio.id, enunciado: ejercicio.enunciado.es });
+
+        // Se acabó lo precargado de ese tema: acá sí toca esperar.
+        const r = await api.getNextProblem(sesion.sesion_id, tema ?? undefined);
+        if (!r.ejercicio) {
+          // No es un fallo: es "de eso hoy no tengo". Se le devuelven los temas
+          // que sí hay para que pueda ofrecerlos en vez de inventar uno.
+          return medir({
+            sin_ejercicios: true,
+            mensaje: r.mensaje ?? "No quedan ejercicios de ese tema.",
+            temas_disponibles: r.temas_disponibles ?? [],
+          });
+        }
+        entregadosRef.current.add(r.ejercicio.id);
+        ejercicioActualRef.current = r.ejercicio.id;
+        return medir({
+          ejercicio_id: r.ejercicio.id,
+          enunciado: r.ejercicio.enunciado.es,
+          tema: r.ejercicio.habilidad_id,
+        });
       }
       case "request_camera":
         return { pedido: true, motivo: args.motivo };
@@ -192,7 +227,7 @@ export function useTutor(ninoId: string) {
       acumNinoRef.current = "";
       acumTutorRef.current = "";
       bancoRef.current = [];
-      indiceRef.current = 0;
+      entregadosRef.current = new Set();
       tokensRef.current = { suma: 0, ultimo: 0 };
       setEstado("inicio");
       setTextoNino("");
@@ -281,7 +316,7 @@ export function useTutor(ninoId: string) {
       const sesion = await api.abrirSesion(ninoId);
       sesionRef.current = sesion;
       bancoRef.current = sesion.ejercicios ?? [];
-      indiceRef.current = 0;
+      entregadosRef.current = new Set();
       setTema(sesion.habilidad_nombre);
 
       // El token ya trae la configuración atada: no mandamos ni prompt ni tools.
