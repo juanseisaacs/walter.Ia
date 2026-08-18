@@ -328,3 +328,40 @@ def test_la_pagina_del_papa_no_habla_en_jerga(cliente):
 
     for jerga in ["nodo", "grafo", "habilidad_id", "prerequisito", "mat.", "dominio_"]:
         assert jerga not in texto
+
+
+def test_el_panel_no_se_contradice_sobre_cuantas_auditó(cliente):
+    """Paso de verdad en el panel real: arriba decia "todavia no hay sesiones
+    auditadas" y abajo "2 auditadas por el metodo". "Auditada" significa UNA
+    cosa: que hay veredicto guardado. En la superficie que existe para
+    verificar, una contradiccion visible cuesta mas que el dato que aporta.
+    """
+    from datetime import datetime
+
+    from tutor.models import ModoSesion, Sesion
+
+    # Analizada por el Analista, pero sin veredicto persistido (el caso real:
+    # se analizó antes de que existiera `guardar_auditoria`).
+    api._repo.crear_sesion(
+        Sesion(id="s_vieja", nino_id="n1", modo=ModoSesion.GUIADO, inicio=datetime.now())
+    )
+    vieja = api._repo.obtener_sesion("s_vieja")
+    vieja.analizada = True
+    api._repo.actualizar_sesion(vieja)
+
+    token = _token_para(cliente, "n1")
+    texto = cliente.get("/panel/n1", params={"token": token}).text
+
+    assert "Todavía no hay sesiones auditadas" in texto
+    assert "<strong>0</strong> auditadas" in texto
+
+
+def test_lo_que_se_cuenta_como_auditado_es_lo_que_se_promedia(cliente):
+    """El numero de arriba y el de abajo salen de la misma lista."""
+    _sesion_auditada("s_ok1", regalo_la_respuesta=False)
+    _sesion_auditada("s_mal", regalo_la_respuesta=True)
+    token = _token_para(cliente, "n1")
+    texto = cliente.get("/panel/n1", params={"token": token}).text
+
+    assert "50%" in texto
+    assert "<strong>2</strong> auditadas" in texto

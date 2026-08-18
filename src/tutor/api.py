@@ -287,16 +287,24 @@ def cumplimiento(nino_id: str, dias: int = 30, autorizado: str = Depends(papa_au
     }
 
 
-def _metodo_sostenido(sesiones_auditadas: list) -> float | None:
-    """Fracción de sesiones donde el tutor NO regaló la respuesta, según el
-    veredicto persistido del Analista. None si todavía no hay veredictos —
-    no se inventa un 100% cuando no se midió nada."""
-    veredictos = [_repo.obtener_auditoria(s.id) for s in sesiones_auditadas]
-    veredictos = [v for v in veredictos if v is not None]
+def _veredictos_de(sesiones: list) -> list:
+    """Los veredictos del método que existen para estas sesiones.
+
+    "Auditada" en el panel significa UNA sola cosa: que hay veredicto guardado.
+    Contarlas por `analizada` (pasó por el Analista) daba una página que se
+    contradecía sola — "todavía no hay sesiones auditadas" arriba y "2 auditadas
+    por el método" abajo. En la superficie que existe para verificar, una
+    contradicción visible cuesta más que el dato que aporta.
+    """
+    return [v for s in sesiones if (v := _repo.obtener_auditoria(s.id)) is not None]
+
+
+def _metodo_sostenido(veredictos: list) -> float | None:
+    """Fracción de sesiones donde el tutor NO regaló la respuesta. None si
+    todavía no hay veredictos — no se inventa un 100% cuando no se midió nada."""
     if not veredictos:
         return None
-    cumplidas = sum(1 for v in veredictos if not v.regalo_la_respuesta)
-    return cumplidas / len(veredictos)
+    return sum(1 for v in veredictos if not v.regalo_la_respuesta) / len(veredictos)
 
 
 @app.get("/panel/{nino_id}", response_class=HTMLResponse, tags=["papá"])
@@ -326,7 +334,7 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         (domina if esta_dominada(registro, ahora) else trabajando).append(nombre)
 
     sesiones = _repo.sesiones_de(nino_id, ahora - timedelta(days=dias), ahora)
-    auditadas = [s for s in sesiones if s.analizada]
+    veredictos = _veredictos_de(sesiones)
     reporte = _repo.ultimo_reporte(nino_id)
 
     html = render_panel(
@@ -338,8 +346,8 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         esta_trabajando=sorted(trabajando),
         intereses=nino.perfil.intereses,
         sesiones_total=len(sesiones),
-        sesiones_auditadas=len(auditadas),
-        metodo_sostenido=_metodo_sostenido(auditadas),
+        sesiones_auditadas=len(veredictos),
+        metodo_sostenido=_metodo_sostenido(veredictos),
         dias=dias,
         reporte_narrativo=reporte.contenido if reporte else None,
         sugerencia_para_casa=reporte.sugerencia if reporte else None,
