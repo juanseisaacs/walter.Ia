@@ -133,7 +133,7 @@ sentado enfrente**. Preferimos fallar acá, al abrir la sesión."""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Los 4 tools, en el formato de function calling
+# Los 5 tools, en el formato de function calling
 # ─────────────────────────────────────────────────────────────────────────────
 # El modelo los llama durante la conversación; el navegador reenvía la llamada
 # a nuestra API. check_answer NUNCA se reimplementa en el cliente: una sola
@@ -143,8 +143,8 @@ DECLARACIONES_TOOLS: list[dict] = [
     {
         "name": "check_answer",
         "description": (
-            "Verifica si la respuesta del niño es correcta. Usalo SIEMPRE antes de "
-            "decirle si acertó: vos no calculás, esta herramienta calcula. "
+            "Verifica si la respuesta del niño es correcta. Úsalo SIEMPRE antes de "
+            "decirle si acertó: tú no calculas, esta herramienta calcula. "
             "Entiende números dichos en palabras."
         ),
         "parameters": {
@@ -160,6 +160,29 @@ DECLARACIONES_TOOLS: list[dict] = [
         },
     },
     {
+        "name": "verify_arithmetic",
+        "description": (
+            "Verifica una cuenta que propusiste tú, fuera del banco de ejercicios. "
+            "Úsalo SIEMPRE antes de decir si acertó, si está cerca o si le falta poco: "
+            "tú no calculas, esta herramienta calcula. Entiende números en palabras. "
+            "Devuelve si acertó y qué tan lejos quedó, nunca el resultado."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "operacion": {
+                    "type": "string",
+                    "description": "La cuenta, con dos números y un signo. Ej: '578 - 34'",
+                },
+                "respuesta_nino": {
+                    "type": "string",
+                    "description": "Lo que dijo el niño, tal cual, sin interpretar",
+                },
+            },
+            "required": ["operacion", "respuesta_nino"],
+        },
+    },
+    {
         "name": "get_next_problem",
         "description": "Trae el siguiente ejercicio para practicar la habilidad de hoy.",
         "parameters": {"type": "object", "properties": {}},
@@ -168,12 +191,12 @@ DECLARACIONES_TOOLS: list[dict] = [
         "name": "request_camera",
         "description": (
             "Pide al niño que muestre algo por la cámara: el cuaderno, la tarea, "
-            "lo que escribió. Usalo cuando necesites ver para poder ayudar."
+            "lo que escribió. Úsalo cuando necesites ver para poder ayudar."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "motivo": {"type": "string", "description": "Qué necesitás ver"}
+                "motivo": {"type": "string", "description": "Qué necesitas ver"}
             },
             "required": ["motivo"],
         },
@@ -181,7 +204,7 @@ DECLARACIONES_TOOLS: list[dict] = [
     {
         "name": "escalate_safety",
         "description": (
-            "Levantá una alerta si el niño dice algo preocupante: que alguien le hace "
+            "Levanta una alerta si el niño dice algo preocupante: que alguien le hace "
             "daño, que se quiere lastimar, que está solo o en peligro. Ante la duda, "
             "usala. Seguí acompañándolo mientras tanto."
         ),
@@ -217,14 +240,22 @@ def cargar_prompt(nombre: str, idioma: str = cfg.IDIOMA_POR_DEFECTO) -> str:
 def construir_instruccion_sistema(
     resumen_nino: str, modo: str = "guiado", idioma: str = cfg.IDIOMA_POR_DEFECTO
 ) -> str:
-    """Persona + método + seguridad + este niño.
+    """Persona + método + valores + seguridad + este niño.
 
     Se mantiene FLACO (ARCHITECTURE.md §9): nunca el currículum entero ni la
     historia completa. Solo lo que cambia la conducta del tutor en esta sesión.
+
+    El orden importa: la persona primero (el modelo imita el registro de lo que
+    lee antes), la seguridad al final (lo último pesa más en el conflicto).
+
+    `valores` se derivó de la Constitución (`knowledge/product/`) destilando SOLO
+    las viñetas de comportamiento. La doctrina se quedó en el documento: el
+    modelo necesita "jamás compares", no el principio que lo justifica.
     """
     partes = [
         cargar_prompt("tutor_persona", idioma),
         cargar_prompt("socratic_playbook", idioma),
+        cargar_prompt("valores", idioma),
         cargar_prompt("safety_policy", idioma),
         f"# Este niño\n\n{resumen_nino}",
     ]

@@ -365,3 +365,26 @@ def test_lo_que_se_cuenta_como_auditado_es_lo_que_se_promedia(cliente):
 
     assert "50%" in texto
     assert "<strong>2</strong> auditadas" in texto
+
+
+def test_verificar_una_cuenta_improvisada_no_necesita_sesion(cliente):
+    """Es una funcion pura sobre dos strings. Atarla a una sesion seria pedirle
+    estado a algo que no lo tiene."""
+    r = cliente.post(
+        "/api/tools/verify_arithmetic",
+        json={"operacion": "578 - 34", "respuesta_nino": "400"},
+    )
+
+    assert r.status_code == 200
+    assert r.json()["correcto"] is False
+    assert r.json()["distancia"] == "lejos"
+
+
+def test_el_endpoint_no_le_pasa_el_resultado_al_modelo(cliente):
+    """Del otro lado hay un modelo hablandole a un nino: si tiene el numero,
+    tarde o temprano lo dice."""
+    r = cliente.post(
+        "/api/tools/verify_arithmetic",
+        json={"operacion": "135 + 241", "respuesta_nino": "780"},
+    )
+    assert "376" not in r.text

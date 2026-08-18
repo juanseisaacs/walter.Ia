@@ -77,6 +77,19 @@ export const api = {
       },
     ),
 
+  /** Para las cuentas que el tutor improvisa fuera del banco. Nunca devuelve
+      el resultado correcto: solo si acertó y qué tan lejos quedó. */
+  verifyArithmetic: (operacion: string, respuestaNino: string) =>
+    pedir<{
+      correcto: boolean;
+      veredicto: string;
+      valor_interpretado: string | null;
+      distancia: string | null;
+    }>("/tools/verify_arithmetic", {
+      method: "POST",
+      body: JSON.stringify({ operacion, respuesta_nino: respuestaNino }),
+    }),
+
   getNextProblem: (sesionId: string) =>
     pedir<{ ejercicio: Ejercicio; se_agota: boolean }>(
       `/tools/get_next_problem?sesion_id=${encodeURIComponent(sesionId)}`,

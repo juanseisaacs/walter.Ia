@@ -171,6 +171,105 @@ def check_answer(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# verify_arithmetic — para lo que el tutor improvisa
+# ─────────────────────────────────────────────────────────────────────────────
+# `check_answer` solo sabe de ejercicios del banco: valida contra un `ejercicio_id`.
+# Cuando el tutor se sale del banco —y se sale, porque el niño pide otra cosa— no
+# tiene con qué verificar, y el modelo termina juzgando la aritmética él mismo.
+#
+# Pasó en `ses_91c13b1747a2`, y la correlación fue perfecta: los tres ejercicios
+# del banco, bien evaluados; los tres inventados, mal. Al niño que dijo "780" para
+# 135+241 le contestó "estás muy cerca" (la respuesta es 376), y a un "cuarenta y
+# ocho" para 7−3 le dijo "¡Eso!".
+#
+# La respuesta no es prohibirle improvisar: es que también lo improvisado pase por
+# código. La regla dura se sostiene — la aritmética JAMÁS la valida un modelo.
+
+
+class Distancia(StrEnum):
+    """Qué tan lejos quedó, calculado en CÓDIGO.
+
+    Existe para que "estás cerca" deje de ser una impresión del modelo. Es la
+    frase que más se dijo cuando no tenía con qué medir, y era falsa: 780 no
+    está cerca de 376.
+    """
+
+    EXACTO = "exacto"
+    CERCA = "cerca"
+    """Se equivocó en poco: el error es menor al 10% del resultado."""
+    LEJOS = "lejos"
+
+
+class ResultadoAritmetica(BaseModel):
+    veredicto: Veredicto
+    valor_interpretado: str | None = None
+    distancia: Distancia | None = Field(
+        default=None, description="Solo si se pudo verificar. Para graduar la pista."
+    )
+
+
+# Dos números y un operador. Deliberadamente angosto: nada de `eval`, que con un
+# modelo del otro lado es una puerta abierta. Lo que no entra acá se declara no
+# verificable, y el tutor no puede afirmar nada — que es el comportamiento seguro.
+_OPERACION = re.compile(r"^\s*(-?\d+)\s*([+\-*x×/÷])\s*(-?\d+)\s*=?\s*$", re.IGNORECASE)
+
+_OPERADORES = {
+    "+": lambda a, b: a + b,
+    "-": lambda a, b: a - b,
+    "*": lambda a, b: a * b,
+    "x": lambda a, b: a * b,
+    "×": lambda a, b: a * b,
+}
+
+
+def resolver_operacion(operacion: str) -> float | None:
+    """El resultado de una operación de dos términos. None si no se puede.
+
+    NO se expone al tutor: el resultado nunca sale de acá. Si el modelo lo
+    tuviera, la tentación de decirlo en voz alta es exactamente el fracaso que
+    el producto promete no tener.
+    """
+    m = _OPERACION.match(operacion.replace(",", ""))
+    if m is None:
+        return None
+    izq, op, der = int(m.group(1)), m.group(2).lower(), int(m.group(3))
+
+    if op in ("/", "÷"):
+        if der == 0 or izq % der != 0:
+            return None  # en primaria, división no exacta no se verifica sola
+        return izq / der
+    return float(_OPERADORES[op](izq, der))
+
+
+def verify_arithmetic(operacion: str, respuesta_nino: str) -> ResultadoAritmetica:
+    """Verifica una cuenta que el tutor improvisó. ~1ms, sin red, sin modelo.
+
+    Devuelve si acertó y qué tan lejos quedó — NUNCA el resultado correcto.
+    """
+    esperado = resolver_operacion(operacion)
+    if esperado is None:
+        return ResultadoAritmetica(veredicto=Veredicto.REQUIERE_JUICIO)
+
+    dicho = _a_numero(respuesta_nino)
+    if dicho is None:
+        return ResultadoAritmetica(veredicto=Veredicto.INCORRECTO)
+
+    error = abs(dicho - esperado)
+    if error < 1e-9:
+        distancia = Distancia.EXACTO
+    elif error <= max(abs(esperado) * 0.1, 1):
+        distancia = Distancia.CERCA
+    else:
+        distancia = Distancia.LEJOS
+
+    return ResultadoAritmetica(
+        veredicto=Veredicto.CORRECTO if distancia is Distancia.EXACTO else Veredicto.INCORRECTO,
+        valor_interpretado=f"{dicho:g}",
+        distancia=distancia,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # get_next_problem — del banco precargado, en memoria
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -63,6 +63,7 @@ Acá **no mirás al niño: mirás al tutor**. Es una auditoría.
   |---|---|
   | Resolver un **sub-paso** y devolver la pregunta<br>*"7 más 5 son 12. ¿Dónde va ese 1?"* | Es el escalón 3. El niño todavía tiene que hacer el resto |
   | Resolver un ejercicio **parecido**, no el suyo | Es el escalón 4, el último permitido |
+  | Explicar una **convención** (el nombre de un signo, qué significa una palabra) | Nadie las deduce razonando. La convención se explica; el ejercicio no |
 
   Lo que **sí** cuenta como regalarla:
 
@@ -93,7 +94,6 @@ Acá **no mirás al niño: mirás al tutor**. Es una auditoría.
   tutor va directo a resolver el sub-paso (escalón 3). Se saltó 0, 1 y 2.
 - **`detecto_frustracion`** — si el niño se frustró, ¿el tutor lo notó y bajó la
   dificultad? Si no hubo frustración, poné `true`.
-
 Sé estricto. Esta auditoría es la evidencia que se le muestra al papá: un
 "cumplió" complaciente no le sirve a nadie.
 

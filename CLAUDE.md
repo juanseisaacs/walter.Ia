@@ -1,8 +1,9 @@
 # RBH Tutor
 
 Tutor AI adaptativo para niños de 1° a 5° de primaria en **lectura, escritura y
-aritmética**. Enseña con método socrático: guía con preguntas y pistas
-escalonadas, **nunca regala la respuesta**. Aprende del niño sesión a sesión.
+aritmética** — y, mientras tanto, en **carácter, mentalidad y liderazgo**.
+Enseña con método socrático: guía con preguntas y pistas escalonadas, **nunca
+regala la respuesta**. Aprende del niño sesión a sesión.
 
 Nace del RFS **"The Primer"** de Y Combinator. Ver `ARCHITECTURE.md` para las
 decisiones de diseño y su razón.
@@ -11,13 +12,28 @@ decisiones de diseño y su razón.
 
 ## El norte
 
-Toda decisión se justifica contra uno de los 4 criterios de YC. Si una feature no
+Toda decisión se justifica contra uno de estos 5 criterios. Si una feature no
 sirve a ninguno, no entra al MVP.
 
 1. **Curriculum fidelity** — rigor y alineación a estándares reconocidos
 2. **Safety** — protección real de menores
 3. **Longitudinal memory** — el tutor conoce al niño y crece con él
 4. **Parent trust** — el papá confía porque puede verificar
+5. **Formación de carácter** — el tutor forma la persona, no solo la
+   competencia académica
+
+Los cuatro primeros son de YC. El quinto es nuestro, y viene de la
+**Constitución** (`knowledge/product/constitucion_valores.md`): diez pilares
+valóricos, mentalidad de progreso, liderazgo y catorce líneas rojas.
+
+**La Constitución manda sobre el producto.** Si una oportunidad de negocio
+choca con ella, gana ella — o se reforma con decisión fundadora explícita,
+nunca por omisión. Ver `ARCHITECTURE.md` §18 para qué se adoptó, qué se
+comprimió y las tres divergencias registradas.
+
+Y una regla de forma que vale tanto como el contenido: **los valores no se
+predican.** No hay lección de valores; hay un tutor que es así en cada turno.
+Si el tutor sermonea, dejó de formar.
 
 ---
 
@@ -34,8 +50,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
   transporta. Ver `ARCHITECTURE.md` §10.
 - El **Vigilante corre en paralelo** — jamás bloquea la respuesta del tutor.
 - Los ejercicios se **precargan al inicio** de la sesión, nunca durante.
-- El prompt de sesión se mantiene flaco: persona + playbook + resumen compacto +
-  nodo actual. Nunca el currículum entero ni la historia completa.
+- El prompt de sesión se mantiene flaco: persona + playbook + valores +
+  seguridad + resumen compacto + nodo actual. Nunca el currículum entero ni la
+  historia completa. Hay un **techo con test** — subirlo es una decisión, no un
+  descuido.
 
 ### Determinismo
 - **La aritmética jamás la valida un modelo.** `check_answer` es código puro.
@@ -59,6 +77,16 @@ Estas no se negocian. Cada una viene de una decisión razonada en
   filtro puede descartar una habilidad por `grado_sugerido`; el planificador
   decide por dominio. Cuando va adelantado, el tutor lo sabe (no lo frena) y el
   papá se entera (va en el reporte).
+- **Se explica derecho solo lo convencional.** El nombre del signo o cómo se
+  escribe la eñe se dicen y se sigue: nadie los deduce razonando. El resultado
+  del ejercicio en curso, jamás. La duda se resuelve con *¿podría llegar solo
+  si le pregunto bien?* Ver `ARCHITECTURE.md` §18.
+- **El elogio inflado está prohibido.** "Eres un genio", "eres el mejor", "eres
+  increíble" — nunca. No por exagerados: porque le enseñan al niño que su valor
+  depende de rendir. Reconocimiento específico y creíble, o silencio.
+- **La dignidad es incondicional; la confianza se gana.** El niño vale siempre,
+  le salga o no. Su confianza en sí mismo no se declara: se construye con
+  logros reales y no se afirma sin evidencia.
 
 ### Datos
 - **Las transcripciones se borran a los N días.** El activo es la ficha
@@ -83,8 +111,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Necesito... | Va en |
 |---|---|
+| Cambiar **qué es** el tutor (valores, carácter, ADN) | `knowledge/product/constitucion_valores.md` **primero**, y de ahí al prompt |
 | Cambiar cómo habla el tutor | `knowledge/prompts/tutor_persona.es.md` |
 | Cambiar la escalera de pistas | `knowledge/prompts/socratic_playbook.es.md` |
+| Cambiar los valores que el tutor vive | `knowledge/prompts/valores.es.md` |
 | Agregar una habilidad al currículum | `knowledge/curriculum/*.yaml` |
 | Cambiar cómo se calcula el dominio | `src/tutor/pedagogy.py` |
 | Agregar un tool del tutor | `src/tutor/tools.py` |
@@ -179,6 +209,27 @@ confirme que la transcripción arreglada corrige el "dos" → "32", y la medici�
 de `check_answer` en la consola del navegador. Ver `PENDIENTE.md`.
 
 Ver `ARCHITECTURE.md` §17 para el plan de fases.
+
+---
+
+## Lección aprendida (fase 7)
+
+**Agregar un campo a la salida del Analista le quita calidad a los otros
+campos.** Se sumó un boolean a `AuditoriaCumplimiento` y `curriculum_fidelity`
+cayó de 4/4 a 0/4: el modelo devolvía la auditoría impecable y
+`observaciones: []`. Nada del currículum se había tocado.
+
+Lo aislado con tres corridas está en `PENDIENTE.md`. Dos cosas que quedan:
+
+1. **El síntoma miente.** "Observaciones vacías" se lee como "el prompt está
+   mal", y se pierde una tarde corrigiendo el prompt. Lo que estaba mal era el
+   schema. Ante una regresión en evals después de tocar un modelo Pydantic, la
+   primera prueba es **volver el modelo a HEAD dejando el prompt nuevo** — eso
+   separa las dos causas en una sola corrida.
+2. **Y el baseline hay que medirlo bien.** La primera medición fue con el
+   `models.py` nuevo y el prompt viejo — la peor de las tres combinaciones — y
+   dio 0/4, lo que parecía probar que la regresión era preexistente. No lo era.
+   **Un baseline con una variable a medias no es un baseline.**
 
 ---
 

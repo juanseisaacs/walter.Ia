@@ -473,3 +473,124 @@ Las fases 0-4 **no gastan un token de LLM**. Todo determinístico y testeable.
 **Validación end-to-end arranca en matemática, un grado.** Es la única materia
 donde el código verifica al 100%. Una vez que ese lazo cierra, extender a lectura
 y escritura es sumar contenido, no descubrir arquitectura.
+
+---
+
+## 18. La Constitución: qué se adopta, qué se comprime, qué se aplaza
+
+**Fuente:** `knowledge/product/constitucion_valores.md` (v3.2, 2026-08-18) y su
+System Prompt derivado. Definen el ADN ético-valórico y la personalidad del
+tutor: diez pilares, pedagogía adaptativa, mentalidad de progreso, liderazgo,
+catorce líneas rojas, temas sensibles y carácter.
+
+La Constitución pide explícitamente el flujo que este repo ya tenía: *"los
+cambios se proponen primero en la Constitución y se derivan al prompt"*, y
+*"cada diálogo de la Biblioteca de Diálogos Modelo es un test"*. Eso es
+`knowledge/product/` → `knowledge/prompts/` → `evals/`.
+
+### Cómo se adoptó
+
+El System Prompt derivado **no se agregó como archivo**. Repetía en un 60% lo
+que ya decían `tutor_persona`, `socratic_playbook` y `safety_policy`, con
+matices distintos — y dos textos casi idénticos que discrepan en los bordes es
+la forma más confiable de volver impredecible al modelo justo en los casos
+límite. Se usó como fuente para reescribir los tres prompts existentes y crear
+uno nuevo.
+
+| Sección | Destino | Qué se hizo |
+|---|---|---|
+| §1 Diez Pilares | `prompts/valores.es.md` (nuevo) | Solo las viñetas "Comportamientos de la IA" y "Qué evitar" |
+| §2 Pedagogía adaptativa | `prompts/socratic_playbook.es.md` | Comprimida — ver divergencia 2 |
+| §3 Mentalidad y autoestima | `prompts/socratic_playbook.es.md` | Íntegra |
+| §4 Liderazgo | `prompts/valores.es.md` | Destilado de ~100 a ~25 líneas |
+| §5 Líneas rojas | `prompts/safety_policy.es.md` | Las 14, reescritas en la voz del prompt |
+| §6 Temas sensibles | `prompts/safety_policy.es.md` | El método; la mecánica queda en código |
+| §7 Religión | `prompts/safety_policy.es.md` | Sin la excepción — ver divergencia 3 |
+| §8 Personalidad | `prompts/tutor_persona.es.md` | Íntegra |
+| Premisa fundacional, principios universales | — | Se quedan en el documento |
+
+**El criterio del destilado:** el modelo necesita *"jamás compares"*; no
+necesita *"el valor de una persona es intrínseco e incondicional"*. La razón
+sostiene la regla para nosotros, no para él. Todo lo que explica el porqué sin
+cambiar lo que el tutor dice se queda en `knowledge/product/`.
+
+### Las tres divergencias registradas
+
+Ninguna se resolvió por omisión. Las tres son decisiones tomadas.
+
+**1. Instrucción directa: se abre solo para lo convencional.**
+
+La Constitución §2 admite instrucción directa (*"si necesita instrucción
+directa, la das sin rodeos"*); nuestro playbook decía que la escalera nunca
+llega a la respuesta. Se resolvió con una distinción que no estaba en ninguno
+de los dos:
+
+- **Permitida** para conocimiento convencional — el nombre del signo, cómo se
+  escribe la eñe, qué significa "perímetro", el orden de los meses. Son hechos
+  arbitrarios que nadie deduce razonando; hacer socratismo con ellos es poner
+  al niño a adivinar.
+- **Prohibida** para el resultado del ejercicio en curso y para cualquier paso
+  alcanzable con un escalón más.
+
+La duda se resuelve con una pregunta: *¿podría llegar solo si le pregunto
+bien?* Con esta forma, los 30 casos de `evals/` siguen siendo válidos sin
+reescribir ninguno.
+
+**2. La regla de decisión pedagógica se comprime y se reparte.**
+
+La Constitución §2 pide diez preguntas internas antes de cada intervención. Eso
+choca con dos reglas duras a la vez: corre en el camino de la voz (latencia) y
+le entrega al modelo decisiones que hoy toma `pedagogy.py` (determinismo).
+
+El reparto:
+
+- **El modelo decide el modo de intervención** — pregunta, ejemplo, historia,
+  comparación, pausa. Eso es lo valioso de la pedagogía adaptativa y solo se
+  puede decidir en el momento, oyendo al niño.
+- **El código decide qué sigue** — qué ejercicio, cuánto dominio hay, cuándo un
+  prerrequisito está flojo. El planificador no se vuelve un agente.
+
+Las diez preguntas quedaron en tres, y como criterio, no como checklist a
+ejecutar en voz alta.
+
+**3. La excepción de fe declarada no se implementa todavía.**
+
+La Constitución §7 permite que, si el padre declara marco cristiano en el
+onboarding, el tutor responda con sencillez que Dios existe. El MVP **devuelve
+toda pregunta religiosa a la familia, sin excepción**.
+
+Razón: requiere un campo de perfil declarado por el padre, una pregunta en el
+onboarding y revisión legal. Aplazada, no descartada — ver `PENDIENTE.md`.
+`test_la_seguridad_no_implementa_la_excepcion_de_fe_declarada` falla el día que
+alguien la implemente, que es exactamente lo que se quiere: que la decisión se
+tome mirando, no por goteo.
+
+### Lo que esto le costó al prompt de sesión
+
+De ~11 KB a ~31 KB (~7.700 tokens). Es un salto grande contra la regla de
+mantenerlo flaco, y fue una decisión explícita al adoptar la Constitución
+completa. Se protegió con un techo en `test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire`:
+el próximo salto tiene que ser otra decisión tomada, no la suma de párrafos que
+cada quien agregó.
+
+**Lo que NO cambió:** el prompt sigue viajando atado al token efímero (candado
+#1). Más contenido en la instrucción de sistema no toca la latencia por turno —
+se envía una vez al conectar, no por palabra.
+
+### Lo que la Constitución cubrió y nos faltaba
+
+No fue solo reorganizar. Seis huecos reales que no teníamos escritos:
+
+1. **Hostilidad del niño hacia el tutor** ("te odio, eres bobo"). Cero líneas
+   antes. Todo niño lo va a probar, y el modelo improvisaba.
+2. **La regla de gustos de una IA** — "no puedo decirte que me gusta uno más
+   que otro, pero cuéntame cuál prefieres tú".
+3. **"Soy un tonto"** → reconocer el sentimiento, no contradecir con elogio.
+4. **El elogio inflado como línea roja**, con su razón: enseña que el valor
+   depende de rendir. ⚠️ Está en el prompt del tutor, pero **no se audita**:
+   agregar el campo a `AuditoriaCumplimiento` rompió la extracción de
+   observaciones. Ver `PENDIENTE.md`.
+5. **Salvaguardas de dependencia** — antes decíamos "no eres su amigo" y ahí
+   terminaba; ahora está el método.
+6. **Prohibición de diseño adictivo** (línea roja 11). Es justo lo que un papá
+   revisa.

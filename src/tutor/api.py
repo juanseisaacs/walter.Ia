@@ -30,7 +30,7 @@ from .pedagogy import adelanto, esta_dominada, grado_de_trabajo
 from .pipeline import cliente_por_defecto, procesar_sesion
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
-from .tools import Veredicto, check_answer
+from .tools import Veredicto, check_answer, verify_arithmetic
 from .voice import emisor_por_defecto
 
 app = FastAPI(title="RBH Tutor", version="0.1.0")
@@ -201,6 +201,28 @@ def tool_check_answer(cuerpo: VerificarRespuesta):
         "correcto": resultado.veredicto == Veredicto.CORRECTO,
         "veredicto": resultado.veredicto.value,
         "valor_interpretado": resultado.valor_interpretado,
+    }
+
+
+class VerificarCuenta(BaseModel):
+    operacion: str = Field(description="La cuenta que improvisó el tutor. Ej: '578 - 34'")
+    respuesta_nino: str = Field(description="Lo que dijo el niño, sin interpretar")
+
+
+@app.post("/api/tools/verify_arithmetic", tags=["tools"])
+def tool_verify_arithmetic(cuerpo: VerificarCuenta):
+    """Lo mismo que `check_answer`, para lo que el tutor propone fuera del banco.
+
+    No necesita sesión: es una función pura sobre dos strings. Lo que devuelve
+    NUNCA incluye el resultado correcto — si el modelo lo tuviera, la tentación
+    de decirlo en voz alta es el fracaso que el producto promete no tener.
+    """
+    r = verify_arithmetic(cuerpo.operacion, cuerpo.respuesta_nino)
+    return {
+        "correcto": r.veredicto == Veredicto.CORRECTO,
+        "veredicto": r.veredicto.value,
+        "valor_interpretado": r.valor_interpretado,
+        "distancia": r.distancia.value if r.distancia else None,
     }
 
 

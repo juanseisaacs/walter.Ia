@@ -55,6 +55,20 @@ peor todavía: dos corridas sobre los mismos turnos tienen que decidir lo mismo.
 
 `redactar` NO lleva esto: ahí la prosa para el papá sí se beneficia de variar."""
 
+MAX_TOKENS_EXTRACCION = 8192
+"""El techo de la salida estructurada, no del contexto.
+
+Estuvo en 4096 y ahí quedaba justo. Importa porque el Analista emite
+`cumplimiento` primero y `observaciones` después: cuando la respuesta se pasa
+del techo, **lo que se pierde son las observaciones**, y el JSON llega cortado a
+la mitad de una cadena. Pydantic entonces rechaza la respuesta entera y la
+sesión del niño queda sin registrar.
+
+Se vio al probar un campo extra en la auditoría: el JSON se cortó en la columna
+12471. El margen era más chico de lo que parecía.
+
+Es un agente offline: acá 8192 no le cuesta latencia a nadie."""
+
 TEMPERATURA_PROSA = 1.0
 """Para lo que se lee como carta y no como dato. El reporte al papá viene en dos
 campos (afirmaciones + sugerencia), o sea que sale por `extraer` — pero sigue
@@ -113,7 +127,7 @@ class ClienteAnthropic(ClienteLLM):
     ) -> T:
         respuesta = self._obtener().messages.parse(
             model=modelo,
-            max_tokens=4096,
+            max_tokens=MAX_TOKENS_EXTRACCION,
             temperature=temperatura,
             system=sistema,
             messages=[{"role": "user", "content": mensaje}],

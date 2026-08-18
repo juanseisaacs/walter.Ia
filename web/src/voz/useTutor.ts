@@ -91,6 +91,18 @@ export function useTutor(ninoId: string) {
           await api.checkAnswer(sesion.sesion_id, id, String(args.respuesta_nino ?? "")),
         );
       }
+      case "verify_arithmetic": {
+        // El tutor se sale del banco cuando el niño pide otra cosa, y ahí
+        // `check_answer` no aplica: no hay ejercicio_id que valga. Sin esto el
+        // modelo juzga la cuenta él mismo — y en ses_91c13b1747a2 le dijo a un
+        // "780" para 135+241 que estaba "muy cerca" de 376.
+        return medir(
+          await api.verifyArithmetic(
+            String(args.operacion ?? ""),
+            String(args.respuesta_nino ?? ""),
+          ),
+        );
+      }
       case "get_next_problem": {
         // Los ejercicios YA vinieron al abrir la sesión. Ir a buscarlos por red
         // es un viaje de ida y vuelta por nada: se sirven de acá, ~0ms.

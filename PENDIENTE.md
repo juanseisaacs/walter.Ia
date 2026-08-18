@@ -70,6 +70,70 @@ forzarlo:** reanalizar contaría el dominio dos veces.
 
 ## Abierto, sin urgencia
 
+### Lo que quedó pendiente de la Constitución
+
+Adoptada el 2026-08-18 (`knowledge/product/constitucion_valores.md` v3.2, con el
+detalle de derivación en `ARCHITECTURE.md` §18). Lo que **no** se implementó:
+
+- **La excepción de fe declarada** (Constitución §7). Si el padre declara marco
+  cristiano en el onboarding, el tutor podría responder con sencillez que Dios
+  existe. Hoy **toda** pregunta religiosa se devuelve a la familia, sin
+  excepción. Para implementarla hacen falta tres cosas, en este orden: campo
+  declarado por el padre en el perfil (nunca inferido de lo que dice el niño),
+  pregunta en el onboarding, y revisión legal.
+  `test_la_seguridad_no_implementa_la_excepcion_de_fe_declarada` falla el día
+  que alguien lo haga — está puesto para que la decisión se tome mirando.
+- **Confianza por dominio.** El System Prompt derivado pide inyectar el nivel de
+  confianza del niño **por materia** (§3.3.6: un niño puede sentirse capaz en
+  fútbol y derrotado en matemáticas). No existe: `RegistroDominio.nivel` es
+  competencia medida, no confianza sentida. Son dos números distintos.
+  ⚠️ Cuando se implemente, nace en `None` y llega en `None` hasta el prompt —
+  aplica la lección de la fase 6: la ausencia de evidencia no se completa con un
+  default que parece un dato. El prompt tiene que saber leerlo vacío.
+- 🔬 **La auditoría del elogio inflado no se pudo agregar** — y lo interesante
+  es *por qué*. Línea roja 14, el campo más verificable de toda la Constitución:
+  se agregó `elogio_inflado: bool` a `AuditoriaCumplimiento` y
+  `curriculum_fidelity` cayó de **4/4 a 0/4** sin que nada del currículum se
+  hubiera tocado. Aislado con tres corridas:
+
+  | `models.py` | prompt Analista | Resultado |
+  |---|---|---|
+  | HEAD | HEAD | 4/4 |
+  | **+ el campo** | HEAD | 0/4 |
+  | HEAD | reescrito | 4/4 |
+
+  **Es el campo, no el prompt.** Un boolean más en el schema y el Analista
+  devuelve `observaciones: []` — llena la auditoría impecable y deja vacía la
+  extracción. Moverlo al final del modelo no lo arregla (probado). Subir
+  `max_tokens` tampoco (se subió igual: el truncamiento era real y silencioso,
+  ver `MAX_TOKENS_EXTRACCION`).
+
+  Se revirtió el campo. La hipótesis para la próxima: **las dos preguntas del
+  Analista compiten, y agregar peso a la auditoría se lo saca a la extracción.**
+  Si es cierto, la salida es partirlo en dos llamadas — pero eso contradice
+  "señales + auditoría en una llamada" y es una decisión de arquitectura, no un
+  arreglo. Mientras tanto el prompt del tutor sí prohíbe el elogio inflado; lo
+  que falta es que alguien lo verifique.
+
+- **El tutor no tiene nombre.** El System Prompt derivado asume
+  `[NOMBRE DEL AVATAR]`. Decisión de producto sin tomar.
+- **Notificación suave al papá cuando surge un tema de familia** (§7.4 y §8.6):
+  religión, sexualidad, política, noticias difíciles. El tutor ya devuelve la
+  pregunta a la casa; falta que el papá se entere de que surgió, para que la
+  familia decida cómo abordarla. Es un evento nuevo, distinto de
+  `escalate_safety` — no es un riesgo, es un aviso.
+- **Que el Vigilante no escale travesuras.** El prompt ya distingue riesgo de
+  travesura (§6.2.8), pero eso vive del lado del tutor. Falta confirmar que el
+  Vigilante y el reporte al papá tampoco conviertan una confesión menor en un
+  evento. Vale un caso en `evals/safety/`.
+- **Documento legal dedicado** — consentimientos, mecánica de alertas y niveles,
+  bifurcación intrafamiliar, retención, COPPA / Ley 1581. Lo pide la propia
+  Constitución como su pendiente #1.
+- **Diálogos modelo Nivel 1** (abuso, autolesión) — la Constitución es explícita
+  en que se escriben **con el psicólogo infantil, nunca antes**.
+
+### Lo demás
+
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa
   sin respaldo pasa: en el reporte real, *"lo que le está costando es sostener
   el tiempo frente a la actividad"* es una inferencia sobre 9 minutos, no un

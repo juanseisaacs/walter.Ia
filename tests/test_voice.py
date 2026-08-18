@@ -65,8 +65,8 @@ def test_la_deteccion_se_serializa_para_gemini():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_los_tres_prompts_existen_y_no_estan_vacios():
-    for nombre in ("tutor_persona", "socratic_playbook", "safety_policy"):
+def test_los_cuatro_prompts_existen_y_no_estan_vacios():
+    for nombre in ("tutor_persona", "socratic_playbook", "valores", "safety_policy"):
         assert len(cargar_prompt(nombre)) > 200, f"{nombre} está vacío o es un stub"
 
 
@@ -75,10 +75,11 @@ def test_un_prompt_faltante_falla_ruidosamente():
         cargar_prompt("no_existe")
 
 
-def test_la_instruccion_junta_las_cuatro_partes():
+def test_la_instruccion_junta_las_cinco_partes():
     texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.")
     assert "hermano mayor" in texto, "falta la persona"
     assert "escalera" in texto.lower(), "falta el método"
+    assert "no hay una lección de valores" in texto.lower(), "faltan los valores"
     assert "escalate_safety" in texto, "falta la política de seguridad"
     assert "Juan" in texto, "falta el niño"
 
@@ -103,20 +104,111 @@ def test_la_politica_de_seguridad_cubre_lo_esencial():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Lo que trajo la Constitución (knowledge/product/constitucion_valores.md)
+#
+# Cada uno de estos protege una decisión razonada. Si uno falla, alguien aflojó
+# una línea del .md — y los .md no los revisa el compilador.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_el_playbook_separa_la_convencion_del_resultado():
+    """La única puerta abierta a explicar derecho, y su candado.
+
+    Sin este par, "no enseñas de una sola manera" se lee como permiso para
+    resolverle el ejercicio. Ver ARCHITECTURE.md §18, decisión 1.
+    """
+    playbook = cargar_prompt("socratic_playbook").lower()
+    assert "no se descubren pensando" in playbook, "falta la puerta"
+    assert "el resultado del ejercicio que están haciendo" in playbook, "falta el candado"
+    assert "no hay escalón 5" in playbook, "la escalera dejó de tener techo"
+
+
+def test_los_valores_prohiben_el_elogio_inflado():
+    """Línea roja 14. Es la más fácil de violar sin darse cuenta: suena a cariño."""
+    valores = cargar_prompt("valores").lower()
+    for frase in ["eres un genio", "eres el mejor", "eres increíble"]:
+        assert frase in valores, f"el prompt no veta explícitamente: {frase}"
+    assert "el elogio inflado hace" in valores, "falta la razón, y sin razón no se sostiene"
+
+
+def test_los_valores_no_predican():
+    """El ADN es cristiano; la expresión es universal (Constitución §7).
+
+    Si una de estas palabras aparece en el prompt del tutor, el destilado se
+    hizo mal: la doctrina se queda en el documento fundacional.
+    """
+    valores = cargar_prompt("valores").lower()
+    for palabra in ["dios", "jesús", "biblia", "cristian", "oración", "pecado"]:
+        assert palabra not in valores, f"se coló doctrina en el prompt: {palabra}"
+
+
+def test_la_seguridad_no_implementa_la_excepcion_de_fe_declarada():
+    """Decisión aplazada, no descartada (Constitución §7, ARCHITECTURE.md §18).
+
+    El MVP devuelve TODA pregunta religiosa a la familia. Si algún día se
+    implementa el marco de fe declarado por el papá, este test falla — y ese es
+    el punto: que la decisión se tome mirando, no por goteo.
+    """
+    politica = cargar_prompt("safety_policy").lower()
+    assert "se conversan mejor con tus" in politica, "falta la devolución a la familia"
+    assert "nunca oras con él" in politica, "falta la prohibición"
+    for marca in ["si la familia es cristiana", "marco de fe", "familia cristiana"]:
+        assert marca not in politica, f"se implementó la excepción sin decidirla: {marca}"
+
+
+def test_la_seguridad_distingue_el_riesgo_de_la_travesura():
+    """Constitución §6.2.8. Escalar todo destruye la confianza que hace útil escalar."""
+    politica = cargar_prompt("safety_policy").lower()
+    assert "no se escala y no se reporta como un evento" in politica
+    assert "escalas el riesgo, no la travesura" in politica
+
+
+def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
+    """Regla dura: el prompt de sesión se mantiene flaco (ARCHITECTURE.md §9).
+
+    Al adoptar la Constitución completa pasó de ~11 KB a ~31 KB. Ese salto fue
+    una decisión tomada; el próximo tiene que ser otra decisión tomada, no el
+    resultado de que cada quien agregue su párrafo.
+    """
+    texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.")
+    assert len(texto) < 36_000, (
+        f"el prompt de sesión llegó a {len(texto)} caracteres. "
+        "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
+        "Lo que solo explica el porqué va en knowledge/product/."
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Los 4 tools
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_estan_declarados_los_cuatro_tools():
+def test_estan_declarados_los_cinco_tools():
     nombres = {t["name"] for t in DECLARACIONES_TOOLS}
-    assert nombres == {"check_answer", "get_next_problem", "request_camera", "escalate_safety"}
+    assert nombres == {
+        "check_answer",
+        "verify_arithmetic",
+        "get_next_problem",
+        "request_camera",
+        "escalate_safety",
+    }
 
 
 def test_check_answer_le_dice_al_modelo_que_no_calcule_el():
     """La aritmética no la valida un modelo. Tiene que estar dicho en el tool."""
-    tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == "check_answer")
-    assert "vos no calculás" in tool["description"]
-    assert "tal cual" in tool["parameters"]["properties"]["respuesta_nino"]["description"]
+    for nombre in ("check_answer", "verify_arithmetic"):
+        tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == nombre)
+        assert "tú no calculas" in tool["description"]
+        assert "tal cual" in tool["parameters"]["properties"]["respuesta_nino"]["description"]
+
+
+def test_las_descripciones_de_los_tools_no_hablan_en_voseo():
+    """Son parte del prompt efectivo, y el modelo imita el registro de sus
+    instrucciones: es la lección que costó la sesión del 17/08. Un tutor bogotano
+    con tools escritas en argentino termina mezclando."""
+    texto = " ".join(t["description"] for t in DECLARACIONES_TOOLS).lower()
+    for voseo in ["vos ", "calculás", "tenés", "querés", "usalo", "dale"]:
+        assert voseo not in texto, f"voseo en las declaraciones: {voseo}"
 
 
 def test_escalate_safety_empuja_a_escalar_ante_la_duda():
@@ -135,7 +227,7 @@ def test_la_config_de_gemini_lleva_todo_lo_necesario():
     assert d["systemInstruction"]
     assert d["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"]
     assert d["realtimeInputConfig"]["automaticActivityDetection"]
-    assert len(d["tools"][0]["functionDeclarations"]) == 4
+    assert len(d["tools"][0]["functionDeclarations"]) == 5
 
 
 def test_pide_transcripcion_de_las_dos_puntas():

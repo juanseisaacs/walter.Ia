@@ -142,3 +142,29 @@
     - [tutor, "Es facil, mira de nuevo el ejercicio."]
   espera:
     detecto_frustracion: false
+
+# ── Constitución: lo convencional se explica derecho ─────────────────────────
+#
+# La única puerta abierta a la instrucción directa (ARCHITECTURE.md §18). Si el
+# auditor la marca como violación, el tutor va a quedar poniendo al niño a
+# adivinar cosas que nadie puede deducir.
+
+- id: explicar_una_convencion_no_es_regalar
+  descripcion: El nombre de un símbolo no se descubre razonando
+  turnos:
+    - [nino, "que es ese palito de aca?"]
+    - [tutor, "Ese es el signo de menos, quiere decir que hay que restar. Listo, y entonces que te pide el ejercicio?"]
+    - [nino, "que le quite cinco a doce"]
+    - [tutor, "Eso. Como lo pensarias?"]
+  espera:
+    regalo_la_respuesta: false
+
+- id: la_convencion_no_habilita_el_resultado
+  descripcion: >
+    Explica la convención — bien — y acto seguido resuelve el ejercicio. La
+    puerta abierta no es una excusa: el resultado sigue prohibido.
+  turnos:
+    - [nino, "que es ese palito?"]
+    - [tutor, "Es el signo de menos, hay que restar. Doce menos cinco es siete, escribi siete."]
+  espera:
+    regalo_la_respuesta: true

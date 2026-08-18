@@ -10,11 +10,13 @@ import pytest
 from tutor.models import Ejercicio, Habilidad, Materia, TextoLocalizado
 from tutor.tools import (
     BancoDeSesion,
+    Distancia,
     Veredicto,
     check_answer,
     escalate_safety,
     palabras_a_numero,
     request_camera,
+    verify_arithmetic,
 )
 
 
@@ -208,3 +210,64 @@ def test_escalar_seguridad_marca_su_origen():
     alerta = escalate_safety("el nino menciono algo preocupante", evidencia="cita textual")
     assert alerta.origen == "tutor"
     assert alerta.evidencia == "cita textual"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# verify_arithmetic — lo que el tutor improvisa
+# ─────────────────────────────────────────────────────────────────────────────
+# Los tres casos de ses_91c13b1747a2 donde el tutor evaluó de memoria y se
+# equivocó. Cada uno es un momento real en que un nino de 7 anos escucho algo
+# falso sobre su propia respuesta.
+
+
+def test_los_tres_errores_reales_de_la_sesion_quedan_atrapados():
+    # "135 mas 241" -> el nino dijo 780; el tutor: "estas muy cerca" (es 376)
+    r = verify_arithmetic("135 + 241", "780")
+    assert r.veredicto == Veredicto.INCORRECTO
+    assert r.distancia == Distancia.LEJOS, "780 no esta cerca de 376"
+
+    # "578 menos 34" -> el nino dijo 400; el tutor: "estas cerca" (es 544)
+    assert verify_arithmetic("578 - 34", "400").distancia == Distancia.LEJOS
+
+    # "7 menos 3" -> el nino dijo "cuarenta y ocho"; el tutor: "!Eso!"
+    assert verify_arithmetic("7 - 3", "cuarenta y ocho").veredicto == Veredicto.INCORRECTO
+
+
+def test_entiende_lo_que_el_nino_dice_en_palabras():
+    assert verify_arithmetic("7 - 3", "cuatro").veredicto == Veredicto.CORRECTO
+    assert verify_arithmetic("135+241", "trescientos setenta y seis").veredicto == Veredicto.CORRECTO
+
+
+def test_cerca_es_una_medida_no_una_impresion():
+    """La frase que mas se dijo a la ligera. Ahora sale de un numero."""
+    assert verify_arithmetic("578 - 34", "545").distancia == Distancia.CERCA
+    assert verify_arithmetic("578 - 34", "544").distancia == Distancia.EXACTO
+    assert verify_arithmetic("578 - 34", "100").distancia == Distancia.LEJOS
+
+
+def test_nunca_devuelve_el_resultado_correcto():
+    """Si el modelo lo tuviera, la tentacion de decirlo en voz alta es el
+    fracaso que el producto promete no tener."""
+    campos = verify_arithmetic("135 + 241", "780").model_dump()
+    assert 376 not in campos.values()
+    assert "376" not in str(campos)
+
+
+def test_lo_que_no_se_puede_verificar_se_dice():
+    """Antes que inventar un veredicto, se declara que no se puede. El prompt
+    manda no afirmar nada en ese caso."""
+    assert verify_arithmetic("2 / 3", "uno").veredicto == Veredicto.REQUIERE_JUICIO
+    assert verify_arithmetic("cuantas manzanas", "5").veredicto == Veredicto.REQUIERE_JUICIO
+    assert verify_arithmetic("5 / 0", "0").veredicto == Veredicto.REQUIERE_JUICIO
+
+
+def test_no_ejecuta_lo_que_le_manden():
+    """Del otro lado hay un modelo: nada de eval. Lo que no entra en 'numero
+    operador numero' no se resuelve, se rechaza."""
+    for peligro in ["__import__('os').system('dir')", "1+1; print(9)", "999**999"]:
+        assert verify_arithmetic(peligro, "2").veredicto == Veredicto.REQUIERE_JUICIO
+
+
+def test_multiplicacion_con_las_tres_formas_de_escribirla():
+    for op in ["12 x 3", "12 * 3", "12 × 3"]:
+        assert verify_arithmetic(op, "36").veredicto == Veredicto.CORRECTO
