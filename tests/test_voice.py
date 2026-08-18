@@ -145,6 +145,14 @@ def test_pide_transcripcion_de_las_dos_puntas():
     assert "outputAudioTranscription" in d
 
 
+def test_la_transcripcion_de_entrada_fija_idioma_y_sesga_los_numeros():
+    """El `{}` vacío dejaba autodetectar: el ruido salía coreano y "dos" salía
+    "32", congelando al Analista. La entrada va con idioma fijo y palabras-número."""
+    entrada = _config().a_dict_gemini()["inputAudioTranscription"]
+    assert entrada["languageCodes"], "sin idioma fijo, autodetecta y falla con ruido"
+    assert "dos" in entrada["adaptationPhrases"], "sesga hacia las palabras-número"
+
+
 def test_el_emisor_falso_no_toca_la_red():
     emisor = EmisorFalso()
     token = emisor.emitir(_config())

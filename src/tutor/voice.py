@@ -91,6 +91,20 @@ Ojo: el acento es SOLO la mitad. Las palabras ("listo", "chévere", "un
 momentico" vs. "tenés", "dale") salen del prompt, no de acá — el modelo imita
 el registro de sus propias instrucciones. Ver tutor_persona.es.md."""
 
+FRASES_ADAPTACION_ARITMETICA = (
+    "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho",
+    "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis",
+    "diecisiete", "dieciocho", "diecinueve", "veinte", "treinta", "cuarenta",
+    "cincuenta", "sesenta", "setenta", "ochenta", "noventa", "cien",
+    "unidades", "decenas", "centenas",
+)
+"""Sesga la transcripción hacia las palabras-número. Sin esto, un "dos" dicho por
+un niño de 7 años se transcribió como "32" (ses_83af1a57e8c2) — y esa transcripción
+es el ÚNICO insumo del Analista: un token mal oído lo congela y devuelve cero
+señales. `adaptationPhrases` de AudioTranscriptionConfig existe justo para esto.
+Verificado contra la API real (2026-08-18): el servidor Live acepta la config al
+conectar. Que efectivamente corrija el "dos"→"32" hay que oírlo con audio real."""
+
 VOZ_POR_DEFECTO = "Leda"
 """La documentada como juvenil.
 
@@ -267,7 +281,14 @@ class ConfiguracionSesion(BaseModel):
             },
             # Sin estos dos no hay transcripción, y sin transcripción no hay
             # Analista, ni Vigilante, ni auditoría del método.
-            "inputAudioTranscription": {},
+            #
+            # La ENTRADA (voz del niño) va con idioma fijo y sesgo aritmético: el
+            # `{}` vacío dejaba a Gemini autodetectar, y el ruido salía en coreano
+            # y "dos" salía "32". Ver FRASES_ADAPTACION_ARITMETICA.
+            "inputAudioTranscription": {
+                "languageCodes": [self.idioma_voz],
+                "adaptationPhrases": list(FRASES_ADAPTACION_ARITMETICA),
+            },
             "outputAudioTranscription": {},
             "realtimeInputConfig": self.deteccion.a_dict_gemini(),
             "tools": [{"functionDeclarations": self.tools}],
