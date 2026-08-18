@@ -229,10 +229,19 @@ class Orquestador:
         Se cobra suscripción fija: sin techo, el costo por niño es ilimitado.
         """
         inicio_dia = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
-        hoy = self.repo.sesiones_de(nino_id, inicio_dia, ahora)
-        if len(hoy) >= cfg.MAX_SESIONES_DIA:
+
+        # Solo cuentan las sesiones donde el nino REALMENTE trabajo. Una que se
+        # abrio y se corto -sin internet, un boton tocado sin querer- no puede
+        # quemarle un cupo del dia a un chico que no aprendio nada.
+        usadas = [
+            s
+            for s in self.repo.sesiones_de(nino_id, inicio_dia, ahora)
+            if s.habilidades_trabajadas
+        ]
+
+        if len(usadas) >= cfg.MAX_SESIONES_DIA:
             raise ErrorPresupuesto(
-                f"Ya hizo {len(hoy)} sesiones hoy (tope: {cfg.MAX_SESIONES_DIA})."
+                f"Ya hizo {len(usadas)} sesiones hoy (tope: {cfg.MAX_SESIONES_DIA})."
             )
 
     # ── Durante ──────────────────────────────────────────────────────────────

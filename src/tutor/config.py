@@ -10,6 +10,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Se carga acá porque config.py lo importa todo lo demás. Sin esto, uvicorn
+# arranca sin las llaves y el emisor de tokens cae en el falso — la sesión se
+# abre igual, pero el navegador no se puede conectar a Gemini.
+load_dotenv()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Rutas
 # ─────────────────────────────────────────────────────────────────────────────
