@@ -1,0 +1,89 @@
+# ¿El Analista ata cada señal a la HABILIDAD correcta?
+#
+# La fidelidad al currículum no es solo que el banco esté bien: es que lo que el
+# niño demostró se registre contra el nodo correcto del grafo. Una observación
+# con la habilidad equivocada —o sin habilidad— envenena al planificador:
+#   · sin habilidad_id, aplicar_analisis la descarta y `dominio` no crece;
+#   · con la habilidad equivocada, el planificador cree que domina lo que no.
+#
+# Cada caso declara `habilidades` (lo que la sesión trabajó, como en producción
+# lo pone el banco entregado). El Analista debe atar sus observaciones a esa lista.
+#
+# NOTA sobre el largo: el Analista es conservador con transcripciones muy cortas
+# (2-3 turnos no le alcanzan para comprometerse). Los casos reflejan sesiones con
+# el arco completo, como las de verdad.
+
+- id: logro_en_conteo
+  descripcion: >
+    Responde bien preguntas de conteo de diez en diez, sin dudar. Es un logro
+    claro (`acierto` o `dominio`, da igual cuál) en la habilidad correcta. Va como
+    pregunta-respuesta, no recitación: un conteo plano no le da al Analista un
+    ejercicio que evaluar.
+  habilidades: [mat.numeros.conteo_hasta_100]
+  turnos:
+    - [tutor, "Si contamos de diez en diez, que numero va despues del setenta?"]
+    - [nino, "ochenta"]
+    - [tutor, "Muy bien. Y despues del ochenta?"]
+    - [nino, "noventa"]
+    - [tutor, "Perfecto. Ahora empeza en cuarenta y segui de diez en diez hasta cien."]
+    - [nino, "cuarenta, cincuenta, sesenta, setenta, ochenta, noventa, cien"]
+    - [tutor, "Impecable, lo hiciste solo y sin dudar."]
+  espera:
+    habilidad_id: mat.numeros.conteo_hasta_100
+    contiene_positivo: true
+
+- id: error_en_suma_con_reagrupacion
+  descripcion: Se olvida de llevar. Debe quedar como error en la suma con reagrupación.
+  habilidades: [mat.suma.con_reagrupacion]
+  turnos:
+    - [tutor, "Cuanto es 27 mas 15?"]
+    - [nino, "treinta y dos"]
+    - [tutor, "Fijate en las unidades: cuanto es 7 mas 5?"]
+    - [nino, "doce... ah, me olvide de llevar el uno"]
+    - [tutor, "Claro, ahi esta el detalle. Volve a probar."]
+    - [nino, "cuarenta y dos"]
+  espera:
+    habilidad_id: mat.suma.con_reagrupacion
+    contiene_error: true
+
+- id: necesita_la_escalera_completa
+  descripcion: >
+    No sabe de entrada y necesita tres pistas para llegar. Es `pista_necesaria`,
+    NO dominio: el planificador no debe darlo por firme.
+  habilidades: [mat.numeros.valor_posicional_decenas]
+  turnos:
+    - [tutor, "Cuantas decenas tiene el numero 47?"]
+    - [nino, "no se, no me acuerdo como era eso"]
+    - [tutor, "Acordate: las decenas son los grupos de diez. Cuantos grupos de diez hay en 47?"]
+    - [nino, "mmm... no se, me cuesta"]
+    - [tutor, "Mira el 47. El primer numero, el cuatro, que lugar ocupa?"]
+    - [nino, "el de las decenas?"]
+    - [tutor, "Exacto. Entonces cuantas decenas hay?"]
+    - [nino, "cuatro"]
+    - [tutor, "Muy bien, ahi llegaste solo."]
+  espera:
+    habilidad_id: mat.numeros.valor_posicional_decenas
+    contiene_pista_necesaria: true
+
+- id: transcripcion_ruidosa_no_congela_la_sesion
+  descripcion: >
+    REGRESIÓN de ses_83af1a57e8c2. En el medio de una sesión por lo demás clara,
+    la voz del niño quedó mal transcripta ("dos" salió "32"), contradiciendo al
+    tutor. El Analista NO debe congelarse y devolver cero: el resto de la sesión
+    (350 → 3 centenas) le da piso de sobra para registrar la habilidad. Si esto
+    falla, volvió el bug de las cero observaciones.
+  habilidades: [mat.numeros.valor_posicional_centenas]
+  turnos:
+    - [tutor, "Vamos con las centenas. Cuantas centenas tiene el numero 350?"]
+    - [nino, "tres"]
+    - [tutor, "Perfecto. Y cuantas centenas tiene 700?"]
+    - [nino, "siete"]
+    - [tutor, "Muy bien. Y el 412?"]
+    - [nino, "cuatro centenas"]
+    - [tutor, "Exacto, vas volando. Ahora uno mas: cuantas centenas tiene 209?"]
+    - [nino, "32"]
+    - [tutor, "Eso, dos centenas. Lo agarraste."]
+    - [nino, "ya entendi, las centenas son el primer numero de la izquierda"]
+  espera:
+    habilidad_id: mat.numeros.valor_posicional_centenas
+    contiene_positivo: true

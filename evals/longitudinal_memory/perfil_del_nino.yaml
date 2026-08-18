@@ -1,0 +1,76 @@
+# ¿El Analista arma la ficha del niño con lo que SÍ dijo, sin inventar?
+#
+# La memoria longitudinal es el segundo activo (después del dominio): el tutor
+# conoce al niño y crece con él. Pero la ficha vale por lo que es cierto. Dos
+# formas de romperla:
+#   · No capturar lo que el niño ofreció → el tutor nunca personaliza y suena frío.
+#   · Inventar intereses de una sesión neutra → el papá lee datos falsos sobre su
+#     hijo y deja de confiar. Una ficha inflada es peor que una vacía.
+#
+# Por eso hay casos de "debe capturar" y casos de "no debe inventar".
+
+# ── Debe capturar ─────────────────────────────────────────────────────────────
+
+- id: captura_interes_en_futbol
+  descripcion: >
+    El futbol aparece una y otra vez, con entusiasmo: es un interés SOSTENIDO, no
+    un comentario al pasar. Debe entrar a la ficha para personalizar los ejercicios.
+  turnos:
+    - [tutor, "Contemos algo que te guste. Que te gusta?"]
+    - [nino, "el futbol! juego todos los dias despues del cole"]
+    - [tutor, "Buenisimo. Cuantos jugadores hay en la cancha en un equipo?"]
+    - [nino, "once! yo juego de 9 en el equipo de mi barrio"]
+    - [tutor, "Genial. Y si sumamos los dos equipos, cuantos son?"]
+    - [nino, "veintidos. me encanta el futbol, siempre estoy pensando en goles"]
+    - [tutor, "Ves que te salio? Buenisimo."]
+  espera:
+    captura_interes: true
+    interes_contiene: futbol
+
+- id: captura_que_lo_motiva_el_desafio
+  descripcion: >
+    Se apaga con la rutina y se prende, una y otra vez, cuando es un reto contra
+    reloj. El patrón se repite en la sesión: es un MOTIVADOR (cómo engancharlo),
+    distinto de un interés (de qué hablarle).
+  turnos:
+    - [tutor, "Hagamos otro igual que el anterior."]
+    - [nino, "ay no, aburrido, otra vez lo mismo, me da paja"]
+    - [tutor, "A ver si me ganas: resolvelo antes de que cuente hasta cinco."]
+    - [nino, "dale dale! listo, gane! eso me gusta, cuando es una carrera"]
+    - [tutor, "Jaja, buenisimo. Otro tranquilo ahora?"]
+    - [nino, "no, otro con reloj! asi contra el tiempo me encanta, ponele mas dificil"]
+    - [tutor, "Listo, este vale doble. Ya!"]
+    - [nino, "gane otra vez! los desafios me re enganchan"]
+  espera:
+    captura_motivador: true
+
+- id: captura_lo_que_lo_traba
+  descripcion: >
+    Se pierde SIEMPRE con los problemas escritos, y lo dice como patrón, no como
+    tropiezo de una vez. Es un rasgo persistente ("qué lo traba"), va a las
+    frustraciones de la ficha para que el tutor sepa dónde acompañarlo distinto.
+  turnos:
+    - [tutor, "Leamos el problema: Ana tiene 8 figuritas y le regalan 5."]
+    - [nino, "uf, otra vez de leer... siempre me pierdo con los que hay que leer"]
+    - [tutor, "Vamos por partes, que te esta pidiendo?"]
+    - [nino, "no se, me enredo cuando hay muchas palabras juntas"]
+    - [tutor, "Tranquilo. Cuantas figuritas tiene Ana?"]
+    - [nino, "ocho... pero en serio, los problemas escritos nunca me salen, siempre me trabo con esos"]
+  espera:
+    captura_frustracion: true
+
+# ── No debe inventar ──────────────────────────────────────────────────────────
+
+- id: no_inventa_interes_en_sesion_neutra
+  descripcion: >
+    Sesión puramente aritmética, sin una sola señal personal. El Analista NO debe
+    fabricar intereses. Si acá aparece algo en la ficha, está alucinando sobre el
+    niño — exactamente lo que hace que el papá deje de creernos.
+  turnos:
+    - [tutor, "Cuanto es 12 mas 6?"]
+    - [nino, "dieciocho"]
+    - [tutor, "Bien. Y 12 mas 7?"]
+    - [nino, "diecinueve"]
+    - [tutor, "Perfecto, seguimos."]
+  espera:
+    captura_interes: false

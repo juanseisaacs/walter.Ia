@@ -13,16 +13,20 @@ que ustedes pidieron, y estos son los resultados".
 Qué se evalúa y qué no:
 
   · No evaluamos al tutor en vivo — habla en audio y la sesión la abre el
-    navegador. Evaluamos al AUDITOR que lo vigila. Si el auditor no detecta una
-    violación del método, la garantía que le vendemos al papá no existe.
-  · curriculum_fidelity y longitudinal_memory son determinísticos y ya están
-    cubiertos por `pytest`: no gastan API.
+    navegador. Evaluamos a los agentes OFFLINE que lo respaldan: el Analista
+    (método, currículum, memoria) y el Vigilante (seguridad).
+  · parent_trust    → ¿el Analista detecta cuándo el tutor regaló la respuesta?
+  · curriculum_fidelity → ¿el Analista ata la señal a la habilidad correcta?
+    (guarda el bug de habilidad_id=None y el congelamiento por transcripción sucia)
+  · longitudinal_memory → ¿el Analista arma la ficha del niño sin inventarla?
+  · safety          → ¿el Vigilante escala cuando debe y calla cuando no?
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,6 +35,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from tutor.curriculum import cargar_grafo  # noqa: E402
 from tutor.models import AnalisisSesion, ModoSesion, Sesion  # noqa: E402
 from tutor.pipeline import (  # noqa: E402
     ClienteLLM,
@@ -42,6 +47,10 @@ from tutor.pipeline import (  # noqa: E402
 RAIZ = Path(__file__).parent
 SUITES = ("curriculum_fidelity", "safety", "longitudinal_memory", "parent_trust")
 
+# El Analista ata cada observación académica a un habilidad_id usando la lista de
+# habilidades trabajadas; sin el grafo esa atadura no ocurre. Se carga una vez.
+GRAFO = cargar_grafo()
+
 
 @dataclass
 class Caso:
@@ -50,6 +59,7 @@ class Caso:
     turnos: list[tuple[str, str]]
     espera: dict
     descripcion: str = ""
+    habilidades: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -78,9 +88,17 @@ def cargar_casos(suite: str | None = None) -> list[Caso]:
                         turnos=[(t[0], t[1]) for t in crudo["turnos"]],
                         espera=crudo["espera"],
                         descripcion=crudo.get("descripcion", "").strip(),
+                        habilidades=crudo.get("habilidades", []),
                     )
                 )
     return casos
+
+
+def _sin_acentos(texto: str) -> str:
+    """Para comparar substrings sin que 'fútbol' vs 'futbol' cause un falso rojo."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
 
 
 def _comparar(espera: dict, obtenido: dict) -> list[str]:
@@ -92,25 +110,99 @@ def _comparar(espera: dict, obtenido: dict) -> list[str]:
 
 
 def correr_caso(caso: Caso, cliente: ClienteLLM) -> Resultado:
+    evaluadores = {
+        "safety": _eval_safety,
+        "parent_trust": _eval_metodo,
+        "curriculum_fidelity": _eval_curriculum,
+        "longitudinal_memory": _eval_memoria,
+    }
     try:
-        if caso.suite == "safety":
-            e = evaluar_seguridad(caso.turnos, cliente)
-            obtenido = {
-                "requiere_escalamiento": e.requiere_escalamiento,
-                "nivel": e.nivel.value,
-            }
-        else:
-            transcripcion = "\n".join(f"{q}: {t}" for q, t in caso.turnos)
-            sesion = Sesion(
-                id=caso.id, nino_id="eval", modo=ModoSesion.GUIADO, inicio=_ahora()
-            )
-            a: AnalisisSesion = analizar_sesion(sesion, transcripcion, cliente)
-            obtenido = a.cumplimiento.model_dump()
+        obtenido, fallas = evaluadores[caso.suite](caso, cliente)
     except Exception as exc:  # noqa: BLE001
         return Resultado(caso, paso=False, error=f"{type(exc).__name__}: {exc}")
-
-    fallas = _comparar(caso.espera, obtenido)
     return Resultado(caso, paso=not fallas, obtenido=obtenido, fallas=fallas)
+
+
+def _analizar(caso: Caso, cliente: ClienteLLM) -> AnalisisSesion:
+    """Corre el Analista con el contexto de habilidades trabajadas — sin él, las
+    observaciones académicas salen sin habilidad_id y no se pueden validar."""
+    transcripcion = "\n".join(f"{q}: {t}" for q, t in caso.turnos)
+    sesion = Sesion(
+        id=caso.id,
+        nino_id="eval",
+        modo=ModoSesion.GUIADO,
+        inicio=_ahora(),
+        habilidades_trabajadas=caso.habilidades,
+    )
+    return analizar_sesion(sesion, transcripcion, cliente, GRAFO)
+
+
+def _eval_safety(caso: Caso, cliente: ClienteLLM) -> tuple[dict, list[str]]:
+    e = evaluar_seguridad(caso.turnos, cliente)
+    obtenido = {"requiere_escalamiento": e.requiere_escalamiento, "nivel": e.nivel.value}
+    return obtenido, _comparar(caso.espera, obtenido)
+
+
+def _eval_metodo(caso: Caso, cliente: ClienteLLM) -> tuple[dict, list[str]]:
+    obtenido = _analizar(caso, cliente).cumplimiento.model_dump()
+    return obtenido, _comparar(caso.espera, obtenido)
+
+
+# Tipos de observación que hablan de una habilidad concreta (los que van a `dominio`).
+_TIPOS_ACADEMICOS = {
+    "contiene_acierto": "acierto",
+    "contiene_error": "error",
+    "contiene_pista_necesaria": "pista_necesaria",
+    "contiene_dominio": "dominio",
+}
+
+
+def _eval_curriculum(caso: Caso, cliente: ClienteLLM) -> tuple[dict, list[str]]:
+    """¿Ató la señal a la habilidad correcta? Es la fidelidad al currículum: una
+    observación con la habilidad equivocada contamina el planificador."""
+    a = _analizar(caso, cliente)
+    ids = {o.habilidad_id for o in a.observaciones if o.habilidad_id}
+    tipos = {o.tipo.value for o in a.observaciones}
+    obtenido = {"habilidades": sorted(ids), "tipos": sorted(tipos)}
+
+    fallas: list[str] = []
+    esperado = caso.espera.get("habilidad_id")
+    if esperado and esperado not in ids:
+        fallas.append(f"habilidad_id: esperaba {esperado} entre {sorted(ids)}")
+    for campo, tipo in _TIPOS_ACADEMICOS.items():
+        if campo in caso.espera and (tipo in tipos) != caso.espera[campo]:
+            fallas.append(f"{campo}: esperaba {caso.espera[campo]}, obtuvo {tipo in tipos}")
+    # `acierto` y `dominio` son ambos un logro; el modelo alterna entre ellos según
+    # cuán solo lo hizo. Cuando eso da igual, se pide "positivo" y no un tipo exacto.
+    if "contiene_positivo" in caso.espera:
+        positivo = bool(tipos & {"acierto", "dominio"})
+        if positivo != caso.espera["contiene_positivo"]:
+            fallas.append(f"contiene_positivo: esperaba {caso.espera['contiene_positivo']}, obtuvo {positivo}")
+    return obtenido, fallas
+
+
+def _eval_memoria(caso: Caso, cliente: ClienteLLM) -> tuple[dict, list[str]]:
+    """¿Arma la ficha del niño con lo que sostiene la transcripción, sin inventar?
+    Una ficha inflada con datos falsos rompe la confianza del papá igual que una vacía."""
+    p = _analizar(caso, cliente).perfil_sugerido
+    listas = {
+        "interes": [x.lower() for x in (p.intereses if p else [])],
+        "motivador": [x.lower() for x in (p.motivadores if p else [])],
+        "frustracion": [x.lower() for x in (p.frustraciones if p else [])],
+    }
+    obtenido = {f"{clave}es": lista for clave, lista in listas.items()}
+
+    fallas: list[str] = []
+    for clave, lista in listas.items():
+        campo_bool = f"captura_{clave}"
+        if campo_bool in caso.espera and bool(lista) != caso.espera[campo_bool]:
+            fallas.append(f"{campo_bool}: esperaba {caso.espera[campo_bool]}, obtuvo {bool(lista)}")
+        campo_sub = f"{clave}_contiene"
+        if campo_sub in caso.espera:
+            sub = _sin_acentos(str(caso.espera[campo_sub]).lower())
+            if not any(sub in _sin_acentos(x) for x in lista):
+                fallas.append(f"{campo_sub}: '{caso.espera[campo_sub]}' no aparece en {lista}")
+    return obtenido, fallas
 
 
 def _ahora():
