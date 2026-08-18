@@ -99,3 +99,79 @@
   padding: var(--espacio-s);
   text-decoration: underline;
 }
+
+
+/* ── Onboarding: la entrevista con el papá ────────────────────────────
+   Se lee y se escribe, no se escucha: por eso el ancho es de lectura y
+   no la pantalla completa de la sesión de voz. */
+
+.pantalla-charla {
+  justify-content: flex-start;
+  gap: var(--espacio-m);
+  padding: var(--espacio-l) var(--espacio-m);
+}
+
+.charla {
+  flex: 1;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-m);
+}
+
+.responder {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  display: flex;
+  gap: var(--espacio-s);
+  align-items: flex-end;
+}
+
+.campo {
+  flex: 1;
+  font: inherit;
+  font-size: var(--tam-base);
+  color: var(--texto);
+  background: var(--fondo-suave);
+  border: 2px solid transparent;
+  border-radius: var(--radio);
+  padding: var(--espacio-s) var(--espacio-m);
+  resize: none;
+}
+
+.campo:focus {
+  outline: none;
+  border-color: var(--acento-suave);
+}
+
+.campo:disabled {
+  opacity: 0.6;
+}
+
+.boton-chico {
+  font-size: var(--tam-base);
+  padding: var(--espacio-s) var(--espacio-m);
+}
+
+.boton-chico:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Se selecciona de un toque: el papá lo va a copiar. */
+.enlace-nino {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: var(--tam-chico);
+  color: var(--texto-tenue);
+  background: var(--fondo-suave);
+  border-radius: var(--radio);
+  padding: var(--espacio-s) var(--espacio-m);
+  margin: var(--espacio-m) 0;
+  user-select: all;
+  word-break: break-all;
+  max-width: 30rem;
+}

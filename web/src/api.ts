@@ -125,6 +125,26 @@ export const api = {
       { method: "POST" },
     ),
 
+  /* ── Onboarding: la conversación que da de alta a un niño ───────────── */
+
+  iniciarOnboarding: () =>
+    pedir<{ onboarding_id: string; pregunta: string; falta: string[] }>("/onboarding", {
+      method: "POST",
+    }),
+
+  responderOnboarding: (onboardingId: string, texto: string) =>
+    pedir<{
+      listo: boolean;
+      pregunta?: string;
+      falta?: string[];
+      nino_id?: string;
+      nombre?: string;
+      mensaje?: string;
+    }>(`/onboarding/${encodeURIComponent(onboardingId)}`, {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    }),
+
   escalateSafety: (sesionId: string, motivo: string, evidencia?: string) =>
     pedir("/tools/escalate_safety", {
       method: "POST",

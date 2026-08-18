@@ -8,33 +8,54 @@
  * Ningún color ni tamaño está escrito acá: todo sale de estilos/tokens.css.
  */
 
+import { useState } from "react";
+
 import "./App.css";
+import Onboarding from "./Onboarding";
 import { ninoActual } from "./nino";
 import { useTutor } from "./voz/useTutor";
 
-const NINO_ID = ninoActual();
-
 export default function App() {
-  const { estado, error, tema, textoNino, textoTutor, nivelMic, empezar, terminar } =
-    useTutor(NINO_ID ?? "");
+  // El id puede nacer a mitad de sesión, cuando el papá termina el onboarding.
+  const [ninoId, setNinoId] = useState<string | null>(ninoActual);
+  const [registrando, setRegistrando] = useState(false);
 
-  const enSesion = estado === "escuchando" || estado === "hablando";
-
-  // Sin id no hay a quién enseñarle. Se dice, no se falla en silencio ni se
-  // cae en un niño por defecto — que fue lo que hizo que durante semanas todo
-  // el tráfico de prueba se acumulara sobre el mismo chico.
-  if (!NINO_ID) {
+  if (registrando) {
     return (
-      <main className="pantalla">
-        <div className="centro">
-          <h1 className="titulo">¡Hola!</h1>
-          <p className="tenue">
-            Pídele a tu mamá o a tu papá el enlace para entrar.
-          </p>
-        </div>
-      </main>
+      <Onboarding
+        alTerminar={(id) => {
+          localStorage.setItem("rbh.nino", id);
+          setNinoId(id);
+          setRegistrando(false);
+        }}
+      />
     );
   }
+
+  if (!ninoId) return <SinNino alRegistrar={() => setRegistrando(true)} />;
+  return <Tutor ninoId={ninoId} />;
+}
+
+/** Quien llega sin enlace: puede ser el niño, o el papá que viene a registrarlo. */
+function SinNino({ alRegistrar }: { alRegistrar: () => void }) {
+  return (
+    <main className="pantalla">
+      <div className="centro">
+        <h1 className="titulo">¡Hola!</h1>
+        <p className="tenue">Pídele a tu mamá o a tu papá el enlace para entrar.</p>
+        <button className="boton boton-chico" onClick={alRegistrar}>
+          Soy el papá o la mamá
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function Tutor({ ninoId }: { ninoId: string }) {
+  const { estado, error, tema, textoNino, textoTutor, nivelMic, empezar, terminar } =
+    useTutor(ninoId);
+
+  const enSesion = estado === "escuchando" || estado === "hablando";
 
   return (
     <main className="pantalla">
