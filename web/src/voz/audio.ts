@@ -24,8 +24,17 @@ const COLCHON_SEG = 0.015;
  * chunks siguen llegando y encolándose uno detrás del otro. Al reanudar, la
  * cola arranca en un instante que ya quedó lejísimos en el futuro y el tutor
  * sigue mudo aunque técnicamente esté "reproduciendo".
+ *
+ * ESTO ES UNA RED DE SEGURIDAD, NO UN UMBRAL DE CONVERSACIÓN. Estuvo en 2 s
+ * entre el 18/08 09:04 y las 13:30, y ahí se rompió el audio: Gemini manda la
+ * respuesta en ráfaga, mucho más rápido que tiempo real, así que una frase de
+ * más de dos segundos deja la cola legítimamente en el futuro. Con el umbral
+ * en 2 s eso se leía como desincronización en CADA frase.
+ *
+ * El caso patológico deja la cola minutos adelante, no segundos. 30 s no se
+ * alcanza hablando y sigue atrapando la suspensión real.
  */
-const DERIVA_MAX_SEG = 2;
+const DERIVA_MAX_SEG = 30;
 
 export class ReproductorContinuo {
   private ctx: AudioContext | null = null;
@@ -65,8 +74,12 @@ export class ReproductorContinuo {
     if (!ctx || ctx.state !== "suspended") return;
     void ctx.resume().then(() => {
       // El reloj estuvo detenido: lo encolado quedó en un futuro que ya no
-      // corresponde. Se resincroniza para que la próxima frase suene YA.
-      this.proximoInicio = ctx.currentTime;
+      // corresponde. Se descarta para que la próxima frase suene YA.
+      //
+      // detenerTodo() y no solo mover el puntero: si las fuentes viejas siguen
+      // programadas, vuelven a sonar encima de lo que venga y el niño oye dos
+      // tutores. Lo que se dijo mientras nadie escuchaba ya no sirve.
+      this.detenerTodo();
     });
   }
 
@@ -75,10 +88,18 @@ export class ReproductorContinuo {
     this.asegurarActivo();
 
     // Red de seguridad: si la cola se fue al futuro, se vuelve al presente.
-    // Programar para dentro de tres segundos es indistinguible de estar mudo.
+    // Programar para dentro de tres minutos es indistinguible de estar mudo.
+    //
+    // detenerTodo() y NO `proximoInicio = currentTime` a secas. Mover el
+    // puntero sin cortar lo que ya está sonando no resincroniza: SOLAPA. El
+    // chunk nuevo arranca encima del audio en curso y se oyen dos voces del
+    // mismo tutor, cada vez peor a medida que se acumulan. Es lo que rompió
+    // las sesiones del 18/08 entre las 09:04 y las 13:30.
+    //
+    // Lo encolado ya perdió su momento en la conversación: se descarta.
     if (this.proximoInicio > this.ctx.currentTime + DERIVA_MAX_SEG) {
-      console.info("[audio] cola desincronizada, resincronizando");
-      this.proximoInicio = this.ctx.currentTime;
+      console.warn("[audio] cola desincronizada: se descarta y se resincroniza");
+      this.detenerTodo(); // deja proximoInicio en currentTime
     }
 
     const muestras = pcm16DesdeBase64(base64);
