@@ -54,7 +54,9 @@ export default function Onboarding({ alTerminar }: { alTerminar: (ninoId: string
   }, []);
 
   useEffect(() => {
-    finalRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // `block: "nearest"` y no `"end"`: si algún día el contenedor vuelve a
+    // quedar sin alto, esto no arrastra la conversación fuera de la pantalla.
+    finalRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     if (estado === "conversando") campoRef.current?.focus();
   }, [dichos, estado]);
 
@@ -68,6 +70,7 @@ export default function Onboarding({ alTerminar }: { alTerminar: (ninoId: string
 
     try {
       const r = await api.responderOnboarding(idRef.current, texto);
+      console.info("[onboarding] respuesta:", r);
 
       if (r.listo && r.nino_id) {
         if (r.mensaje) setDichos((d) => [...d, { quien: "tutor", texto: r.mensaje! }]);
@@ -79,6 +82,7 @@ export default function Onboarding({ alTerminar }: { alTerminar: (ninoId: string
       setDichos((d) => [...d, { quien: "tutor", texto: r.pregunta ?? "…" }]);
       setEstado("conversando");
     } catch (e: any) {
+      console.error("[onboarding] falló el turno:", e);
       setError(e?.message ?? "Se cortó la conversación.");
       setEstado("error");
     }

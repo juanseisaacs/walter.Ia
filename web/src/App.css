@@ -107,28 +107,33 @@
 
 .pantalla-charla {
   justify-content: flex-start;
-  gap: var(--espacio-m);
-  padding: var(--espacio-l) var(--espacio-m);
+  padding: var(--espacio-l) var(--espacio-m) var(--espacio-m);
 }
 
+/* Crece con el contenido y deja scrollear la PÁGINA.
+   La primera versión usaba `flex: 1` con `overflow-y: auto`, y eso pedía que el
+   padre tuviera altura resuelta — `.pantalla` define `min-height`, no `height`.
+   El contenedor podía quedar sin alto, y entonces cada mensaje nuevo entraba a
+   una caja de cero píxeles: la conversación seguía viva y no se veía. */
 .charla {
-  flex: 1;
   width: 100%;
   max-width: 34rem;
-  margin: 0 auto;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--espacio-m);
 }
 
+/* Queda a la vista aunque la conversación se alargue. */
 .responder {
+  position: sticky;
+  bottom: 0;
   width: 100%;
   max-width: 34rem;
-  margin: 0 auto;
   display: flex;
   gap: var(--espacio-s);
   align-items: flex-end;
+  padding: var(--espacio-s) 0;
+  background: var(--fondo);
 }
 
 .campo {
