@@ -63,6 +63,14 @@ class Repositorio(ABC):
     # ── Sesiones ─────────────────────────────────────────────────────────────
 
     @abstractmethod
+    @abstractmethod
+    def crear_enlace(self, token: str, nino_id: str, vence: datetime) -> None: ...
+
+    @abstractmethod
+    def canjear_enlace(self, token: str, ahora: datetime | None = None) -> str | None:
+        """nino_id si el enlace vale; None si no existe o venció."""
+
+    @abstractmethod
     def crear_sesion(self, sesion: Sesion) -> None: ...
 
     @abstractmethod
@@ -148,7 +156,7 @@ class Repositorio(ABC):
 # Esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERSION_ESQUEMA = 1
+VERSION_ESQUEMA = 2
 
 _ESQUEMA_V1 = """
 CREATE TABLE ninos (
@@ -224,6 +232,27 @@ def _texto_a_fecha(valor: str | None) -> datetime | None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+_ESQUEMA_V2 = """
+CREATE TABLE enlaces (
+    token    TEXT PRIMARY KEY,
+    nino_id  TEXT NOT NULL,
+    vence    TEXT NOT NULL,
+    FOREIGN KEY (nino_id) REFERENCES ninos(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_enlaces_vence ON enlaces(vence);
+"""
+"""Los enlaces mágicos del papá.
+
+Vivían en un dict del proceso de la API. Dos cosas se rompían con eso: al
+reiniciar el servidor el papá perdía el acceso sin entender por qué, y el script
+que genera los reportes —otro proceso— no podía emitir un enlace válido, así que
+el correo semanal no tenía a dónde apuntar y nunca se mandó.
+
+Se guarda el token tal cual y no un hash: da acceso de lectura al panel de un
+solo niño, vence en 24 horas, y quien pueda leer esta tabla ya tiene la ficha
+completa delante. Cuando haya cuentas de verdad, esto se revisa."""
+
+
 class RepositorioSQLite(Repositorio):
     """SQLite + archivos JSON.
 
@@ -278,8 +307,37 @@ class RepositorioSQLite(Repositorio):
             version = con.execute("PRAGMA user_version").fetchone()[0]
             if version < 1:
                 con.executescript(_ESQUEMA_V1)
+            if version < 2:
+                con.executescript(_ESQUEMA_V2)
             if version < VERSION_ESQUEMA:
                 con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
+
+    # ── Enlaces del papá ─────────────────────────────────────────────────────
+
+    def crear_enlace(self, token: str, nino_id: str, vence: datetime) -> None:
+        with self._conectar() as con:
+            con.execute(
+                "INSERT OR REPLACE INTO enlaces (token, nino_id, vence) VALUES (?, ?, ?)",
+                (token, nino_id, vence.isoformat()),
+            )
+
+    def canjear_enlace(self, token: str, ahora: datetime | None = None) -> str | None:
+        """Devuelve el nino_id, o None si no existe o venció.
+
+        El vencido se borra al detectarlo: la tabla se limpia sola con el uso, sin
+        una tarea aparte que alguien tenga que acordarse de correr.
+        """
+        ahora = ahora or datetime.now()
+        with self._conectar() as con:
+            fila = con.execute(
+                "SELECT nino_id, vence FROM enlaces WHERE token = ?", (token,)
+            ).fetchone()
+            if fila is None:
+                return None
+            if datetime.fromisoformat(fila["vence"]) < ahora:
+                con.execute("DELETE FROM enlaces WHERE token = ?", (token,))
+                return None
+            return fila["nino_id"]
 
     # ── Niños ────────────────────────────────────────────────────────────────
 

@@ -60,27 +60,24 @@ _HAY_ANALISTA = type(_cliente_analista).__name__ != "ClienteFalso"
 # ─────────────────────────────────────────────────────────────────────────────
 # Cada contraseña es un papá que no entra, y uno que no entra es uno que cancela.
 #
-# ⚠️ En memoria: sirve para un solo proceso. Al escalar a varios workers hay que
-# moverlo a la base (una tabla `enlaces` con vencimiento).
+# Viven en la base desde el 18/08. Eran un dict del proceso y eso rompía dos
+# cosas: al reiniciar el servidor el papá perdía el acceso sin entender por qué,
+# y el script que genera los reportes —otro proceso— no podía emitir un enlace
+# válido, así que el correo semanal no tenía a dónde apuntar y nunca se mandó.
 
-_ENLACES: dict[str, tuple[str, datetime]] = {}
 VIDA_ENLACE = timedelta(hours=24)
 
 
 def _crear_enlace(nino_id: str) -> str:
     token = secrets.token_urlsafe(32)
-    _ENLACES[token] = (nino_id, datetime.now() + VIDA_ENLACE)
+    _repo.crear_enlace(token, nino_id, datetime.now() + VIDA_ENLACE)
     return token
 
 
 def _canjear(token: str) -> str:
-    entrada = _ENLACES.get(token)
-    if entrada is None:
-        raise HTTPException(401, "Enlace inválido")
-    nino_id, vence = entrada
-    if datetime.now() > vence:
-        _ENLACES.pop(token, None)
-        raise HTTPException(401, "El enlace venció. Pedí uno nuevo.")
+    nino_id = _repo.canjear_enlace(token)
+    if nino_id is None:
+        raise HTTPException(401, "El enlace no vale o venció. Pide uno nuevo.")
     return nino_id
 
 
@@ -100,9 +97,9 @@ def papa_autenticado(token: str = Query(..., description="Token del enlace del m
 # concentrarse cuando se frustra") que ninguna lista desplegable captura, y esos
 # matices son lo que el tutor va a usar desde la primera sesión.
 #
-# ⚠️ En memoria, igual que _ENLACES: si el proceso se reinicia a mitad de la
-# entrevista, el papá empieza de nuevo. Aceptable mientras sea un solo worker;
-# al escalar va a una tabla.
+# ⚠️ En memoria: si el proceso se reinicia a mitad de la entrevista, el papá
+# empieza de nuevo. Aceptable porque dura minutos y se rehace sin pérdida real;
+# los enlaces del papá, que duran 24 horas, sí se movieron a la base.
 
 _ONBOARDINGS: dict[str, list[tuple[str, str]]] = {}
 

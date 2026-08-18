@@ -15,6 +15,7 @@ le manda dos resúmenes al papá. Necesita ANTHROPIC_API_KEY.
 from __future__ import annotations
 
 import argparse
+import secrets
 import sys
 from datetime import datetime, timedelta
 
@@ -32,7 +33,56 @@ from tutor.pipeline import (
     generar_reportes_pendientes,
     reporte_vigente,
 )
+from tutor.notificaciones import aviso_de_reporte, notificador_por_defecto
 from tutor.storage import RepositorioSQLite
+
+VIDA_ENLACE_REPORTE = timedelta(days=7)
+"""El enlace del correo dura lo que el período que resume.
+
+Los de la API duran 24 horas porque el papá los pide y los usa enseguida. Este
+llega solo, un domingo, y se abre cuando el papá tiene un rato — que puede ser
+el miércoles."""
+
+
+def _avisar(repo: RepositorioSQLite, generados: list) -> int:
+    """Manda el correo con el enlace al panel. Devuelve cuántos salieron.
+
+    Sin esto el reporte se generaba, se verificaba, se guardaba... y se quedaba
+    esperando a que el papá entrara al panel por su cuenta. Un reporte que hay
+    que ir a buscar no construye confianza, que es justo para lo que existe.
+
+    Recién se pudo conectar cuando los enlaces se movieron a la base: este es
+    otro proceso, y con el dict en memoria de la API no había forma de emitir
+    uno que funcionara.
+    """
+    notificador = notificador_por_defecto()
+    enviados = 0
+
+    for reporte in generados:
+        nino = repo.obtener_nino(reporte.nino_id)
+        if nino is None or not nino.email_papa:
+            # No se inventa un destinatario. Sin correo el reporte igual quedó
+            # guardado y el panel lo muestra.
+            print(f"    · {reporte.nino_id}: sin email del papá, no se envía")
+            continue
+
+        token = secrets.token_urlsafe(32)
+        repo.crear_enlace(token, nino.id, datetime.now() + VIDA_ENLACE_REPORTE)
+        enlace = f"{cfg.URL_PANEL}/panel/{nino.id}?token={token}"
+
+        # Dos líneas, no el reporte entero: lo que el niño dijo se lee en el
+        # panel, con contexto. Un fragmento suelto en un correo desinforma.
+        adelanto = reporte.contenido.strip().splitlines()[0][:200]
+
+        try:
+            notificador.enviar(aviso_de_reporte(nino.email_papa, nino.nombre, adelanto, enlace))
+            enviados += 1
+        except Exception as e:
+            # Que falle un correo no puede tumbar los demás: cada papá que sí
+            # tiene reporte tiene que recibirlo.
+            print(f"    · {nino.nombre}: no se pudo enviar — {e}")
+
+    return enviados
 
 
 def main() -> int:

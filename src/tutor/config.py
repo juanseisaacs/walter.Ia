@@ -102,6 +102,12 @@ DIAS_RETENCION_TRANSCRIPCION = 30
 # Reporte al papá
 # ─────────────────────────────────────────────────────────────────────────────
 
+URL_PANEL = os.getenv("URL_PANEL", "http://localhost:8000")
+"""Base de los enlaces que van al correo del papá.
+
+Vive en el entorno porque cambia con el despliegue, y un enlace apuntando a
+localhost en el correo de un papá es un enlace muerto."""
+
 DIAS_PERIODO_REPORTE = 7
 """Semanal. Más seguido no hay novedad que contar (y un reporte sin novedad
 enseña al papá a no abrirlo); más espaciado, el papá se entera tarde de que su

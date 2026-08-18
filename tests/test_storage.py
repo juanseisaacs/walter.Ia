@@ -405,3 +405,40 @@ def test_listar_ninos_para_las_tareas_periodicas(repo):
     repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3, creado_en=AHORA))
 
     assert set(repo.ids_de_ninos()) == {"n1", "n2"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Enlaces del papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_el_enlace_del_papa_sobrevive_a_un_reinicio(tmp_path):
+    """Vivían en un dict del proceso, y eso rompía dos cosas.
+
+    El papá perdía el acceso cada vez que se reiniciaba el servidor, sin
+    entender por qué. Y el script que genera los reportes —otro proceso— no
+    podía emitir un enlace válido: por eso el correo semanal nunca se mandó,
+    aunque `aviso_de_reporte()` existiera desde hacía semanas.
+    """
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(Nino(id="n1", nombre="Juan", edad=7, grado=2))
+    repo.crear_enlace("tok123", "n1", datetime.now() + timedelta(hours=24))
+
+    # Otro proceso: el generador de reportes, o el servidor recién levantado.
+    otro = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    assert otro.canjear_enlace("tok123") == "n1"
+
+
+def test_un_enlace_vencido_no_abre_el_panel(tmp_path):
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(Nino(id="n1", nombre="Juan", edad=7, grado=2))
+    repo.crear_enlace("viejo", "n1", datetime.now() - timedelta(minutes=1))
+
+    assert repo.canjear_enlace("viejo") is None
+    # Y se limpia solo al detectarlo: la tabla no crece sin que nadie la barra.
+    assert repo.canjear_enlace("viejo") is None
+
+
+def test_un_token_inventado_no_abre_nada(tmp_path):
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    assert repo.canjear_enlace("no-existe") is None

@@ -44,7 +44,6 @@ def cliente(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "_grafo", grafo)
     monkeypatch.setattr(api, "_orquestador", Orquestador(repo, grafo, EmisorFalso()))
     monkeypatch.setattr(api, "_notificador", NotificadorFalso())
-    api._ENLACES.clear()
 
     return TestClient(api.app)
 
