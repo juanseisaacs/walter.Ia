@@ -97,10 +97,26 @@ def test_el_analista_usa_haiku_y_recibe_la_transcripcion():
     cliente = ClienteFalso(_SalidaAnalista(cumplimiento=_cumplio()))
     analizar_sesion(_sesion(), "nino: cuarenta y dos", cliente)
 
-    llamada = cliente.llamadas[0]
-    assert "haiku" in llamada["modelo"]
-    assert "cuarenta y dos" in llamada["mensaje"]
-    assert "auditoría" in llamada["sistema"].lower(), "el prompt pide auditar al tutor"
+    for llamada in cliente.llamadas:
+        assert "haiku" in llamada["modelo"]
+        assert "cuarenta y dos" in llamada["mensaje"]
+
+
+def test_el_nino_y_el_tutor_se_miran_en_llamadas_separadas():
+    """Fusionadas, las dos mitades competían y perdía la extracción: el modelo
+    devolvía la auditoría impecable y `observaciones: []`. Ver `analizar_sesion`.
+
+    Si alguien las vuelve a juntar para ahorrarse una llamada, este test avisa.
+    """
+    cliente = ClienteFalso(_SalidaAnalista(cumplimiento=_cumplio()))
+    analizar_sesion(_sesion(), "nino: cuarenta y dos", cliente)
+
+    assert len(cliente.llamadas) == 2, "el Analista dejó de ser dos llamadas"
+    extractor, auditor = (l["sistema"].lower() for l in cliente.llamadas)
+
+    assert "señales" in extractor, "la primera llamada no es la extracción"
+    assert "auditoría" not in extractor, "la auditoría se coló en la extracción"
+    assert "auditás al tutor" in auditor, "la segunda llamada no es la auditoría"
 
 
 def test_el_analista_recibe_los_ids_de_habilidad_para_poder_atarlos():
@@ -380,6 +396,29 @@ def test_el_reporte_recibe_los_hechos_no_la_transcripcion():
     assert "sonnet" in llamada["modelo"], "acá sí importa la calidad de prosa"
     assert "DATOS DEL PERÍODO" in llamada["mensaje"]
     assert "no afirmás nada que no esté" in llamada["sistema"].lower()
+
+
+def test_una_confesion_del_nino_no_viaja_al_reporte_del_papa():
+    """Constitución §6.2.8: las travesuras no se reportan como eventos.
+
+    El riesgo no es el prompt, es el canal: si alguien suma `perfil.notas` al
+    contexto del reporte, todo lo que el Analista haya anotado ahí —incluida una
+    confesión— le llega al papá sin que nadie lo haya decidido. Un niño al que
+    le devuelven en un informe lo que contó en confianza no vuelve a contar nada,
+    y ahí se pierde también lo que sí importa que cuente.
+    """
+    perfil = PerfilPersonal(
+        intereses=["dinosaurios"],
+        notas="Le confesó al tutor que copió en la prueba de sociales.",
+    )
+    cliente = _cliente_reporte("A Juan le fue bien.")
+    m = calcular_metricas(_nino(), [], [_cumplio()], GRAFO, AHORA)
+    generar_reporte(_nino(perfil=perfil), m, AHORA - timedelta(days=7), AHORA, cliente)
+
+    mensaje = cliente.llamadas[0]["mensaje"]
+    assert "dinosaurios" in mensaje, "los intereses sí van: hacen útil el reporte"
+    assert "copió" not in mensaje, "una confesión del niño llegó al reporte del papá"
+    assert "sociales" not in mensaje
 
 
 def _reporte(texto: str, **kw) -> ReporteParaPapa:

@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import ClassVar, NamedTuple, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from . import config as cfg
 from .curriculum import GrafoHabilidades
@@ -55,19 +55,20 @@ peor todavía: dos corridas sobre los mismos turnos tienen que decidir lo mismo.
 
 `redactar` NO lleva esto: ahí la prosa para el papá sí se beneficia de variar."""
 
-MAX_TOKENS_EXTRACCION = 8192
+MAX_TOKENS_EXTRACCION = 16_384
 """El techo de la salida estructurada, no del contexto.
 
-Estuvo en 4096 y ahí quedaba justo. Importa porque el Analista emite
-`cumplimiento` primero y `observaciones` después: cuando la respuesta se pasa
-del techo, **lo que se pierde son las observaciones**, y el JSON llega cortado a
-la mitad de una cadena. Pydantic entonces rechaza la respuesta entera y la
-sesión del niño queda sin registrar.
+Cuando la respuesta se pasa del techo, el JSON llega cortado a la mitad de una
+cadena, Pydantic rechaza la respuesta **entera** y la sesión del niño queda sin
+registrar. No hay degradación elegante: o entra todo, o no entra nada.
 
-Se vio al probar un campo extra en la auditoría: el JSON se cortó en la columna
-12471. El margen era más chico de lo que parecía.
+Se subió dos veces, las dos por verlo romper de verdad: de 4096 (cortó en la
+columna 12471) a 8192 (cortó en la 20915, con un extractor que anotaba una señal
+por turno). El margen siempre fue más chico de lo que parecía.
 
-Es un agente offline: acá 8192 no le cuesta latencia a nadie."""
+Es un agente offline: acá 16k no le cuesta latencia a nadie. Y el tope de
+señales del prompt es lo que de verdad mantiene la salida corta — esto es la
+red, no el plan."""
 
 TEMPERATURA_PROSA = 1.0
 """Para lo que se lee como carta y no como dato. El reporte al papá viene en dos
@@ -168,7 +169,24 @@ class ClienteFalso(ClienteLLM):
         self.llamadas.append({"modelo": modelo, "sistema": sistema, "mensaje": mensaje})
         if self.estructurado is None:
             raise RuntimeError("ClienteFalso sin respuesta configurada")
-        return self.estructurado  # type: ignore[return-value]
+        if isinstance(self.estructurado, formato):
+            return self.estructurado
+
+        # El guion describe la sesión entera (`_SalidaAnalista`) pero acá se pide
+        # una mitad: el Analista hace dos llamadas con formatos distintos. Se
+        # recorta el guion en vez de obligar a cada test a escribir dos.
+        for valor in vars(self.estructurado).values():
+            if isinstance(valor, formato):
+                return valor
+        campos = self.estructurado.model_dump()
+        recorte = {k: v for k, v in campos.items() if k in formato.model_fields}
+        try:
+            return formato.model_validate(recorte)
+        except ValidationError as e:
+            raise RuntimeError(
+                f"ClienteFalso: el guion {type(self.estructurado).__name__} no "
+                f"cubre {formato.__name__}. Configurá una respuesta para ese formato."
+            ) from e
 
     def redactar(self, modelo: str, sistema: str, mensaje: str) -> str:
         self.llamadas.append({"modelo": modelo, "sistema": sistema, "mensaje": mensaje})
@@ -186,11 +204,27 @@ def cliente_por_defecto() -> ClienteLLM:
 
 
 class _SalidaAnalista(BaseModel):
-    """Lo que se le pide al modelo. `AnalisisSesion` agrega el id de sesión."""
+    """El análisis completo de una sesión. `AnalisisSesion` agrega el id.
+
+    Ya NO se le pide entero al modelo en una sola llamada — se arma juntando
+    `_SalidaExtractor` y `AuditoriaCumplimiento`. Sigue existiendo porque es el
+    guion que usan los tests para describir una sesión de una sola vez.
+    """
 
     observaciones: list[Observacion] = []
     perfil_sugerido: PerfilPersonal | None = None
     cumplimiento: AuditoriaCumplimiento
+    resumen: str | None = None
+
+
+class _SalidaExtractor(BaseModel):
+    """La mitad que mira al NIÑO. Sin la auditoría, a propósito.
+
+    Ver `analizar_sesion` para por qué están separadas.
+    """
+
+    observaciones: list[Observacion] = []
+    perfil_sugerido: PerfilPersonal | None = None
     resumen: str | None = None
 
 
@@ -211,11 +245,21 @@ def _contexto_habilidades(sesion: Sesion, grafo: GrafoHabilidades | None) -> str
     ]
     if not lineas:
         return ""
+
+    # Con una sola habilidad no hay nada que elegir, y decirlo importa: el modelo
+    # devolvía las cuatro señales bien tipadas y las cuatro con habilidad_id=None
+    # — o sea, la sesión entera descartada por una ambigüedad que no existía.
+    cierre = (
+        f"\n\nEsta sesión trabajó UNA sola habilidad: toda observación académica "
+        f"lleva `{sesion.habilidades_trabajadas[0]}`. No hay otra opción."
+        if len(lineas) == 1
+        else ""
+    )
     return (
         "\n\n--- HABILIDADES TRABAJADAS EN ESTA SESIÓN ---\n"
         "Toda observación académica (acierto, error, pista_necesaria, dominio) DEBE\n"
         "llevar el habilidad_id de una de estas. Las de perfil (frustracion, interes)\n"
-        "van sin habilidad_id.\n" + "\n".join(lineas)
+        "van sin habilidad_id.\n" + "\n".join(lineas) + cierre
     )
 
 
@@ -225,30 +269,84 @@ def analizar_sesion(
     cliente: ClienteLLM | None = None,
     grafo: GrafoHabilidades | None = None,
 ) -> AnalisisSesion:
-    """Una llamada, dos preguntas sobre la misma transcripción.
+    """Dos llamadas sobre la misma transcripción: qué hizo el niño, qué hizo el tutor.
 
-    Fusionar señales del niño con auditoría del tutor subió la cobertura del
-    método socrático de un muestreo del 10% al 100%, al mismo costo.
+    **Por qué son dos y no una.** Estuvieron fusionadas, y medido en evals eso
+    costaba caro: las dos mitades competían y la que perdía siempre era la
+    extracción. Con el schema fusionado, `curriculum_fidelity` daba
+
+        sin campos extra en la auditoría .......... 4/4
+        + un campo trivial ........................ 3/4
+        + un campo que exige juicio ............... 0/4
+
+    y el síntoma era `observaciones: []` — o sea, el modelo entregaba la
+    auditoría impecable y la sesión del niño sin registrar. Cada cosa que
+    quisiéramos auditar de más se pagaba en dominio no anotado.
+
+    Separadas, cada llamada tiene un solo trabajo y un prompt propio. Cuesta el
+    doble de llamadas; es un agente offline, no le cuesta latencia a nadie.
 
     `grafo` habilita atar cada observación académica a un `habilidad_id`: sin él
-    las señales del niño no llegan nunca a la tabla `dominio`.
+    las señales del niño no llegan nunca a la tabla `dominio`. El auditor no lo
+    necesita — no mira habilidades, mira al tutor.
 
     IDEMPOTENCIA: el llamador filtra por `analizada == False`. Esta función no
     conoce ese estado — no la llames dos veces sobre la misma sesión.
     """
     cliente = cliente or cliente_por_defecto()
-    mensaje = (
-        f"Sesión {sesion.id} (modo {sesion.modo.value}).\n\n"
-        f"--- TRANSCRIPCIÓN ---\n{transcripcion}"
-        f"{_contexto_habilidades(sesion, grafo)}"
-    )
-    salida = cliente.extraer(
+    encabezado = f"Sesión {sesion.id} (modo {sesion.modo.value}).\n\n--- TRANSCRIPCIÓN ---\n{transcripcion}"
+
+    señales = cliente.extraer(
         cfg.MODELO_ANALISTA,
         cargar_prompt("session_analyst"),
-        mensaje,
-        _SalidaAnalista,
+        encabezado + _contexto_habilidades(sesion, grafo),
+        _SalidaExtractor,
     )
-    return AnalisisSesion(sesion_id=sesion.id, **salida.model_dump())
+    cumplimiento = cliente.extraer(
+        cfg.MODELO_ANALISTA,
+        cargar_prompt("method_auditor"),
+        encabezado,
+        AuditoriaCumplimiento,
+    )
+    datos = señales.model_dump()
+    datos["observaciones"] = _atar_habilidad_unica(datos["observaciones"], sesion)
+    return AnalisisSesion(sesion_id=sesion.id, cumplimiento=cumplimiento, **datos)
+
+
+_TIPOS_ACADEMICOS = frozenset(
+    {
+        TipoObservacion.ACIERTO,
+        TipoObservacion.ERROR,
+        TipoObservacion.PISTA_NECESARIA,
+        TipoObservacion.DOMINIO,
+    }
+)
+
+
+def _atar_habilidad_unica(observaciones: list[dict], sesion: Sesion) -> list[dict]:
+    """Rellena el `habilidad_id` que el modelo omitió, cuando no hay ambigüedad.
+
+    Si la sesión trabajó UNA sola habilidad, toda señal académica es de esa
+    habilidad por construcción — el banco entregó ejercicios de un solo nodo. No
+    es inferir: es un dato que el código ya tiene y el modelo estaba adivinando.
+
+    Y adivinaba mal de forma intermitente. Con la misma transcripción y
+    temperatura 0, `curriculum_fidelity` daba 4/4, 3/4, 2/4, 3/4 en corridas
+    seguidas: el modelo devolvía las señales bien tipadas y con la cita correcta,
+    pero la mitad de las veces dejaba `habilidad_id` en null — y una observación
+    académica sin id la descarta `aplicar_analisis` en silencio. O sea: el niño
+    practicaba y su dominio no subía, según el humor del muestreo.
+
+    Con dos o más habilidades no se toca nada: ahí sí hay algo que decidir, y
+    esa decisión es del modelo, que leyó la transcripción.
+    """
+    if len(sesion.habilidades_trabajadas) != 1:
+        return observaciones
+    unica = sesion.habilidades_trabajadas[0]
+    for o in observaciones:
+        if o.get("habilidad_id") is None and o.get("tipo") in _TIPOS_ACADEMICOS:
+            o["habilidad_id"] = unica
+    return observaciones
 
 
 def _consolidar(previos: list[str], nuevos: list[str]) -> list[str]:

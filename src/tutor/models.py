@@ -233,7 +233,13 @@ class TipoObservacion(StrEnum):
 class Observacion(BaseModel):
     """Una señal detectada en la transcripción."""
 
-    habilidad_id: str | None = None
+    habilidad_id: str | None = Field(
+        default=None,
+        description=(
+            "El id de la habilidad, tomado de la lista del mensaje. Requerido en "
+            "acierto, error, pista_necesaria y dominio; null en frustracion e interes."
+        ),
+    )
     tipo: TipoObservacion
     evidencia: str = Field(description="Cita textual que respalda la observación")
 
@@ -248,6 +254,22 @@ class AuditoriaCumplimiento(BaseModel):
     regalo_la_respuesta: bool
     respeto_escalera_pistas: bool
     detecto_frustracion: bool
+    elogio_inflado: bool = Field(
+        default=False,
+        description=(
+            "Línea roja 14: 'eres un genio', 'eres el mejor'. Suena a cariño y "
+            "por eso se cuela, pero le enseña al niño que su valor depende de "
+            "rendir. Default False: las auditorías viejas no afirman que pasó."
+        ),
+    )
+    afirmo_algo_falso: bool = Field(
+        default=False,
+        description=(
+            "El tutor dijo algo incorrecto sobre la respuesta del niño: la dio "
+            "por buena estando mal, o dijo que estaba cerca sin estarlo. "
+            "Default False: las auditorías viejas no afirman que pasó."
+        ),
+    )
     notas: str | None = None
 
 
