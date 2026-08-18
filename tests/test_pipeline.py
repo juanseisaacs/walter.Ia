@@ -37,9 +37,12 @@ from tutor.pipeline import (
     evaluar_seguridad,
     extraer_ficha,
     generar_reporte,
+    procesar_pendientes,
+    procesar_sesion,
     siguiente_pregunta,
     verificar_reporte,
 )
+from tutor.storage import RepositorioSQLite
 
 AHORA = datetime(2026, 8, 17, 16, 0)
 GRAFO = cargar_grafo()
@@ -89,6 +92,29 @@ def test_el_analista_usa_haiku_y_recibe_la_transcripcion():
     assert "haiku" in llamada["modelo"]
     assert "cuarenta y dos" in llamada["mensaje"]
     assert "auditoría" in llamada["sistema"].lower(), "el prompt pide auditar al tutor"
+
+
+def test_el_analista_recibe_los_ids_de_habilidad_para_poder_atarlos():
+    """Sin la lista de habilidades en el mensaje, el modelo devuelve
+    habilidad_id=None y `aplicar_analisis` descarta la señal en silencio."""
+    cliente = ClienteFalso(_SalidaAnalista(cumplimiento=_cumplio()))
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = [HAB]
+    analizar_sesion(sesion, "nino: cuarenta y dos", cliente, GRAFO)
+
+    mensaje = cliente.llamadas[0]["mensaje"]
+    assert HAB in mensaje, "el id del nodo trabajado tiene que llegar al Analista"
+    assert GRAFO.habilidad(HAB).nombre.es in mensaje, "también el nombre humano"
+
+
+def test_sin_grafo_el_analista_no_inyecta_contexto():
+    """Compatibilidad: la firma vieja (sin grafo) sigue funcionando."""
+    cliente = ClienteFalso(_SalidaAnalista(cumplimiento=_cumplio()))
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = [HAB]
+    analizar_sesion(sesion, "nino: hola", cliente)  # sin grafo
+
+    assert "HABILIDADES TRABAJADAS" not in cliente.llamadas[0]["mensaje"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -182,6 +208,70 @@ def test_aplicar_no_muta_el_original():
     )
     aplicar_analisis(nino, analisis, GRAFO, AHORA)
     assert nino.dominio == {}, "el original queda intacto"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Procesar la cola: el eslabón que faltaba entre cerrar() y el dominio
+# ─────────────────────────────────────────────────────────────────────────────
+# Sin esto, session.cerrar() encolaba (analizada=False) pero nadie procesaba: la
+# tabla `dominio` quedaba en cero para siempre. Esa era la Prioridad 2 de PENDIENTE.
+
+
+def _repo_con_sesion(tmp_path, *, con_transcripcion=True) -> RepositorioSQLite:
+    """Un niño y una sesión cerrada sin analizar, como la deja cerrar()."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    repo.crear_sesion(_sesion())
+    if con_transcripcion:
+        repo.guardar_transcripcion("s1", "nino: cuarenta y dos\ntutor: ¡eso!")
+    return repo
+
+
+def _cliente_analista() -> ClienteFalso:
+    return ClienteFalso(
+        _SalidaAnalista(
+            observaciones=[
+                Observacion(habilidad_id=HAB, tipo=TipoObservacion.ACIERTO, evidencia="42")
+            ],
+            cumplimiento=_cumplio(),
+        )
+    )
+
+
+def test_procesar_pendientes_escribe_el_dominio(tmp_path):
+    """El circuito completo: sesión encolada → Analista → tabla dominio."""
+    repo = _repo_con_sesion(tmp_path)
+    assert repo.obtener_nino("n1").dominio == {}, "arranca sin evidencia"
+
+    procesadas = procesar_pendientes(repo, GRAFO, _cliente_analista(), AHORA)
+
+    assert procesadas == 1
+    assert repo.obtener_nino("n1").dominio[HAB].nivel > 0, "el acierto quedó registrado"
+    assert repo.sesiones_sin_analizar() == [], "la sesión salió de la cola"
+    assert repo.obtener_sesion("s1").analizada is True
+
+
+def test_no_procesa_dos_veces_la_misma_sesion(tmp_path):
+    """IDEMPOTENCIA: el session_id es llave. Sin esto, doble conteo de dominio."""
+    repo = _repo_con_sesion(tmp_path)
+    procesar_pendientes(repo, GRAFO, _cliente_analista(), AHORA)
+    intentos = repo.obtener_nino("n1").dominio[HAB].intentos
+
+    reprocesadas = procesar_pendientes(repo, GRAFO, _cliente_analista(), AHORA)
+
+    assert reprocesadas == 0, "la cola ya estaba vacía"
+    assert repo.obtener_nino("n1").dominio[HAB].intentos == intentos, "no vuelve a contar"
+
+
+def test_sin_transcripcion_sale_de_la_cola_sin_inventar_dominio(tmp_path):
+    """Si la transcripción ya pasó la retención, la sesión no puede reprocesarse
+    para siempre — pero tampoco se inventa un dominio que nadie midió."""
+    repo = _repo_con_sesion(tmp_path, con_transcripcion=False)
+    sesion = repo.obtener_sesion("s1")
+
+    assert procesar_sesion(repo, GRAFO, sesion, _cliente_analista(), AHORA) is True
+    assert repo.obtener_nino("n1").dominio == {}, "no escribe dominio sin evidencia"
+    assert repo.sesiones_sin_analizar() == [], "igual sale de la cola"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

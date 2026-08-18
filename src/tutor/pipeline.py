@@ -38,6 +38,7 @@ from .pedagogy import (
     esta_dominada,
     grado_de_trabajo,
 )
+from .storage import Repositorio
 from .voice import cargar_prompt
 
 T = TypeVar("T", bound=BaseModel)
@@ -140,22 +141,58 @@ class _SalidaAnalista(BaseModel):
     resumen: str | None = None
 
 
+def _contexto_habilidades(sesion: Sesion, grafo: GrafoHabilidades | None) -> str:
+    """Las habilidades trabajadas, con nombre, para que el Analista pueda ATAR
+    cada observación académica a un id.
+
+    La transcripción no contiene ids de nodo; sin esta lista el modelo devuelve
+    `habilidad_id=None` y `aplicar_analisis` descarta la observación en silencio.
+    Es DATO (cambia por sesión), por eso va en el mensaje y no en el prompt.
+    """
+    if grafo is None or not sesion.habilidades_trabajadas:
+        return ""
+    lineas = [
+        f"- {hid}: {grafo.habilidad(hid).nombre.es}"
+        for hid in sesion.habilidades_trabajadas
+        if grafo.existe(hid)
+    ]
+    if not lineas:
+        return ""
+    return (
+        "\n\n--- HABILIDADES TRABAJADAS EN ESTA SESIÓN ---\n"
+        "Toda observación académica (acierto, error, pista_necesaria, dominio) DEBE\n"
+        "llevar el habilidad_id de una de estas. Las de perfil (frustracion, interes)\n"
+        "van sin habilidad_id.\n" + "\n".join(lineas)
+    )
+
+
 def analizar_sesion(
-    sesion: Sesion, transcripcion: str, cliente: ClienteLLM | None = None
+    sesion: Sesion,
+    transcripcion: str,
+    cliente: ClienteLLM | None = None,
+    grafo: GrafoHabilidades | None = None,
 ) -> AnalisisSesion:
     """Una llamada, dos preguntas sobre la misma transcripción.
 
     Fusionar señales del niño con auditoría del tutor subió la cobertura del
     método socrático de un muestreo del 10% al 100%, al mismo costo.
 
+    `grafo` habilita atar cada observación académica a un `habilidad_id`: sin él
+    las señales del niño no llegan nunca a la tabla `dominio`.
+
     IDEMPOTENCIA: el llamador filtra por `analizada == False`. Esta función no
     conoce ese estado — no la llames dos veces sobre la misma sesión.
     """
     cliente = cliente or cliente_por_defecto()
+    mensaje = (
+        f"Sesión {sesion.id} (modo {sesion.modo.value}).\n\n"
+        f"--- TRANSCRIPCIÓN ---\n{transcripcion}"
+        f"{_contexto_habilidades(sesion, grafo)}"
+    )
     salida = cliente.extraer(
         cfg.MODELO_ANALISTA,
         cargar_prompt("session_analyst"),
-        f"Sesión {sesion.id} (modo {sesion.modo.value}).\n\n--- TRANSCRIPCIÓN ---\n{transcripcion}",
+        mensaje,
         _SalidaAnalista,
     )
     return AnalisisSesion(sesion_id=sesion.id, **salida.model_dump())
@@ -219,6 +256,69 @@ def aplicar_analisis(
     # Cada sesión el tutor lo conoce un poco más.
     actualizado.perfil.madurez_vinculo += 1
     return actualizado
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Procesador de la cola: cierra el circuito de punta a punta
+# ─────────────────────────────────────────────────────────────────────────────
+# `session.cerrar()` sólo ENCOLA (deja `analizada=False`). Acá se drena la cola:
+# por cada sesión, el Analista lee la transcripción y `aplicar_analisis` escribe
+# el dominio. Sin este eslabón la tabla `dominio` nunca crece y el planificador
+# vuelve a arrancar a ciegas cada día. Es offline: la latencia da igual (§2).
+
+
+def procesar_sesion(
+    repo: Repositorio,
+    grafo: GrafoHabilidades,
+    sesion: Sesion,
+    cliente: ClienteLLM | None = None,
+    ahora: datetime | None = None,
+) -> bool:
+    """Analiza UNA sesión y persiste lo aprendido. Devuelve si la sacó de la cola.
+
+    IDEMPOTENCIA: si ya está analizada, no hace nada. El circuito se cierra en dos
+    escrituras atómicas — la ficha del niño y el flag de la sesión.
+
+    La saca de la cola aunque no haya nada que analizar (niño borrado, o la
+    transcripción ya pasó la retención): reintentar no cambiaría el resultado y
+    una sesión sin insumo la reprocesaría en cada corrida para siempre.
+    """
+    if sesion.analizada:
+        return False
+
+    nino = repo.obtener_nino(sesion.nino_id)
+    transcripcion = repo.obtener_transcripcion(sesion.id)
+
+    if nino is not None and transcripcion:
+        analisis = analizar_sesion(sesion, transcripcion, cliente, grafo)
+        repo.guardar_nino(aplicar_analisis(nino, analisis, grafo, ahora))
+        # El veredicto del método queda persistido para el panel del papá: es la
+        # evidencia durable de "no le doy las respuestas", y sobrevive al borrado
+        # de la transcripción (son booleanos, no la charla cruda).
+        repo.guardar_auditoria(sesion.id, analisis.cumplimiento)
+
+    sesion.analizada = True
+    repo.actualizar_sesion(sesion)
+    return True
+
+
+def procesar_pendientes(
+    repo: Repositorio,
+    grafo: GrafoHabilidades,
+    cliente: ClienteLLM | None = None,
+    ahora: datetime | None = None,
+) -> int:
+    """Drena la cola del Analista. Devuelve cuántas sesiones procesó.
+
+    Self-healing: recoge todo lo que quedó pendiente (una corrida sin llave, un
+    cierre que no disparó el fondo). Lo usa el backfill y sirve de tarea periódica.
+    """
+    cliente = cliente or cliente_por_defecto()
+    procesadas = 0
+    for sesion in repo.sesiones_sin_analizar():
+        if procesar_sesion(repo, grafo, sesion, cliente, ahora):
+            procesadas += 1
+    return procesadas
 
 
 # ─────────────────────────────────────────────────────────────────────────────

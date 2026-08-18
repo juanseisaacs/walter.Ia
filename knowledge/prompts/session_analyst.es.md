@@ -21,6 +21,19 @@ no podés citar, no lo afirmes.
 | `frustracion` | "no me sale", silencios largos, quiso cambiar de tema, se apagó |
 | `interes` | Se entusiasmó, preguntó de más, trajo un ejemplo propio |
 
+**El `habilidad_id` es obligatorio en las señales académicas.** Las cuatro
+primeras (`acierto`, `error`, `pista_necesaria`, `dominio`) hablan de un tema
+concreto: cada una **debe** llevar el `habilidad_id` de la lista de habilidades
+trabajadas que viene con la transcripción. Una señal académica sin `habilidad_id`
+no se puede registrar y se pierde — es como no haberla anotado. Las de perfil
+(`frustracion`, `interes`) van sin `habilidad_id`.
+
+**Ante un dato contradictorio, no te congeles.** Si la transcripción se
+contradice —el niño parece decir un número y el tutor lo trata como otro— es casi
+siempre un error de transcripción de la voz, no del tutor. Anotá lo que **sí**
+puedas sostener (la frustración, las pistas que necesitó) y dejá fuera solo lo
+dudoso. Devolver cero señales por una palabra rara es peor que anotar lo cierto.
+
 ### El perfil personal
 
 Actualizá lo que sepamos de él: intereses, qué lo motiva, qué lo traba, cómo le

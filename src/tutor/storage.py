@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .models import (
+    AuditoriaCumplimiento,
     Ejercicio,
     EstadoSesion,
     ModoSesion,
@@ -121,6 +122,21 @@ class Repositorio(ABC):
 
     @abstractmethod
     def guardar_reporte(self, reporte: ReporteParaPapa) -> None: ...
+
+    @abstractmethod
+    def ultimo_reporte(self, nino_id: str) -> ReporteParaPapa | None:
+        """El reporte más reciente que se le mostró al papá. None si no hay."""
+
+    # ── Auditoría de cumplimiento (por sesión) ───────────────────────────────
+
+    @abstractmethod
+    def guardar_auditoria(self, sesion_id: str, cumplimiento: AuditoriaCumplimiento) -> None:
+        """El veredicto del método, sesión a sesión. Es la evidencia durable que
+        sostiene el "¿le está dando las respuestas?" del panel — sobrevive al
+        borrado de la transcripción, porque son booleanos, no la charla cruda."""
+
+    @abstractmethod
+    def obtener_auditoria(self, sesion_id: str) -> AuditoriaCumplimiento | None: ...
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -224,10 +240,12 @@ class RepositorioSQLite(Repositorio):
         self.ruta_datos = Path(ruta_datos)
         self.ruta_transcripciones = self.ruta_datos / "transcripts"
         self.ruta_reportes = self.ruta_datos / "reports"
+        self.ruta_auditorias = self.ruta_datos / "audits"
 
         self.ruta_db.parent.mkdir(parents=True, exist_ok=True)
         self.ruta_transcripciones.mkdir(parents=True, exist_ok=True)
         self.ruta_reportes.mkdir(parents=True, exist_ok=True)
+        self.ruta_auditorias.mkdir(parents=True, exist_ok=True)
 
         self._migrar()
 
@@ -534,3 +552,27 @@ class RepositorioSQLite(Repositorio):
         (self.ruta_reportes / nombre).write_text(
             reporte.model_dump_json(indent=2), encoding="utf-8"
         )
+
+    def ultimo_reporte(self, nino_id: str) -> ReporteParaPapa | None:
+        prefijo = f"{Path(nino_id).name}_"
+        candidatos = sorted(self.ruta_reportes.glob(f"{prefijo}*.json"))
+        if not candidatos:
+            return None
+        # El nombre lleva la fecha `hasta`: el último por orden es el más reciente.
+        return ReporteParaPapa.model_validate_json(candidatos[-1].read_text(encoding="utf-8"))
+
+    # ── Auditoría de cumplimiento (archivos) ─────────────────────────────────
+
+    def _ruta_auditoria(self, sesion_id: str) -> Path:
+        return self.ruta_auditorias / f"{Path(sesion_id).name}.json"
+
+    def guardar_auditoria(self, sesion_id: str, cumplimiento: AuditoriaCumplimiento) -> None:
+        self._ruta_auditoria(sesion_id).write_text(
+            cumplimiento.model_dump_json(indent=2), encoding="utf-8"
+        )
+
+    def obtener_auditoria(self, sesion_id: str) -> AuditoriaCumplimiento | None:
+        ruta = self._ruta_auditoria(sesion_id)
+        if not ruta.exists():
+            return None
+        return AuditoriaCumplimiento.model_validate_json(ruta.read_text(encoding="utf-8"))
