@@ -132,6 +132,27 @@ detalle de derivación en `ARCHITECTURE.md` §18). Lo que **no** se implementó:
 - **Diálogos modelo Nivel 1** (abuso, autolesión) — la Constitución es explícita
   en que se escriben **con el psicólogo infantil, nunca antes**.
 
+### De la primera sesión de voz real (`ses_91c13b1747a2`, 18/08)
+
+Lo arreglado está en los commits; esto es lo que quedó abierto.
+
+- **El auditor no ve las afirmaciones falsas.** `AuditoriaCumplimiento` mira si
+  regaló, si respetó la escalera y si detectó frustración. No hay eje para
+  "afirmó algo incorrecto sobre una respuesta" — el tutor le dijo a un "780"
+  para 135+241 que estaba *"muy cerca"* de 376, y esa sesión igual podría
+  auditar 100%. **No se implementó porque hay otra sesión trabajando en esos
+  mismos archivos** (partiendo el Analista en Extractor + Auditor); conviene
+  sumarlo a `method_auditor.es.md` cuando esa tanda cierre.
+- **Falta el dato de latencia.** La consola tenía las líneas
+  `[tool] check_answer: Nms` y no se leyeron. Sin ese número no se sabe si la
+  frase de espera alcanza.
+- **La duda de los tokens.** Se reportan sumando `totalTokenCount`; si en la
+  próxima sesión el log `[tokens] turno=X` crece monótono, es acumulativo y hay
+  que reportar el último en vez de la suma.
+- **Turnos perdidos** — *"Nueve, por tercera vez te estoy diciendo"*. Puede ser
+  el mismo bug del audio suspendido (el niño repetía porque no oía la
+  respuesta): verificar en la próxima sesión antes de tocar el VAD.
+
 ### Lo demás
 
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa
