@@ -258,14 +258,52 @@ def test_el_grado_no_pone_techo():
 def test_mide_el_grado_real_no_el_administrativo():
     g = cargar_grafo()
     assert grado_de_trabajo(_juan_veloz(), g, AHORA) == 3
-    assert grado_de_trabajo(_nino(), g, AHORA) == 1, "un nino nuevo arranca por lo basico"
+    assert grado_de_trabajo(_nino(grado=1), g, AHORA) == 1, "en 1ro no hay nada que presumir"
+
+
+def test_sin_evidencia_no_se_le_dice_al_papa_que_su_hijo_va_atrasado():
+    """Un nino de 2do del que no medimos nada trabaja EN 2do, no en 1ro.
+
+    Los nodos de 1ro sin registro no son lagunas: son cosas que no miramos. Es la
+    misma presuncion de grado del planificador, y sin ella el reporte le decia al
+    papa que su hijo de 2do "trabaja a nivel de 1ro" sin un solo dato que lo
+    sostenga.
+    """
+    g = cargar_grafo()
+    nuevo_de_segundo = _nino(grado=2)
+
+    assert grado_de_trabajo(nuevo_de_segundo, g, AHORA) == 2
+    assert adelanto(nuevo_de_segundo, g, AHORA) == 0, "ni adelantado ni atrasado: sin medir"
+
+
+def test_la_evidencia_le_gana_a_la_presuncion():
+    """Si SI lo medimos y no le sale, el atraso es real y hay que reportarlo.
+
+    Presumir no es medir: la presuncion solo cubre el silencio.
+    """
+    g = cargar_grafo()
+    flojo = _nino(
+        {
+            "mat.numeros.conteo_hasta_100": RegistroDominio(
+                habilidad_id="mat.numeros.conteo_hasta_100",
+                nivel=0.15,
+                intentos=6,
+                aciertos=1,
+                ultima_practica=AHORA,
+            )
+        },
+        grado=2,
+    )
+
+    assert grado_de_trabajo(flojo, g, AHORA) == 1
+    assert adelanto(flojo, g, AHORA) == -1
 
 
 def test_detecta_al_nino_adelantado_para_avisarle_al_papa():
     g = cargar_grafo()
     assert adelanto(_juan_veloz(), g, AHORA) == 1
     assert va_adelantado(_juan_veloz(), g, AHORA)
-    assert not va_adelantado(_nino(), g, AHORA)
+    assert not va_adelantado(_nino(grado=1), g, AHORA)
 
 
 def test_el_tutor_se_entera_de_que_va_adelantado():

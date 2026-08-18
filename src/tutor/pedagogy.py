@@ -268,9 +268,31 @@ def grado_de_trabajo(nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None
 
     Es el grado más bajo que todavía no domina: lo que tiene enfrente. Un niño
     de 2° que ya dominó todo 2° trabaja en 3°, y así se lo reporta.
+
+    Rige la misma PRESUNCIÓN DE GRADO que usa el planificador (ver
+    `prerrequisito_satisfecho`): una habilidad de un grado que el niño ya cursó,
+    sobre la que nunca medimos nada, no cuenta acá. No es una laguna — es algo
+    que no miramos.
+
+    Sin ese filtro, a Juan (2°, trabajando centenas, sin más evidencia) el
+    reporte le decía al papá que *"el nivel en el que está trabajando
+    corresponde más a 1° grado que a 2°"*, solo porque quedaban nodos de 1°
+    sin registro. Es el pecado inverso al de afirmar un 100% sin auditar:
+    afirmar un déficit sin un solo dato que lo sostenga. Y de los dos, este es
+    el que asusta a un papá.
+
+    En cuanto hay evidencia real de que algo de un grado anterior no le sale,
+    esa habilidad vuelve a contar y el atraso que se reporta es verdadero.
     """
-    if disponibles := habilidades_disponibles(nino, grafo, ahora):
-        return min(h.grado_sugerido for h in disponibles)
+    disponibles = habilidades_disponibles(nino, grafo, ahora)
+    medidas = [
+        h for h in disponibles if h.grado_sugerido >= nino.grado or h.id in nino.dominio
+    ]
+    if medidas:
+        return min(h.grado_sugerido for h in medidas)
+    if disponibles:
+        # Solo quedan nodos de grados ya cursados y sin medir: se los presume.
+        return nino.grado
     grados = [h.grado_sugerido for h in grafo]
     return max(grados) if grados else nino.grado
 

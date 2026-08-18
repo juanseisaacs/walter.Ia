@@ -43,6 +43,18 @@ from .voice import cargar_prompt
 
 T = TypeVar("T", bound=BaseModel)
 
+TEMPERATURA_EXTRACCION = 0.0
+"""Extraer no es escribir. El Analista y el Vigilante leen una transcripción y
+sacan lo que hay: no hay nada que ganar variando la respuesta, y sí mucho que
+perder.
+
+Corría con la temperatura por defecto (1.0) y se notaba: la misma transcripción
+daba 0 observaciones en una corrida y 5 en la siguiente — con un eval en rojo y
+la sesión del niño sin registrar, según el humor del muestreo. En seguridad es
+peor todavía: dos corridas sobre los mismos turnos tienen que decidir lo mismo.
+
+`redactar` NO lleva esto: ahí la prosa para el papá sí se beneficia de variar."""
+
 MAX_ITEMS_PERFIL = 6
 """Tope por lista de la ficha personal. Consolidar, no acumular: una ficha con
 cien intereses no describe a nadie."""
@@ -83,6 +95,7 @@ class ClienteAnthropic(ClienteLLM):
         respuesta = self._obtener().messages.parse(
             model=modelo,
             max_tokens=4096,
+            temperature=TEMPERATURA_EXTRACCION,
             system=sistema,
             messages=[{"role": "user", "content": mensaje}],
             output_format=formato,

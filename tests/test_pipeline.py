@@ -615,3 +615,30 @@ def test_un_reporte_que_miente_no_tumba_los_de_los_demas_ninos(tmp_path):
 
     assert [r.nino_id for r in generados] == ["n1"]
     assert [e.nino_id for e in rechazados] == ["n2"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La frontera con el modelo
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_la_extraccion_no_deja_la_temperatura_al_azar():
+    """Extraer no es escribir. Con la temperatura por defecto (1.0), la misma
+    transcripción daba 0 observaciones en una corrida y 5 en la siguiente: un
+    eval en rojo y la sesión del niño sin registrar, según el humor del muestreo.
+    """
+    from tutor.pipeline import TEMPERATURA_EXTRACCION, ClienteAnthropic
+
+    capturado = {}
+
+    class _Messages:
+        def parse(self, **kw):
+            capturado.update(kw)
+            return type("R", (), {"parsed_output": _cumplio()})()
+
+    cliente = ClienteAnthropic(api_key="test")
+    cliente._cliente = type("C", (), {"messages": _Messages()})()
+
+    cliente.extraer("modelo-x", "sistema", "mensaje", AuditoriaCumplimiento)
+
+    assert capturado["temperature"] == TEMPERATURA_EXTRACCION == 0.0
