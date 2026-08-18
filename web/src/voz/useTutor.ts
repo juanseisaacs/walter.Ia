@@ -66,9 +66,13 @@ export function useTutor(ninoId: string) {
 
     // Mientras esto corre el tutor está MUDO y el niño cree que lo abandonaron.
     // El número va a consola para poder decidir con datos, no con sensación.
+    // `info` y no `debug`: Chrome esconde los debug salvo que actives "Verbose",
+    // y una medición que hay que ir a buscar es una medición que no se mira.
+    // Se loguea también QUÉ devolvió: es lo único que distingue "llamó a la
+    // herramienta y le desobedeció" de "nunca la llamó y lo dijo de memoria".
     const t0 = performance.now();
     const medir = (r: object) => {
-      console.debug(`[tool] ${nombre}: ${Math.round(performance.now() - t0)}ms`);
+      console.info(`[tool] ${nombre}: ${Math.round(performance.now() - t0)}ms`, r);
       return r;
     };
 
@@ -183,6 +187,12 @@ export function useTutor(ninoId: string) {
               const dichoTutor = acumTutorRef.current;
               acumNinoRef.current = "";
               acumTutorRef.current = "";
+
+              // Lo que el Analista va a LEER, visible en el momento. La
+              // transcripción es su único insumo: un "dos" que llega como "32"
+              // se ve acá y no dos días después, en la ficha del niño.
+              if (dichoNino) console.info(`[niño] ${dichoNino}`);
+              if (dichoTutor) console.info(`[tutor] ${dichoTutor}`);
 
               if (dichoNino) encolar({ quien: "nino", texto: dichoNino });
               if (dichoTutor) encolar({ quien: "tutor", texto: dichoTutor });
