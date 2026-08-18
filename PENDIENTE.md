@@ -198,6 +198,13 @@ idioma fijo, el panel server-rendered, y los evals de las cuatro suites.
 
 ## Notas operativas
 
+**Un endpoint nuevo da 404 si nadie reinició uvicorn.** Sin `--reload` el
+servidor sirve el código que tenía al arrancar, y un endpoint recién escrito
+devuelve 404 exactamente igual que uno que no existe — el síntoma no distingue
+"no lo escribí" de "no lo cargué". Pasó el 18/08 con `/api/onboarding`. Después
+de tocar `api.py`, reiniciar y **probar el endpoint nuevo con curl** antes de
+mandar a nadie a la pantalla.
+
 **El zombie de `uvicorn --reload`.** Lanza el servidor real con
 `multiprocessing spawn`, y **ese hijo no tiene "uvicorn" en su línea de
 comando**. Al matar al padre, el hijo sobrevive con el socket del 8000 y sigue
