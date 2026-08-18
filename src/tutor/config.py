@@ -79,7 +79,10 @@ MODELO_GENERADOR = "claude-haiku-4-5"
 
 MAX_MINUTOS_SESION = 45
 MAX_TOKENS_SESION = 150_000
-MAX_SESIONES_DIA = 3
+# Se sube por entorno para probar sin tocar el valor de producto:
+#   PowerShell:  $env:MAX_SESIONES_DIA = "20"
+#   bash:        export MAX_SESIONES_DIA=20
+MAX_SESIONES_DIA = int(os.getenv("MAX_SESIONES_DIA", "3"))
 MAX_COSTO_MES_USD_POR_NINO = 8.0
 
 

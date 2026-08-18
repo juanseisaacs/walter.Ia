@@ -801,7 +801,7 @@ def siguiente_pregunta(
 
     if ficha.completa:
         pendiente = (
-            "Ya tenés todo lo necesario. Cerrá la conversación: decile en dos "
+            "Ya tienes todo lo necesario. Cierra la conversación: dile en dos "
             "frases qué entendiste de su hijo, con lo que él te contó, y que ya "
             "pueden empezar. No preguntes nada más."
         )

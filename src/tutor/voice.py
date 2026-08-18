@@ -264,8 +264,8 @@ def construir_instruccion_sistema(
     if modo == "pedido":
         partes.append(
             "# Hoy trae su propia agenda\n\n"
-            "El niño viene con una tarea o una duda del colegio. Usá eso como "
-            "material: aplicás la MISMA escalera de pistas, más estricta que "
+            "El niño viene con una tarea o una duda del colegio. Usa eso como "
+            "material: aplicas la MISMA escalera de pistas, más estricta que "
             "nunca. Ayudarlo con la tarea no es hacerle la tarea."
         )
 

@@ -498,7 +498,7 @@ def test_cuando_ya_tiene_todo_le_dice_que_cierre():
     siguiente_pregunta([("papa", "todo dicho")], _ficha_completa(), cliente)
 
     mensaje = cliente.llamadas[0]["mensaje"]
-    assert "Cerrá la conversación" in mensaje
+    assert "Cierra la conversación" in mensaje
     assert "No preguntes nada más" in mensaje
 
 

@@ -1,12 +1,15 @@
 # Pendiente — retomar acá
 
-_Última actualización: 2026-08-18, después de cerrar el reporte al papá y correr
-los evals completos._
+_Última actualización: 2026-08-18, después de limpiar lo que dejaron dos sesiones
+de Claude Code trabajando en paralelo._
 
 ## Estado: el circuito completo cierra, y está verificado salvo la voz
 
-Once commits desde `aa76bd0`. **267 tests en verde. Evals 30/30**, estable en
-dos corridas seguidas.
+**289 tests en verde. Evals 41/41**, en la última corrida.
+
+> Los números decían 267 y 30/30 hasta el 2026-08-18: quedaron viejos cuando
+> dos sesiones de Claude Code trabajaron en paralelo y una pisó el `CLAUDE.md`
+> de la otra. El trabajo no se perdió — solo el conteo.
 
 El recorrido entero funciona con datos reales de Juan:
 
@@ -118,13 +121,11 @@ detalle de derivación en `ARCHITECTURE.md` §18). Lo que **no** se implementó:
 
 Lo arreglado está en los commits; esto es lo que quedó abierto.
 
-- **El auditor no ve las afirmaciones falsas.** `AuditoriaCumplimiento` mira si
-  regaló, si respetó la escalera y si detectó frustración. No hay eje para
-  "afirmó algo incorrecto sobre una respuesta" — el tutor le dijo a un "780"
-  para 135+241 que estaba *"muy cerca"* de 376, y esa sesión igual podría
-  auditar 100%. **No se implementó porque hay otra sesión trabajando en esos
-  mismos archivos** (partiendo el Analista en Extractor + Auditor); conviene
-  sumarlo a `method_auditor.es.md` cuando esa tanda cierre.
+- ✅ **El auditor ya ve las afirmaciones falsas.** `afirmo_algo_falso` está en
+  `models.py` y documentado en `method_auditor.es.md`. Quedó escrito acá como
+  pendiente porque "hay otra sesión trabajando en esos mismos archivos" — y esa
+  sesión sí lo implementó. El texto viejo era residuo de la colisión, no un
+  pendiente real.
 - **Falta el dato de latencia.** La consola tenía las líneas
   `[tool] check_answer: Nms` y no se leyeron. Sin ese número no se sabe si la
   frase de espera alcanza.
@@ -165,6 +166,8 @@ Lo arreglado está en los commits; esto es lo que quedó abierto.
 
 | Era | Qué pasó |
 |---|---|
+| **Dos tutores hablando encima** | `empezar()` en `useTutor.ts` no tenía guardia de reentrada ni cerraba lo anterior. La segunda llamada sobrescribía `liveRef` y `micRef`, y la primera conexión quedaba **huérfana**: nadie la podía cerrar, pero seguía recibiendo el audio del micrófono viejo por closure y seguía hablando con su propio reproductor. Lo disparaba "Probar de nuevo" — `onerror` ponía el estado en `"error"` sin soltar nada. Ahora hay guardia, `soltarRecursos()` compartido, y `empezar()` llama a `terminar(true)` si quedó sesión abierta (si no, quemaba cupo diario). |
+| **El prompt se contradecía sobre cómo habla** | `tutor_persona.es.md` veta el voseo argentino, pero el bloque del modo Pedido vivía hardcodeado en `voice.py` y quedó en voseo cuando los .md se reescribieron a colombiano neutro. El mismo prompt decía "nunca vosees" y dos párrafos después voseaba. Igual en `pipeline.py`, donde el entrevistador le voseaba al papá. Lo fija `test_el_bloque_del_modo_pedido_no_vosea`, que mide el **delta** entre modos — buscar voseo en el prompt entero no sirve, porque la persona lista esas formas para vetarlas. |
 | El reporte no lo generaba nadie | `generar_reporte_del_periodo()` + `scripts/generar_reportes.py`. Idempotente por período, verifica antes de guardar, y una falla de un niño no tumba a los demás. |
 | 28/30 en los evals | No eran los casos: `extraer()` corría con temperatura 1.0. Extracción estructurada a 0 → **30/30**, dos veces. |
 | "Tu hijo de 2° trabaja a nivel de 1°" | `grado_de_trabajo` contaba nodos de 1° que nunca se midieron. Ahora rige la presunción de grado. Afirmar un déficit sin datos asusta más que cualquier otro error. |

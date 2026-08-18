@@ -289,3 +289,26 @@ def test_lo_que_se_ata_al_token_incluye_seguridad_y_metodo():
     atado = emisor.emitidos[0].a_dict_gemini()["systemInstruction"]
     assert "nunca das la respuesta" in atado.lower()
     assert "escalate_safety" in atado
+
+
+def test_el_bloque_del_modo_pedido_no_vosea():
+    """El prompt no se puede contradecir a sí mismo sobre cómo habla.
+
+    `tutor_persona.es.md` veta el voseo argentino, pero el bloque del modo
+    Pedido vivía hardcodeado en `voice.py` y quedó en voseo cuando los .md se
+    reescribieron a colombiano neutro: el mismo prompt decía "nunca vosees" y
+    dos párrafos después voseaba ("Usá eso como material: aplicás la MISMA
+    escalera"). El modelo imita el registro de lo que lee, y dos registros en
+    una instrucción son dos tutores.
+
+    Se mide el DELTA entre los dos modos, que es exactamente el texto escrito
+    en Python. Buscar el voseo en el prompt entero no sirve: la persona lista
+    esas mismas formas para vetarlas.
+    """
+    guiado = construir_instruccion_sistema("Juan, 7 años.", modo="guiado")
+    pedido = construir_instruccion_sistema("Juan, 7 años.", modo="pedido")
+    solo_pedido = pedido.replace(guiado, "").lower()
+
+    assert solo_pedido.strip(), "el modo pedido dejó de agregar su bloque"
+    for forma in ["usá", "aplicás", "tenés", "querés", "mirá", "decile", "cerrá", "dale"]:
+        assert forma not in solo_pedido, f"voseo en el bloque del modo pedido: {forma!r}"

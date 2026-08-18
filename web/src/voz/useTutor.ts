@@ -40,6 +40,7 @@ export function useTutor(ninoId: string) {
   const bancoRef = useRef<Ejercicio[]>([]);
   const indiceRef = useRef(0);
   const ejercicioActualRef = useRef<string | null>(null);
+  const arrancandoRef = useRef(false);
 
   // El techo de tokens por sesión y el tope mensual por niño existen en
   // config.py desde la fase 1, y hasta ahora eran ficción: el cierre mandaba
@@ -144,9 +145,73 @@ export function useTutor(ninoId: string) {
     }
   }, []);
 
+  /* ── Soltar recursos ────────────────────────────────────────
+     Micrófono, WebSocket y audio. Lo llaman terminar(), onerror y empezar():
+     este último para que NUNCA queden dos sesiones vivas a la vez. */
+
+  const soltarRecursos = useCallback(() => {
+    micRef.current?.detener();
+    micRef.current = null;
+    try {
+      liveRef.current?.close();
+    } catch {
+      /* ya cerrada */
+    }
+    liveRef.current = null;
+    reproductorRef.current?.cerrar();
+    reproductorRef.current = null;
+  }, []);
+
+  /* ── Cierre ────────────────────────────────────────────────────────────── */
+
+  const terminar = useCallback(
+    async (interrumpida = false) => {
+      soltarRecursos();
+
+      const sesion = sesionRef.current;
+      if (sesion) {
+        if (pendientesRef.current.length) {
+          await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
+        }
+        await api
+          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.suma)
+          .catch(() => {});
+      }
+      sesionRef.current = null;
+      acumNinoRef.current = "";
+      acumTutorRef.current = "";
+      bancoRef.current = [];
+      indiceRef.current = 0;
+      tokensRef.current = { suma: 0, ultimo: 0 };
+      setEstado("inicio");
+      setTextoNino("");
+      setTextoTutor("");
+    },
+    [soltarRecursos],
+  );
+
   /* ── Arranque ──────────────────────────────────────────────────────────── */
 
   const empezar = useCallback(async () => {
+    // GUARDIA DE REENTRADA — el bug de "dos tutores".
+    //
+    // Sin esto, dos llamadas a empezar() abren dos conexiones Live. liveRef y
+    // micRef se sobrescriben con la segunda, y la PRIMERA queda huérfana: nadie
+    // guarda su referencia, así que terminar() ya no la puede cerrar, pero
+    // sigue viva. Sigue recibiendo el audio del micrófono viejo (que quedó
+    // capturado en su closure) y sigue hablando por su propio reproductor.
+    // El niño oye dos tutores encima, cada uno con su propia conversación.
+    //
+    // Lo disparaba "Probar de nuevo": onerror ponía el estado en "error" sin
+    // soltar nada, y el reintento abría la segunda sobre la primera viva.
+    if (arrancandoRef.current) return;
+    arrancandoRef.current = true;
+
+    // Si quedó algo de un intento anterior, se cierra ANTES de abrir.
+    // terminar() y no soltarRecursos(): la sesión del backend también tiene
+    // que cerrarse, o queda contando contra el cupo diario del niño.
+    if (sesionRef.current) await terminar(true);
+
     setError(null);
     setEstado("conectando");
 
@@ -267,6 +332,9 @@ export function useTutor(ninoId: string) {
             }
           },
           onerror: (e: any) => {
+            // Soltar YA. Si el usuario le da a "Probar de nuevo" con el
+            // micrófono y el socket todavía vivos, se suman dos tutores.
+            soltarRecursos();
             setError(e?.message ?? "Se cortó la conexión con el tutor.");
             setEstado("error");
           },
@@ -289,48 +357,16 @@ export function useTutor(ninoId: string) {
 
       setEstado("escuchando");
     } catch (e: any) {
+      // Un arranque a medias deja el micrófono abierto y el socket colgando:
+      // el siguiente intento se sumaría encima en vez de reemplazarlo.
+      soltarRecursos();
       const denegado = e?.name === "NotAllowedError";
       setError(denegado ? "Necesito permiso para usar el micrófono." : (e?.message ?? "No pude conectarme."));
       setEstado("error");
+    } finally {
+      arrancandoRef.current = false;
     }
-  }, [ninoId, atenderTool, encolar]);
-
-  /* ── Cierre ────────────────────────────────────────────────────────────── */
-
-  const terminar = useCallback(
-    async (interrumpida = false) => {
-      micRef.current?.detener();
-      micRef.current = null;
-      try {
-        liveRef.current?.close();
-      } catch {
-        /* ya cerrada */
-      }
-      liveRef.current = null;
-      reproductorRef.current?.cerrar();
-      reproductorRef.current = null;
-
-      const sesion = sesionRef.current;
-      if (sesion) {
-        if (pendientesRef.current.length) {
-          await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
-        }
-        await api
-          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.suma)
-          .catch(() => {});
-      }
-      sesionRef.current = null;
-      acumNinoRef.current = "";
-      acumTutorRef.current = "";
-      bancoRef.current = [];
-      indiceRef.current = 0;
-      tokensRef.current = { suma: 0, ultimo: 0 };
-      setEstado("inicio");
-      setTextoNino("");
-      setTextoTutor("");
-    },
-    [],
-  );
+  }, [ninoId, atenderTool, encolar, terminar, soltarRecursos]);
 
   useEffect(() => () => void terminar(true), [terminar]);
 

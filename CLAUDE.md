@@ -185,10 +185,10 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   que drenan las dos colas
 - `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
 - `web/`: la interfaz de voz del niño (React + Vite)
-- `evals/`: 30 casos en las 4 suites de YC — **30/30**, estable en dos corridas
+- `evals/`: 41 casos en las 4 suites de YC — **41/41** en la última corrida
 - `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
   ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 267 tests en verde
+- 289 tests en verde
 
 ```
 python -m scripts.demo_planificador     # el cerebro
