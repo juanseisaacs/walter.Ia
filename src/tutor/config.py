@@ -82,6 +82,16 @@ DIAS_RETENCION_TRANSCRIPCION = 30
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Reporte al papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+DIAS_PERIODO_REPORTE = 7
+"""Semanal. Más seguido no hay novedad que contar (y un reporte sin novedad
+enseña al papá a no abrirlo); más espaciado, el papá se entera tarde de que su
+hijo se trabó."""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Latencia y seguridad en vivo
 # ─────────────────────────────────────────────────────────────────────────────
 

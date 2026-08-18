@@ -304,8 +304,12 @@ class MetricasReporte(BaseModel):
     minutos_totales: int
     habilidades_dominadas: list[str] = Field(default_factory=list)
     habilidades_en_progreso: list[str] = Field(default_factory=list)
-    cumplimiento_metodo: float = Field(
-        ge=0.0, le=1.0, description="% de sesiones donde el método socrático se sostuvo"
+    cumplimiento_metodo: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="% de sesiones donde el método socrático se sostuvo. None si "
+        "todavía no se auditó ninguna: nunca se midió NO es lo mismo que salió bien.",
     )
 
     grado_de_trabajo: int = Field(

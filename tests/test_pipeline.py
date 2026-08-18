@@ -28,6 +28,7 @@ from tutor.models import (
 from tutor.pipeline import (
     MAX_ITEMS_PERFIL,
     ClienteFalso,
+    ErrorReporteInventado,
     FichaInicial,
     _SalidaAnalista,
     analizar_sesion,
@@ -37,6 +38,8 @@ from tutor.pipeline import (
     evaluar_seguridad,
     extraer_ficha,
     generar_reporte,
+    generar_reporte_del_periodo,
+    generar_reportes_pendientes,
     procesar_pendientes,
     procesar_sesion,
     siguiente_pregunta,
@@ -327,9 +330,7 @@ def test_las_metricas_se_calculan_en_codigo():
     sesion = _sesion()
     sesion.fin = AHORA + timedelta(minutes=25)
 
-    m = calcular_metricas(
-        nino, [sesion], [AnalisisSesion(sesion_id="s1", cumplimiento=_cumplio())], GRAFO, AHORA
-    )
+    m = calcular_metricas(nino, [sesion], [_cumplio()], GRAFO, AHORA)
     assert m.sesiones == 1
     assert m.minutos_totales == 25
     assert m.cumplimiento_metodo == 1.0
@@ -337,20 +338,36 @@ def test_las_metricas_se_calculan_en_codigo():
 
 
 def test_el_cumplimiento_baja_si_el_tutor_regalo_la_respuesta():
-    fallo = AnalisisSesion(
-        sesion_id="s2",
-        cumplimiento=AuditoriaCumplimiento(
-            regalo_la_respuesta=True, respeto_escalera_pistas=False, detecto_frustracion=True
-        ),
+    fallo = AuditoriaCumplimiento(
+        regalo_la_respuesta=True, respeto_escalera_pistas=False, detecto_frustracion=True
     )
-    bien = AnalisisSesion(sesion_id="s1", cumplimiento=_cumplio())
-    m = calcular_metricas(_nino(), [], [bien, fallo], GRAFO, AHORA)
+    m = calcular_metricas(_nino(), [], [_cumplio(), fallo], GRAFO, AHORA)
     assert m.cumplimiento_metodo == 0.5
+
+
+def test_sin_auditorias_las_metricas_no_afirman_que_salio_bien():
+    """Nunca se midió ≠ 100%. El mismo pecado que el panel evita: un reporte que
+    afirma "sostuvo el método en el 100% de las sesiones" sin haber auditado
+    ninguna es exactamente la clase de dato inventado que nos hace perder al papá."""
+    m = calcular_metricas(_nino(), [_sesion()], [], GRAFO, AHORA)
+    assert m.cumplimiento_metodo is None
+
+
+def test_al_redactor_se_le_dice_que_no_hay_medicion_del_metodo():
+    """Y el dato tiene que llegarle al modelo como ausencia, no como silencio:
+    un campo que falta lo completa; una instrucción explícita, no."""
+    cliente = ClienteFalso(texto="A Juan le fue bien.")
+    m = calcular_metricas(_nino(), [_sesion()], [], GRAFO, AHORA)
+    generar_reporte(_nino(), m, AHORA - timedelta(days=7), AHORA, cliente)
+
+    mensaje = cliente.llamadas[0]["mensaje"]
+    assert "ninguna sesión auditada" in mensaje
+    assert "100%" not in mensaje
 
 
 def test_el_reporte_recibe_los_hechos_no_la_transcripcion():
     cliente = ClienteFalso(texto="A Juan le fue bien.")
-    m = calcular_metricas(_nino(), [], [], GRAFO, AHORA)
+    m = calcular_metricas(_nino(), [], [_cumplio()], GRAFO, AHORA)
     generar_reporte(_nino(), m, AHORA - timedelta(days=7), AHORA, cliente)
 
     llamada = cliente.llamadas[0]
@@ -466,3 +483,135 @@ def test_el_nino_arranca_sin_dominio_academico():
 def test_no_se_puede_crear_un_nino_a_medias():
     with pytest.raises(ValueError, match="Faltan datos"):
         crear_nino_desde_ficha(FichaInicial(nombre_nino="Juan"), "n1")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Quién dispara el reporte
+# ─────────────────────────────────────────────────────────────────────────────
+# `generar_reporte()` existía desde la fase 3 y NADIE lo llamaba: el panel tenía
+# la sección "El resumen de la semana" y jamás aparecía.
+
+
+def _repo_con_semana(tmp_path, *, auditada=True) -> RepositorioSQLite:
+    """Un niño con una sesión cerrada en el período, lista para reportar."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    sesion = _sesion()
+    sesion.fin = AHORA + timedelta(minutes=25)
+    repo.crear_sesion(sesion)
+    repo.actualizar_sesion(sesion)
+    if auditada:
+        repo.guardar_auditoria("s1", _cumplio())
+    return repo
+
+
+def test_el_reporte_semanal_se_genera_y_queda_guardado(tmp_path):
+    """Lo que faltaba de punta a punta: el panel ya puede mostrarlo."""
+    repo = _repo_con_semana(tmp_path)
+    cliente = ClienteFalso(texto="Juan trabajó con ganas esta semana.")
+
+    reporte = generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
+
+    assert reporte is not None
+    assert repo.ultimo_reporte("n1").contenido == "Juan trabajó con ganas esta semana."
+
+
+def test_no_se_le_mandan_dos_reportes_al_papa_en_la_misma_semana(tmp_path):
+    """IDEMPOTENCIA: la tarea corre todos los días; el reporte es semanal."""
+    repo = _repo_con_semana(tmp_path)
+    ahora = AHORA + timedelta(hours=1)
+    generar_reporte_del_periodo(repo, GRAFO, "n1", ClienteFalso(texto="El primero."), ahora)
+
+    segundo = generar_reporte_del_periodo(
+        repo, GRAFO, "n1", ClienteFalso(texto="El segundo."), ahora + timedelta(days=1)
+    )
+
+    assert segundo is None
+    assert repo.ultimo_reporte("n1").contenido == "El primero."
+
+
+def test_pasada_la_semana_vuelve_a_reportar(tmp_path):
+    repo = _repo_con_semana(tmp_path)
+    ahora = AHORA + timedelta(hours=1)
+    generar_reporte_del_periodo(repo, GRAFO, "n1", ClienteFalso(texto="El primero."), ahora)
+
+    # Ocho días después hay otra sesión y el período ya venció.
+    tarde = ahora + timedelta(days=8)
+    otra = Sesion(id="s2", nino_id="n1", modo=ModoSesion.GUIADO, inicio=tarde - timedelta(hours=1))
+    otra.fin = tarde
+    repo.crear_sesion(otra)
+    repo.guardar_auditoria("s2", _cumplio())
+
+    assert generar_reporte_del_periodo(
+        repo, GRAFO, "n1", ClienteFalso(texto="El segundo."), tarde
+    ) is not None
+
+
+def test_una_semana_sin_sesiones_no_genera_reporte(tmp_path):
+    """No hay nada que contar. Pedirle a un modelo que escriba sobre la nada es
+    pedirle que invente, y además gasta tokens en no decir nada."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    cliente = ClienteFalso(texto="Juan estuvo brillante.")
+
+    assert generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA) is None
+    assert cliente.llamadas == [], "ni siquiera se llamó al modelo"
+
+
+def test_un_reporte_que_inventa_un_numero_no_llega_al_papa(tmp_path):
+    """La verificación en código ya existía; ahora tiene quién la haga cumplir.
+    Un reporte inflado es peor que ninguno: el papá habla con su hijo y se da
+    cuenta."""
+    repo = _repo_con_semana(tmp_path)
+    cliente = ClienteFalso(texto="Juan resolvió 47 ejercicios en 9 sesiones.")
+
+    with pytest.raises(ErrorReporteInventado) as e:
+        generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
+
+    assert "47" in str(e.value)
+    assert repo.ultimo_reporte("n1") is None, "no se guardó nada"
+
+
+def test_el_cumplimiento_del_reporte_sale_de_las_auditorias_persistidas(tmp_path):
+    """Una semana después la transcripción puede estar borrada. El veredicto no:
+    por eso el reporte se apoya en la auditoría y no en un análisis nuevo."""
+    repo = _repo_con_semana(tmp_path)
+    repo.borrar_transcripciones_anteriores_a(AHORA + timedelta(days=1))
+
+    reporte = generar_reporte_del_periodo(
+        repo, GRAFO, "n1", ClienteFalso(texto="Bien."), AHORA + timedelta(hours=1)
+    )
+
+    assert reporte.metricas.cumplimiento_metodo == 1.0
+
+
+def test_sin_auditar_el_reporte_no_afirma_nada_del_metodo(tmp_path):
+    repo = _repo_con_semana(tmp_path, auditada=False)
+
+    reporte = generar_reporte_del_periodo(
+        repo, GRAFO, "n1", ClienteFalso(texto="Bien."), AHORA + timedelta(hours=1)
+    )
+
+    assert reporte.metricas.cumplimiento_metodo is None
+
+
+def test_un_reporte_que_miente_no_tumba_los_de_los_demas_ninos(tmp_path):
+    """La tarea recorre a toda la población: el que falla se aparta y se
+    devuelve — no se traga, pero tampoco frena al resto."""
+    repo = _repo_con_semana(tmp_path)
+    repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3))
+    otra = Sesion(id="s2", nino_id="n2", modo=ModoSesion.GUIADO, inicio=AHORA)
+    otra.fin = AHORA + timedelta(minutes=20)
+    repo.crear_sesion(otra)
+
+    class Mentiroso(ClienteFalso):
+        def redactar(self, modelo, sistema, mensaje):
+            super().redactar(modelo, sistema, mensaje)
+            return "Sofia hizo 91 ejercicios." if "Sofia" in mensaje else "Juan avanzó bien."
+
+    generados, rechazados = generar_reportes_pendientes(
+        repo, GRAFO, Mentiroso(), AHORA + timedelta(hours=1)
+    )
+
+    assert [r.nino_id for r in generados] == ["n1"]
+    assert [e.nino_id for e in rechazados] == ["n2"]

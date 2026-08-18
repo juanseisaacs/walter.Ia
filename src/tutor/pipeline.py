@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import ClassVar, TypeVar
 
 from pydantic import BaseModel
@@ -371,20 +371,24 @@ def vigilante_para_sesion(cliente: ClienteLLM | None = None):
 def calcular_metricas(
     nino: Nino,
     sesiones: list[Sesion],
-    analisis: list[AnalisisSesion],
+    cumplimientos: list[AuditoriaCumplimiento],
     grafo: GrafoHabilidades,
     ahora: datetime | None = None,
 ) -> MetricasReporte:
     """Los HECHOS, en código. El agente redacta a partir de esto y no puede
-    afirmar nada que no esté acá."""
+    afirmar nada que no esté acá.
+
+    Recibe los VEREDICTOS, no los análisis completos: el análisis es efímero
+    (vive lo que dura la llamada), pero la auditoría queda persistida sesión a
+    sesión. Es lo único que sigue disponible una semana después, cuando se
+    escribe el reporte.
+    """
     ahora = ahora or datetime.now()
 
     minutos = sum(
         int((s.fin - s.inicio).total_seconds() // 60) for s in sesiones if s.fin is not None
     )
-    cumplidas = sum(
-        1 for a in analisis if not a.cumplimiento.regalo_la_respuesta
-    )
+    cumplidas = sum(1 for c in cumplimientos if not c.regalo_la_respuesta)
 
     dominadas, en_progreso = [], []
     for hid, registro in nino.dominio.items():
@@ -398,7 +402,7 @@ def calcular_metricas(
         minutos_totales=minutos,
         habilidades_dominadas=sorted(dominadas),
         habilidades_en_progreso=sorted(en_progreso),
-        cumplimiento_metodo=(cumplidas / len(analisis)) if analisis else 1.0,
+        cumplimiento_metodo=(cumplidas / len(cumplimientos)) if cumplimientos else None,
         grado_de_trabajo=grado_de_trabajo(nino, grafo, ahora),
         adelanto_grados=adelanto(nino, grafo, ahora),
     )
@@ -420,7 +424,12 @@ def generar_reporte(
         f"Minutos totales: {metricas.minutos_totales}",
         f"Ya domina: {', '.join(metricas.habilidades_dominadas) or 'nada todavía'}",
         f"Está trabajando: {', '.join(metricas.habilidades_en_progreso) or '—'}",
-        f"Método socrático sostenido en: {metricas.cumplimiento_metodo:.0%} de las sesiones",
+        "Método socrático sostenido en: "
+        + (
+            f"{metricas.cumplimiento_metodo:.0%} de las sesiones"
+            if metricas.cumplimiento_metodo is not None
+            else "todavía ninguna sesión auditada — NO afirmes nada sobre el método"
+        ),
         f"Grado de trabajo real: {metricas.grado_de_trabajo}°",
         f"Adelanto sobre su grado: {metricas.adelanto_grados:+d}",
     ]
@@ -435,6 +444,105 @@ def generar_reporte(
     return ReporteParaPapa(
         nino_id=nino.id, desde=desde, hasta=hasta, metricas=metricas, contenido=contenido
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Quién dispara el reporte
+# ─────────────────────────────────────────────────────────────────────────────
+# `generar_reporte()` sabe redactar, pero alguien tiene que decidir CUÁNDO. Se
+# eligió una tarea periódica y no "al abrir el panel": el papá entra a verificar,
+# y meter una llamada a un modelo en el camino de su petición HTTP significa que
+# a veces la página tarda diez segundos y a veces no. Peor: el panel dejaría de
+# ser estable entre visitas, que es justo lo que lo hace verificable (§4).
+
+
+class ErrorReporteInventado(Exception):
+    """El reporte no pasó la verificación contra la fuente. NO se guarda.
+
+    Un reporte inflado es peor que ninguno: el papá habla con su hijo, se da
+    cuenta, y ahí perdió lo único que compró. Preferimos que falte a que mienta.
+    """
+
+    def __init__(self, nino_id: str, problemas: list[str]) -> None:
+        super().__init__(f"{nino_id}: " + "; ".join(problemas))
+        self.nino_id = nino_id
+        self.problemas = problemas
+
+
+def reporte_vigente(
+    repo: Repositorio, nino_id: str, ahora: datetime, dias: int = cfg.DIAS_PERIODO_REPORTE
+) -> bool:
+    """¿Ya hay un reporte de este período? Es la idempotencia del reporte: dos
+    corridas el mismo día no le mandan dos resúmenes al papá."""
+    ultimo = repo.ultimo_reporte(nino_id)
+    return ultimo is not None and (ahora - ultimo.hasta) < timedelta(days=dias)
+
+
+def generar_reporte_del_periodo(
+    repo: Repositorio,
+    grafo: GrafoHabilidades,
+    nino_id: str,
+    cliente: ClienteLLM | None = None,
+    ahora: datetime | None = None,
+    dias: int = cfg.DIAS_PERIODO_REPORTE,
+) -> ReporteParaPapa | None:
+    """Arma el reporte del período y lo guarda. None si no correspondía.
+
+    No corresponde cuando ya hay uno vigente, o cuando el niño no tuvo ninguna
+    sesión: un reporte de una semana sin sesiones no tiene nada que contar, y
+    pedirle a un modelo que escriba sobre la nada es pedirle que invente.
+
+    El cumplimiento sale de las auditorías PERSISTIDAS, no de un análisis nuevo:
+    la transcripción a esta altura puede estar borrada, pero el veredicto no.
+    """
+    ahora = ahora or datetime.now()
+    nino = repo.obtener_nino(nino_id)
+    if nino is None or reporte_vigente(repo, nino_id, ahora, dias):
+        return None
+
+    desde = ahora - timedelta(days=dias)
+    sesiones = repo.sesiones_de(nino_id, desde, ahora)
+    if not sesiones:
+        return None
+
+    cumplimientos = [v for s in sesiones if (v := repo.obtener_auditoria(s.id)) is not None]
+    metricas = calcular_metricas(nino, sesiones, cumplimientos, grafo, ahora)
+
+    reporte = generar_reporte(nino, metricas, desde, ahora, cliente)
+    if problemas := verificar_reporte(reporte):
+        raise ErrorReporteInventado(nino_id, problemas)
+
+    repo.guardar_reporte(reporte)
+    return reporte
+
+
+def generar_reportes_pendientes(
+    repo: Repositorio,
+    grafo: GrafoHabilidades,
+    cliente: ClienteLLM | None = None,
+    ahora: datetime | None = None,
+    dias: int = cfg.DIAS_PERIODO_REPORTE,
+) -> tuple[list[ReporteParaPapa], list[ErrorReporteInventado]]:
+    """Recorre a todos los niños. Devuelve lo generado y lo que no pasó la
+    verificación.
+
+    Un reporte que miente no puede tumbar los de los demás niños: se aparta y
+    la corrida sigue. Pero se DEVUELVE, no se traga — el que corre la tarea
+    tiene que enterarse.
+    """
+    cliente = cliente or cliente_por_defecto()
+    generados: list[ReporteParaPapa] = []
+    rechazados: list[ErrorReporteInventado] = []
+
+    for nino_id in repo.ids_de_ninos():
+        try:
+            if (reporte := generar_reporte_del_periodo(
+                repo, grafo, nino_id, cliente, ahora, dias
+            )) is not None:
+                generados.append(reporte)
+        except ErrorReporteInventado as e:
+            rechazados.append(e)
+    return generados, rechazados
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -569,7 +677,7 @@ def verificar_reporte(reporte: ReporteParaPapa) -> list[str]:
         m.grado_de_trabajo,
         len(m.habilidades_dominadas),
         len(m.habilidades_en_progreso),
-        round(m.cumplimiento_metodo * 100),
+        round(m.cumplimiento_metodo * 100) if m.cumplimiento_metodo is not None else -1,
         reporte.desde.day,
         reporte.hasta.day,
     }

@@ -47,6 +47,11 @@ class Repositorio(ABC):
     def obtener_nino(self, nino_id: str) -> Nino | None: ...
 
     @abstractmethod
+    def ids_de_ninos(self) -> list[str]:
+        """Los ids de todos los niños. Lo usan las tareas periódicas (el reporte
+        semanal), que trabajan sobre la población y no sobre uno."""
+
+    @abstractmethod
     def guardar_nino(self, nino: Nino) -> None:
         """Guarda la ficha completa (ambas mitades).
 
@@ -307,6 +312,10 @@ class RepositorioSQLite(Repositorio):
             perfil=PerfilPersonal.model_validate_json(fila["perfil"]),
             creado_en=_texto_a_fecha(fila["creado_en"]),
         )
+
+    def ids_de_ninos(self) -> list[str]:
+        with self._conectar() as con:
+            return [f["id"] for f in con.execute("SELECT id FROM ninos ORDER BY creado_en")]
 
     def guardar_nino(self, nino: Nino) -> None:
         """Las dos mitades en UNA transacción.

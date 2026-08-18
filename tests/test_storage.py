@@ -395,3 +395,13 @@ def test_el_veredicto_sobrevive_al_borrado_de_la_transcripcion(repo):
 
     assert repo.obtener_transcripcion("vieja") is None
     assert repo.obtener_auditoria("vieja").regalo_la_respuesta is False
+
+
+def test_listar_ninos_para_las_tareas_periodicas(repo):
+    """El reporte semanal trabaja sobre la población, no sobre un niño."""
+    assert repo.ids_de_ninos() == []
+
+    repo.guardar_nino(_nino())
+    repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3, creado_en=AHORA))
+
+    assert set(repo.ids_de_ninos()) == {"n1", "n2"}
