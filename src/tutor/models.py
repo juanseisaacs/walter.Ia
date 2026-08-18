@@ -329,4 +329,12 @@ class ReporteParaPapa(BaseModel):
     desde: datetime
     hasta: datetime
     metricas: MetricasReporte
-    contenido: str = Field(description="Prosa generada por el agente")
+    contenido: str = Field(
+        description="Prosa generada por el agente. Es lo que AFIRMA sobre el niño, "
+        "y lo único que `verificar_reporte` puede chequear contra las métricas."
+    )
+    sugerencia: str | None = Field(
+        default=None,
+        description="Una actividad para hacer en casa. Va aparte porque PROPONE "
+        "en vez de afirmar: sus números son de la actividad, no del niño.",
+    )

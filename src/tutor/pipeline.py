@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import ClassVar, TypeVar
+from typing import ClassVar, NamedTuple, TypeVar
 
 from pydantic import BaseModel
 
@@ -55,6 +55,11 @@ peor todavía: dos corridas sobre los mismos turnos tienen que decidir lo mismo.
 
 `redactar` NO lleva esto: ahí la prosa para el papá sí se beneficia de variar."""
 
+TEMPERATURA_PROSA = 1.0
+"""Para lo que se lee como carta y no como dato. El reporte al papá viene en dos
+campos (afirmaciones + sugerencia), o sea que sale por `extraer` — pero sigue
+siendo prosa, y no queremos la misma carta calcada todas las semanas."""
+
 MAX_ITEMS_PERFIL = 6
 """Tope por lista de la ficha personal. Consolidar, no acumular: una ficha con
 cien intereses no describe a nadie."""
@@ -69,7 +74,14 @@ class ClienteLLM(ABC):
     """Aislado para poder testear sin API key y sin red."""
 
     @abstractmethod
-    def extraer(self, modelo: str, sistema: str, mensaje: str, formato: type[T]) -> T:
+    def extraer(
+        self,
+        modelo: str,
+        sistema: str,
+        mensaje: str,
+        formato: type[T],
+        temperatura: float = TEMPERATURA_EXTRACCION,
+    ) -> T:
         """Salida estructurada, validada contra el esquema."""
 
     @abstractmethod
@@ -91,11 +103,18 @@ class ClienteAnthropic(ClienteLLM):
             self._cliente = anthropic.Anthropic(api_key=self._api_key)
         return self._cliente
 
-    def extraer(self, modelo: str, sistema: str, mensaje: str, formato: type[T]) -> T:
+    def extraer(
+        self,
+        modelo: str,
+        sistema: str,
+        mensaje: str,
+        formato: type[T],
+        temperatura: float = TEMPERATURA_EXTRACCION,
+    ) -> T:
         respuesta = self._obtener().messages.parse(
             model=modelo,
             max_tokens=4096,
-            temperature=TEMPERATURA_EXTRACCION,
+            temperature=temperatura,
             system=sistema,
             messages=[{"role": "user", "content": mensaje}],
             output_format=formato,
@@ -124,7 +143,14 @@ class ClienteFalso(ClienteLLM):
         self.texto = texto
         self.llamadas: list[dict] = []
 
-    def extraer(self, modelo: str, sistema: str, mensaje: str, formato: type[T]) -> T:
+    def extraer(
+        self,
+        modelo: str,
+        sistema: str,
+        mensaje: str,
+        formato: type[T],
+        temperatura: float = TEMPERATURA_EXTRACCION,
+    ) -> T:
         self.llamadas.append({"modelo": modelo, "sistema": sistema, "mensaje": mensaje})
         if self.estructurado is None:
             raise RuntimeError("ClienteFalso sin respuesta configurada")
@@ -421,6 +447,24 @@ def calcular_metricas(
     )
 
 
+class _SalidaReporte(BaseModel):
+    """El reporte llega en DOS campos porque son dos cosas distintas.
+
+    `narrativa` afirma cosas sobre el niño y se verifica en código contra las
+    métricas. `sugerencia_para_casa` propone una actividad, y una actividad de
+    matemáticas necesariamente lleva números inventados ("este dinosaurio pesaba
+    350 kilos") que no están —ni pueden estar— en las métricas.
+
+    Estaban en un solo campo, y la verificación tumbó un reporte real y correcto
+    por los números de la sugerencia: el papá se quedaba sin nada por una frase
+    que no afirmaba nada sobre su hijo. Separarlos deja la verificación estricta
+    donde importa y libre donde corresponde.
+    """
+
+    narrativa: str
+    sugerencia_para_casa: str
+
+
 def generar_reporte(
     nino: Nino,
     metricas: MetricasReporte,
@@ -449,13 +493,20 @@ def generar_reporte(
     if nino.perfil.intereses:
         contexto.append(f"Le interesa: {', '.join(nino.perfil.intereses)}")
 
-    contenido = cliente.redactar(
+    salida = cliente.extraer(
         cfg.MODELO_COMPANERO_PAPA,
         cargar_prompt("parent_companion"),
         "--- DATOS DEL PERÍODO ---\n" + "\n".join(contexto),
+        _SalidaReporte,
+        temperatura=TEMPERATURA_PROSA,
     )
     return ReporteParaPapa(
-        nino_id=nino.id, desde=desde, hasta=hasta, metricas=metricas, contenido=contenido
+        nino_id=nino.id,
+        desde=desde,
+        hasta=hasta,
+        metricas=metricas,
+        contenido=salida.narrativa,
+        sugerencia=salida.sugerencia_para_casa,
     )
 
 
@@ -480,6 +531,13 @@ class ErrorReporteInventado(Exception):
         super().__init__(f"{nino_id}: " + "; ".join(problemas))
         self.nino_id = nino_id
         self.problemas = problemas
+
+
+class ReporteFallido(NamedTuple):
+    """Un niño que se quedó sin reporte, y por qué. Lo lee el que corre la tarea."""
+
+    nino_id: str
+    motivo: str
 
 
 def reporte_vigente(
@@ -535,17 +593,21 @@ def generar_reportes_pendientes(
     cliente: ClienteLLM | None = None,
     ahora: datetime | None = None,
     dias: int = cfg.DIAS_PERIODO_REPORTE,
-) -> tuple[list[ReporteParaPapa], list[ErrorReporteInventado]]:
-    """Recorre a todos los niños. Devuelve lo generado y lo que no pasó la
-    verificación.
+) -> tuple[list[ReporteParaPapa], list[ReporteFallido]]:
+    """Recorre a todos los niños. Devuelve lo generado y lo que falló.
 
-    Un reporte que miente no puede tumbar los de los demás niños: se aparta y
-    la corrida sigue. Pero se DEVUELVE, no se traga — el que corre la tarea
-    tiene que enterarse.
+    Ningún niño puede tumbar la corrida de los demás — ni por un reporte que
+    miente, ni porque el modelo devolvió basura esa vez (pasó: `messages.parse`
+    recibió una respuesta vacía y explotó a mitad de la tarea). Por eso se
+    atrapa cualquier excepción, no solo la nuestra.
+
+    Pero no se traga: cada falla se DEVUELVE con su motivo, y el que corre la
+    tarea la ve. Una tarea silenciosa que "anduvo bien" mientras nadie recibe
+    su reporte es peor que una que falla ruidosamente.
     """
     cliente = cliente or cliente_por_defecto()
     generados: list[ReporteParaPapa] = []
-    rechazados: list[ErrorReporteInventado] = []
+    fallidos: list[ReporteFallido] = []
 
     for nino_id in repo.ids_de_ninos():
         try:
@@ -554,8 +616,10 @@ def generar_reportes_pendientes(
             )) is not None:
                 generados.append(reporte)
         except ErrorReporteInventado as e:
-            rechazados.append(e)
-    return generados, rechazados
+            fallidos.append(ReporteFallido(nino_id, "; ".join(e.problemas)))
+        except Exception as e:  # noqa: BLE001
+            fallidos.append(ReporteFallido(nino_id, f"{type(e).__name__}: {e}"))
+    return generados, fallidos
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -674,6 +738,11 @@ def verificar_reporte(reporte: ReporteParaPapa) -> list[str]:
 
     Un reporte inflado es peor que ninguno: el papá habla con su hijo y se da
     cuenta. Y ahí perdió lo único que compró.
+
+    Mira `contenido` y NO `sugerencia`: lo que se afirma sobre el niño se
+    verifica, lo que se propone hacer en casa no se puede. Una actividad de
+    matemáticas lleva números que son del juego ("pesaba 350 kilos"), no del
+    chico — exigirles respaldo en las métricas descartaba reportes correctos.
     """
     problemas = []
     texto = reporte.contenido

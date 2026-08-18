@@ -342,6 +342,7 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         metodo_sostenido=_metodo_sostenido(auditadas),
         dias=dias,
         reporte_narrativo=reporte.contenido if reporte else None,
+        sugerencia_para_casa=reporte.sugerencia if reporte else None,
         generado_en=ahora,
     )
     return HTMLResponse(html)

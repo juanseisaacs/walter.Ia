@@ -31,6 +31,7 @@ from tutor.pipeline import (
     ErrorReporteInventado,
     FichaInicial,
     _SalidaAnalista,
+    _SalidaReporte,
     analizar_sesion,
     aplicar_analisis,
     calcular_metricas,
@@ -58,6 +59,11 @@ def _nino(**kw) -> Nino:
 
 def _sesion() -> Sesion:
     return Sesion(id="s1", nino_id="n1", modo=ModoSesion.GUIADO, inicio=AHORA)
+
+
+def _cliente_reporte(narrativa: str, sugerencia: str = "Contá porotos con él.") -> ClienteFalso:
+    """El reporte viene en dos campos: lo que afirma y lo que propone."""
+    return ClienteFalso(_SalidaReporte(narrativa=narrativa, sugerencia_para_casa=sugerencia))
 
 
 def _cumplio() -> AuditoriaCumplimiento:
@@ -356,7 +362,7 @@ def test_sin_auditorias_las_metricas_no_afirman_que_salio_bien():
 def test_al_redactor_se_le_dice_que_no_hay_medicion_del_metodo():
     """Y el dato tiene que llegarle al modelo como ausencia, no como silencio:
     un campo que falta lo completa; una instrucción explícita, no."""
-    cliente = ClienteFalso(texto="A Juan le fue bien.")
+    cliente = _cliente_reporte("A Juan le fue bien.")
     m = calcular_metricas(_nino(), [_sesion()], [], GRAFO, AHORA)
     generar_reporte(_nino(), m, AHORA - timedelta(days=7), AHORA, cliente)
 
@@ -366,7 +372,7 @@ def test_al_redactor_se_le_dice_que_no_hay_medicion_del_metodo():
 
 
 def test_el_reporte_recibe_los_hechos_no_la_transcripcion():
-    cliente = ClienteFalso(texto="A Juan le fue bien.")
+    cliente = _cliente_reporte("A Juan le fue bien.")
     m = calcular_metricas(_nino(), [], [_cumplio()], GRAFO, AHORA)
     generar_reporte(_nino(), m, AHORA - timedelta(days=7), AHORA, cliente)
 
@@ -508,7 +514,7 @@ def _repo_con_semana(tmp_path, *, auditada=True) -> RepositorioSQLite:
 def test_el_reporte_semanal_se_genera_y_queda_guardado(tmp_path):
     """Lo que faltaba de punta a punta: el panel ya puede mostrarlo."""
     repo = _repo_con_semana(tmp_path)
-    cliente = ClienteFalso(texto="Juan trabajó con ganas esta semana.")
+    cliente = _cliente_reporte("Juan trabajó con ganas esta semana.")
 
     reporte = generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
 
@@ -520,10 +526,10 @@ def test_no_se_le_mandan_dos_reportes_al_papa_en_la_misma_semana(tmp_path):
     """IDEMPOTENCIA: la tarea corre todos los días; el reporte es semanal."""
     repo = _repo_con_semana(tmp_path)
     ahora = AHORA + timedelta(hours=1)
-    generar_reporte_del_periodo(repo, GRAFO, "n1", ClienteFalso(texto="El primero."), ahora)
+    generar_reporte_del_periodo(repo, GRAFO, "n1", _cliente_reporte("El primero."), ahora)
 
     segundo = generar_reporte_del_periodo(
-        repo, GRAFO, "n1", ClienteFalso(texto="El segundo."), ahora + timedelta(days=1)
+        repo, GRAFO, "n1", _cliente_reporte("El segundo."), ahora + timedelta(days=1)
     )
 
     assert segundo is None
@@ -533,7 +539,7 @@ def test_no_se_le_mandan_dos_reportes_al_papa_en_la_misma_semana(tmp_path):
 def test_pasada_la_semana_vuelve_a_reportar(tmp_path):
     repo = _repo_con_semana(tmp_path)
     ahora = AHORA + timedelta(hours=1)
-    generar_reporte_del_periodo(repo, GRAFO, "n1", ClienteFalso(texto="El primero."), ahora)
+    generar_reporte_del_periodo(repo, GRAFO, "n1", _cliente_reporte("El primero."), ahora)
 
     # Ocho días después hay otra sesión y el período ya venció.
     tarde = ahora + timedelta(days=8)
@@ -543,7 +549,7 @@ def test_pasada_la_semana_vuelve_a_reportar(tmp_path):
     repo.guardar_auditoria("s2", _cumplio())
 
     assert generar_reporte_del_periodo(
-        repo, GRAFO, "n1", ClienteFalso(texto="El segundo."), tarde
+        repo, GRAFO, "n1", _cliente_reporte("El segundo."), tarde
     ) is not None
 
 
@@ -552,7 +558,7 @@ def test_una_semana_sin_sesiones_no_genera_reporte(tmp_path):
     pedirle que invente, y además gasta tokens en no decir nada."""
     repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
     repo.guardar_nino(_nino())
-    cliente = ClienteFalso(texto="Juan estuvo brillante.")
+    cliente = _cliente_reporte("Juan estuvo brillante.")
 
     assert generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA) is None
     assert cliente.llamadas == [], "ni siquiera se llamó al modelo"
@@ -563,7 +569,7 @@ def test_un_reporte_que_inventa_un_numero_no_llega_al_papa(tmp_path):
     Un reporte inflado es peor que ninguno: el papá habla con su hijo y se da
     cuenta."""
     repo = _repo_con_semana(tmp_path)
-    cliente = ClienteFalso(texto="Juan resolvió 47 ejercicios en 9 sesiones.")
+    cliente = _cliente_reporte("Juan resolvió 47 ejercicios en 9 sesiones.")
 
     with pytest.raises(ErrorReporteInventado) as e:
         generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
@@ -579,7 +585,7 @@ def test_el_cumplimiento_del_reporte_sale_de_las_auditorias_persistidas(tmp_path
     repo.borrar_transcripciones_anteriores_a(AHORA + timedelta(days=1))
 
     reporte = generar_reporte_del_periodo(
-        repo, GRAFO, "n1", ClienteFalso(texto="Bien."), AHORA + timedelta(hours=1)
+        repo, GRAFO, "n1", _cliente_reporte("Bien."), AHORA + timedelta(hours=1)
     )
 
     assert reporte.metricas.cumplimiento_metodo == 1.0
@@ -589,7 +595,7 @@ def test_sin_auditar_el_reporte_no_afirma_nada_del_metodo(tmp_path):
     repo = _repo_con_semana(tmp_path, auditada=False)
 
     reporte = generar_reporte_del_periodo(
-        repo, GRAFO, "n1", ClienteFalso(texto="Bien."), AHORA + timedelta(hours=1)
+        repo, GRAFO, "n1", _cliente_reporte("Bien."), AHORA + timedelta(hours=1)
     )
 
     assert reporte.metricas.cumplimiento_metodo is None
@@ -605,16 +611,16 @@ def test_un_reporte_que_miente_no_tumba_los_de_los_demas_ninos(tmp_path):
     repo.crear_sesion(otra)
 
     class Mentiroso(ClienteFalso):
-        def redactar(self, modelo, sistema, mensaje):
-            super().redactar(modelo, sistema, mensaje)
-            return "Sofia hizo 91 ejercicios." if "Sofia" in mensaje else "Juan avanzó bien."
+        def extraer(self, modelo, sistema, mensaje, formato, temperatura=0.0):
+            narrativa = "Sofia hizo 91 ejercicios." if "Sofia" in mensaje else "Juan avanzó bien."
+            return _SalidaReporte(narrativa=narrativa, sugerencia_para_casa="Jueguen a contar.")
 
-    generados, rechazados = generar_reportes_pendientes(
+    generados, fallidos = generar_reportes_pendientes(
         repo, GRAFO, Mentiroso(), AHORA + timedelta(hours=1)
     )
 
     assert [r.nino_id for r in generados] == ["n1"]
-    assert [e.nino_id for e in rechazados] == ["n2"]
+    assert [f.nino_id for f in fallidos] == ["n2"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -642,3 +648,67 @@ def test_la_extraccion_no_deja_la_temperatura_al_azar():
     cliente.extraer("modelo-x", "sistema", "mensaje", AuditoriaCumplimiento)
 
     assert capturado["temperature"] == TEMPERATURA_EXTRACCION == 0.0
+
+
+def test_los_numeros_de_la_sugerencia_no_tumban_el_reporte(tmp_path):
+    """El caso real que rompió: el modelo propuso "este dinosaurio pesaba 350
+    kilos" y la verificación descartó el reporte entero. 350 no es un dato sobre
+    el niño — es del juego. El papá se quedaba sin nada por una frase que no
+    afirmaba nada sobre su hijo.
+    """
+    repo = _repo_con_semana(tmp_path)
+    cliente = _cliente_reporte(
+        "Juan trabajó con centenas.",
+        sugerencia="Pedile que ordene 350, 500 y 275 kilos de dinosaurios.",
+    )
+
+    reporte = generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
+
+    assert reporte is not None
+    assert "350" in reporte.sugerencia
+    assert verificar_reporte(reporte) == [], "la sugerencia no se verifica"
+
+
+def test_la_narrativa_sigue_verificandose_igual_de_estricto(tmp_path):
+    """Separar los campos no aflojó nada donde importa: un número inventado en lo
+    que se AFIRMA sobre el niño sigue tumbando el reporte."""
+    repo = _repo_con_semana(tmp_path)
+    cliente = _cliente_reporte("Juan hizo 47 ejercicios.", sugerencia="Contá con él.")
+
+    with pytest.raises(ErrorReporteInventado):
+        generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA + timedelta(hours=1))
+
+
+def test_al_redactor_se_le_explica_que_la_sugerencia_es_libre():
+    """El prompt es dato: si no dice esto, el modelo se autocensura y propone
+    actividades sin números — que en matemáticas no sirven para nada."""
+    from tutor.voice import cargar_prompt
+
+    prompt = cargar_prompt("parent_companion")
+    assert "sugerencia_para_casa" in prompt
+    assert "narrativa" in prompt
+
+
+def test_si_el_modelo_devuelve_basura_los_demas_ninos_igual_reciben(tmp_path):
+    """Pasó de verdad: `messages.parse` recibió una respuesta vacía y la tarea
+    entera murió a mitad de camino. Una falla del modelo con un niño no puede
+    dejar sin reporte a los demás — y tiene que quedar dicha, no tragada."""
+    repo = _repo_con_semana(tmp_path)
+    repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3))
+    otra = Sesion(id="s2", nino_id="n2", modo=ModoSesion.GUIADO, inicio=AHORA)
+    otra.fin = AHORA + timedelta(minutes=20)
+    repo.crear_sesion(otra)
+
+    class SeCaeConSofia(ClienteFalso):
+        def extraer(self, modelo, sistema, mensaje, formato, temperatura=0.0):
+            if "Sofia" in mensaje:
+                raise RuntimeError("el modelo no devolvió JSON válido")
+            return _SalidaReporte(narrativa="Juan avanzó bien.", sugerencia_para_casa="Contá.")
+
+    generados, fallidos = generar_reportes_pendientes(
+        repo, GRAFO, SeCaeConSofia(), AHORA + timedelta(hours=1)
+    )
+
+    assert [r.nino_id for r in generados] == ["n1"]
+    assert fallidos[0].nino_id == "n2"
+    assert "JSON" in fallidos[0].motivo

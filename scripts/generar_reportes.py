@@ -73,18 +73,19 @@ def main() -> int:
         print("\n  Falta ANTHROPIC_API_KEY en .env — no se puede redactar.\n")
         return 1
 
-    generados, rechazados = generar_reportes_pendientes(repo, grafo, cliente, ahora, args.dias)
+    generados, fallidos = generar_reportes_pendientes(repo, grafo, cliente, ahora, args.dias)
 
     print(f"\n  Generados: {len(generados)}")
     for r in generados:
         print(f"    · {r.nino_id} · {r.metricas.sesiones} sesión(es) · {len(r.contenido)} car.")
 
-    if rechazados:
-        # No es un detalle: significa que el modelo escribió un número que no
-        # está en los datos. El reporte NO se guardó.
-        print(f"\n  ⚠ Rechazados por la verificación: {len(rechazados)}")
-        for e in rechazados:
-            print(f"    · {e.nino_id}: {'; '.join(e.problemas)}")
+    if fallidos:
+        # No es un detalle: cada uno es un papá que esta semana no recibe nada.
+        # Puede ser un número inventado (y entonces el reporte NO se guardó) o el
+        # modelo devolviendo basura. Las dos cosas hay que verlas.
+        print(f"\n  ⚠ Sin reporte: {len(fallidos)}")
+        for f in fallidos:
+            print(f"    · {f.nino_id}: {f.motivo}")
         return 1
 
     print()

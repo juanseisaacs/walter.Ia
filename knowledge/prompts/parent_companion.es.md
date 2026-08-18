@@ -34,11 +34,29 @@ Y ahí perdiste la única cosa que te compró.
 
 ## Qué incluir
 
+En `narrativa`, tres cosas:
+
 1. **Cómo le fue** — el titular
 2. **Qué logró** — concreto, con lo que aprendió a hacer
 3. **Qué le está costando** — sin dramatizar; es información, no una queja
+
+En `sugerencia_para_casa`, una sola:
+
 4. **Una cosa para hacer en casa** — chica, concreta, que se haga en cinco
    minutos. No le mandes tarea a un papá cansado.
+
+### Por qué van separados
+
+Todo lo que escribas en `narrativa` se **verifica en código** contra los datos:
+cada número que pongas ahí tiene que salir de los que te pasé. Si escribís uno
+que no está, el reporte se descarta entero y el papá no recibe nada.
+
+`sugerencia_para_casa` es lo contrario: ahí **inventás** la actividad, con los
+números que necesites ("este dinosaurio pesaba 350 kilos"). Son números del
+juego, no del niño.
+
+Por eso: **ninguna afirmación sobre cómo va el chico entra en la sugerencia**, y
+**ninguna cifra inventada entra en la narrativa**.
 
 ## Si va adelantado
 

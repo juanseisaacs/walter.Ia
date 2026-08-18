@@ -59,6 +59,7 @@ def render_panel(
     metodo_sostenido: float | None,
     dias: int,
     reporte_narrativo: str | None = None,
+    sugerencia_para_casa: str | None = None,
     generado_en: datetime | None = None,
 ) -> str:
     """Arma el panel completo. `metodo_sostenido` es None si todavía no hay
@@ -94,10 +95,19 @@ def render_panel(
         parrafos = "".join(
             f"<p>{escape(p.strip())}</p>" for p in reporte_narrativo.split("\n") if p.strip()
         )
+        # La sugerencia va en su propio bloque: es lo único de la página que le
+        # pide algo al papá, y mezclada en la prosa se pierde.
+        sugerencia = (
+            '<div class="para-casa"><strong>Para esta semana:</strong> '
+            f"{escape(sugerencia_para_casa)}</div>"
+            if sugerencia_para_casa
+            else ""
+        )
         narrativo = f"""
         <section class="card narrativo">
           <h2>El resumen de la semana</h2>
           {parrafos}
+          {sugerencia}
         </section>"""
 
     intereses_html = ""
@@ -165,6 +175,11 @@ def render_panel(
     background: var(--linea); padding: 6px 12px; border-radius: 999px; font-size: 0.88rem;
   }}
   .narrativo p {{ margin: 0 0 10px; }}
+  .para-casa {{
+    margin-top: 14px; padding: 14px 16px; border-radius: 12px;
+    background: color-mix(in srgb, var(--verde) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--verde) 30%, transparent);
+  }}
   .cols {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }}
   @media (max-width: 480px) {{ .cols {{ grid-template-columns: 1fr; }} }}
   footer {{ color: var(--tenue); font-size: 0.82rem; text-align: center; margin-top: 24px; }}
