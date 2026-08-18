@@ -150,8 +150,11 @@ def test_practicar_mas_consolida_mas():
 
 
 def test_sin_prerequisitos_solo_estan_las_raices():
+    """Grado 1 a propósito: sin años anteriores no hay nada que presumir, así
+    que acá se ve la mecánica pura del grafo. Ver
+    `prerrequisito_satisfecho`."""
     g = cargar_grafo()
-    disponibles = habilidades_disponibles(_nino(), g, AHORA)
+    disponibles = habilidades_disponibles(_nino(grado=1), g, AHORA)
     assert [h.id for h in disponibles] == ["mat.numeros.conteo_hasta_100"]
 
 
@@ -163,9 +166,15 @@ def test_dominar_algo_abre_lo_que_depende_de_ello():
 
 
 def test_no_se_ofrece_algo_con_prerequisitos_a_medias():
-    """Suma llevando necesita suma sin llevar Y valor posicional. Con uno solo, no."""
+    """Suma llevando necesita suma sin llevar Y valor posicional. Con uno solo, no.
+
+    Grado 1 para que ninguno de los dos se presuma y quede a la vista que es
+    el grafo el que bloquea.
+    """
     g = cargar_grafo()
-    n = _nino({"mat.suma.sin_reagrupacion": _dominado("mat.suma.sin_reagrupacion")})
+    n = _nino(
+        {"mat.suma.sin_reagrupacion": _dominado("mat.suma.sin_reagrupacion")}, grado=1
+    )
     ids = {h.id for h in habilidades_disponibles(n, g, AHORA)}
     assert "mat.suma.con_reagrupacion" not in ids
 
@@ -280,8 +289,15 @@ def test_subir_de_grado_no_se_penaliza_como_bajar():
 
 
 def test_un_nino_nuevo_arranca_por_la_raiz():
+    """Un niño de PRIMERO sin historia sí arranca en la raíz: no cursó nada
+    antes, no hay nada que presumirle.
+
+    Para grados más altos la respuesta es otra a propósito — ver
+    `test_un_nino_sin_historia_no_arranca_en_la_raiz_del_grafo`.
+    """
     g = cargar_grafo()
-    assert siguiente_habilidad(_nino(), g, AHORA).id == "mat.numeros.conteo_hasta_100"
+    h = siguiente_habilidad(_nino(grado=1), g, AHORA)
+    assert h.id == "mat.numeros.conteo_hasta_100"
 
 
 def test_sin_nada_por_hacer_devuelve_none():
@@ -338,3 +354,72 @@ def test_el_resumen_es_corto():
 def test_el_resumen_avisa_cuando_el_tutor_conoce_poco_al_nino():
     g = cargar_grafo()
     assert "conocés poco" in resumen_para_prompt(_nino(), g, AHORA)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Presunción de grado — el arranque en frío
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_un_nino_sin_historia_no_arranca_en_la_raiz_del_grafo():
+    """El bug del 17/08: a Juan, de 2°, que venía pidiendo sumas de dos
+    dígitos, el planificador le ofrecía "contar hasta 100" porque no tenía
+    registro de nada.
+
+    Y el costo escondido era peor que ofrecer algo aburrido: con un ejercicio
+    así de fácil enfrente, el modelo lo ignoraba y se inventaba los suyos. Al
+    inventarlos no llamaba a la herramienta, así que nunca se registraba
+    dominio, así que la próxima sesión volvía a arrancar en la raíz. El
+    círculo se cerraba solo y desconectaba todo el motor pedagógico.
+    """
+    g = cargar_grafo()
+
+    h = siguiente_habilidad(_nino(grado=2), g)
+
+    assert h is not None
+    assert h.grado_sugerido >= 2, f"le ofreció {h.nombre} (grado {h.grado_sugerido})"
+
+
+def test_la_presuncion_no_escribe_dominio_inventado():
+    """Presumir no es medir. Si guardáramos nivel en la ficha, el reporte al
+    papá diría que el niño domina cosas que nunca practicó."""
+    g = cargar_grafo()
+    nino = _nino(grado=3)
+
+    habilidades_disponibles(nino, g)
+
+    assert nino.dominio == {}
+
+
+def test_la_evidencia_le_gana_a_la_presuncion():
+    """Si lo medimos y no le sale, el grado no lo salva: eso es justo lo que
+    el grafo tiene que atrapar."""
+    g = cargar_grafo()
+    raiz = next(h for h in g if not h.prerequisitos)
+    dependiente = next(h for h in g if raiz.id in h.prerequisitos)
+
+    # Grado alto y sin evidencia: la presunción lo deja pasar.
+    sin_evidencia = _nino(grado=5)
+    assert dependiente.id in {h.id for h in habilidades_disponibles(sin_evidencia, g)}
+
+    # Con evidencia de que NO la domina, queda bloqueado.
+    con_evidencia = _nino(
+        {raiz.id: RegistroDominio(habilidad_id=raiz.id, nivel=0.1, intentos=4, aciertos=0)},
+        grado=5,
+    )
+    assert dependiente.id not in {h.id for h in habilidades_disponibles(con_evidencia, g)}
+
+
+def test_no_se_presume_el_grado_que_esta_cursando():
+    """Se presume lo que el colegio ya cubrió en años anteriores, no lo de
+    este año. Si no, un chico de 2° saltaría a 3° sin mostrar nada — y eso
+    no es "sin techo", es adivinar."""
+    g = cargar_grafo()
+    disponibles = {h.id for h in habilidades_disponibles(_nino(grado=2), g)}
+
+    for h in g:
+        if h.grado_sugerido < 3 or not h.prerequisitos:
+            continue
+        previos = [g.habilidad(p) for p in h.prerequisitos if g.existe(p)]
+        if previos and all(p.grado_sugerido >= 2 for p in previos):
+            assert h.id not in disponibles, f"{h.nombre} se coló sin evidencia de 2°"

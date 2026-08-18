@@ -160,19 +160,60 @@ def habilidades_para_repasar(
     return sorted(pendientes, key=lambda h: nivel_efectivo(_registro(nino, h.id), ahora))
 
 
+def prerrequisito_satisfecho(
+    nino: Nino, prereq_id: str, grafo: GrafoHabilidades, ahora: datetime | None = None
+) -> bool:
+    """¿Este prerrequisito deja pasar al niño?
+
+    Sí, en dos casos distintos:
+
+    1. **Lo dominó.** Lo medimos y le sale.
+    2. **Nunca lo miramos, y es de un grado que ya cursó.** Presunción de
+       grado: un chico de 2° ya pasó por 1° en el colegio.
+
+    Por qué existe el caso 2 — y por qué NO se resuelve escribiendo dominio
+    inventado en la ficha: "nivel 0 medido" y "sin registro" son cosas
+    opuestas, y `esta_dominada(None)` las trataba igual. El resultado era que
+    a Juan, de 2°, que llegó pidiendo sumas de dos dígitos, el grafo le
+    ofrecía "contar hasta 100" — el nodo raíz — porque no tenía registro de
+    nada. (Verificado el 17/08: 0 habilidades con dominio tras 4 sesiones.)
+
+    Eso además tenía un costo escondido y peor: con un ejercicio así de fácil
+    enfrente, **el modelo lo ignoraba y se inventaba los suyos**. O sea que la
+    laguna del planificador era la que desconectaba todo el motor pedagógico.
+
+    Es una PRESUNCIÓN, no un dato: no se guarda nada en `dominio`. En cuanto
+    el niño falle, la evidencia real reemplaza a la presunción y el grafo
+    vuelve a mandar. Es lo que hace un profesor el primer día: te trata según
+    tu grado, y ajusta cuando te ve trabajar.
+
+    Estrictamente MENOR que su grado, nunca menor o igual: se presume lo que
+    el colegio ya cubrió en años anteriores, no lo que está viendo ahora.
+    """
+    registro = nino.dominio.get(prereq_id)
+    if esta_dominada(registro, ahora):
+        return True
+    if registro is not None:
+        return False  # hay evidencia y dice que no. La evidencia manda.
+    if not grafo.existe(prereq_id):
+        return False
+    return grafo.habilidad(prereq_id).grado_sugerido < nino.grado
+
+
 def habilidades_disponibles(
     nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None
 ) -> list[Habilidad]:
     """La frontera: lo que el niño PUEDE aprender ahora.
 
-    Prerrequisitos dominados y esta todavía no. Esto es lo que hace posible que
-    el tutor sea adaptativo — una lista lineal no puede responder esta pregunta.
+    Prerrequisitos satisfechos y esta todavía no. Esto es lo que hace posible
+    que el tutor sea adaptativo — una lista lineal no puede responder esta
+    pregunta.
     """
     frontera = []
     for h in grafo:
         if esta_dominada(nino.dominio.get(h.id), ahora):
             continue
-        if all(esta_dominada(nino.dominio.get(p), ahora) for p in h.prerequisitos):
+        if all(prerrequisito_satisfecho(nino, p, grafo, ahora) for p in h.prerequisitos):
             frontera.append(h)
     return frontera
 

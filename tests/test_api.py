@@ -24,20 +24,22 @@ def cliente(tmp_path, monkeypatch):
     nino = Nino(id="n1", nombre="Juan", edad=7, grado=2)
     repo.guardar_nino(nino)
     repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3))
+    grafo = cargar_grafo()
+    # Para toda habilidad, como la base real: así el fixture no se rompe cada
+    # vez que el planificador cambia de opinión sobre por dónde empezar.
     repo.guardar_ejercicios(
         [
             Ejercicio(
-                id=f"e{i}",
-                habilidad_id="mat.numeros.conteo_hasta_100",
+                id=f"e_{h.id}_{i}",
+                habilidad_id=h.id,
                 enunciado=TextoLocalizado(es="27 + 15"),
                 respuesta="42",
                 validado=True,
             )
+            for h in grafo
             for i in range(20)
         ]
     )
-
-    grafo = cargar_grafo()
     monkeypatch.setattr(api, "_repo", repo)
     monkeypatch.setattr(api, "_grafo", grafo)
     monkeypatch.setattr(api, "_orquestador", Orquestador(repo, grafo, EmisorFalso()))
@@ -69,10 +71,21 @@ def test_abrir_devuelve_token_y_ejercicios_no_la_configuracion(cliente):
 
 
 def test_el_tope_diario_devuelve_429(cliente):
+    """Solo cuentan las sesiones donde el nino realmente trabajo."""
     for _ in range(3):
-        cliente.post("/api/sesiones", json={"nino_id": "n1"})
+        sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+        cliente.post("/api/tools/get_next_problem", params={"sesion_id": sid})
+        cliente.post(f"/api/sesiones/{sid}/cerrar", json={})
     r = cliente.post("/api/sesiones", json={"nino_id": "n1"})
     assert r.status_code == 429
+
+
+def test_una_sesion_que_no_se_uso_no_quema_cupo(cliente):
+    """Se corto internet o toco el boton sin querer: no pierde el cupo."""
+    for _ in range(3):
+        sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+        cliente.post(f"/api/sesiones/{sid}/cerrar", json={"interrumpida": True})
+    assert cliente.post("/api/sesiones", json={"nino_id": "n1"}).status_code == 200
 
 
 def test_un_nino_inexistente_da_400(cliente):

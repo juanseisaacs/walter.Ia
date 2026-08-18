@@ -37,15 +37,20 @@ def repo(tmp_path):
     nino = Nino(id="n1", nombre="Juan", edad=7, grado=2, creado_en=AHORA)
     nino.perfil.intereses = ["futbol"]
     r.guardar_nino(nino)
+    # Ejercicios para TODA habilidad del grafo, igual que la base real. Antes
+    # había solo de una, y el fixture se rompía cada vez que el planificador
+    # cambiaba de opinión — acoplaba estos tests a una decisión pedagógica que
+    # no es lo que están probando.
     r.guardar_ejercicios(
         [
             Ejercicio(
-                id=f"e{i}",
-                habilidad_id="mat.numeros.conteo_hasta_100",
+                id=f"e_{h.id}_{i}",
+                habilidad_id=h.id,
                 enunciado=TextoLocalizado(es=f"ejercicio {i}"),
                 respuesta=str(i),
                 validado=True,
             )
+            for h in cargar_grafo()
             for i in range(20)
         ]
     )
@@ -101,7 +106,9 @@ def test_el_prefiltro_ignora_acentos():
 def test_abrir_deja_todo_listo(orq):
     a = orq.abrir("n1", ahora=AHORA)
     assert a.token, "el navegador recibe un token"
-    assert a.habilidad_id == "mat.numeros.conteo_hasta_100"
+    # Cuál habilidad toca lo decide el planificador y ya tiene sus propios
+    # tests. Acá solo importa que la sesión venga con una de verdad.
+    assert a.habilidad_id in {h.id for h in cargar_grafo()}
     assert len(a.ejercicios) == 15, "precargados en memoria: durante la sesión no se consulta"
     assert a.deteccion.silencio_ms >= 1200, "paciencia calibrada por edad"
 
@@ -130,7 +137,9 @@ def test_abrir_un_nino_inexistente_falla_claro(orq):
 def test_candado_3_el_tope_diario_se_aplica(orq):
     """Se cobra suscripción fija: sin techo, el costo por niño es ilimitado."""
     for _ in range(3):
-        orq.abrir("n1", ahora=AHORA)
+        a = orq.abrir("n1", ahora=AHORA)
+        orq.banco(a.sesion_id).get_next_problem()  # solo cuentan las trabajadas
+        orq.cerrar(a.sesion_id, ahora=AHORA)
     with pytest.raises(ErrorPresupuesto, match="tope"):
         orq.abrir("n1", ahora=AHORA)
 
@@ -216,7 +225,7 @@ def test_cerrar_encola_para_el_analista(orq, repo):
 
     assert sesion.estado == EstadoSesion.COMPLETADA
     assert sesion.analizada is False, "queda en la cola del Analista"
-    assert sesion.habilidades_trabajadas == ["mat.numeros.conteo_hasta_100"]
+    assert sesion.habilidades_trabajadas == [a.habilidad_id]
     assert [s.id for s in repo.sesiones_sin_analizar()] == [a.sesion_id]
 
 
@@ -243,3 +252,24 @@ def test_cerrar_libera_la_memoria(orq):
     orq.cerrar(a.sesion_id, ahora=AHORA)
     with pytest.raises(ErrorSesion):
         orq.banco(a.sesion_id)
+
+
+def test_una_sesion_que_no_se_uso_no_quema_un_cupo(orq, repo):
+    """Si un chico abre la app y se corta internet, o toca el boton sin querer,
+    no puede perder uno de sus 3 cupos del dia sin haber aprendido nada."""
+    for _ in range(3):
+        a = orq.abrir("n1", ahora=AHORA)
+        orq.cerrar(a.sesion_id, ahora=AHORA, interrumpida=True)  # sin trabajar nada
+
+    # Las tres quedaron vacias: el cupo sigue entero.
+    assert orq.abrir("n1", ahora=AHORA)
+
+
+def test_las_sesiones_donde_si_trabajo_cuentan(orq):
+    for _ in range(3):
+        a = orq.abrir("n1", ahora=AHORA)
+        orq.banco(a.sesion_id).get_next_problem()  # trabajo de verdad
+        orq.cerrar(a.sesion_id, ahora=AHORA)
+
+    with pytest.raises(ErrorPresupuesto, match="tope"):
+        orq.abrir("n1", ahora=AHORA)
