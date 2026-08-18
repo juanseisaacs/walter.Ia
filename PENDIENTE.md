@@ -129,9 +129,21 @@ Lo arreglado está en los commits; esto es lo que quedó abierto.
 - **Falta el dato de latencia.** La consola tenía las líneas
   `[tool] check_answer: Nms` y no se leyeron. Sin ese número no se sabe si la
   frase de espera alcanza.
-- **La duda de los tokens.** Se reportan sumando `totalTokenCount`; si en la
-  próxima sesión el log `[tokens] turno=X` crece monótono, es acumulativo y hay
-  que reportar el último en vez de la suma.
+- ✅ **La duda de los tokens, resuelta** (18/08, `scripts/verificar_tokens.py`
+  contra la API real). `totalTokenCount` es **acumulativo de la sesión**:
+  10.299 · 10.682 · 11.140 · 11.561 · 11.946 en cinco turnos. Se reporta el
+  último. Sumarlos sobreestimaba 4,7x con cinco turnos y ~10x con veinte —
+  `ses_88be006b825f` figura con 178.416 y gastó unos 18.500.
+
+  Dos cosas que se creían y eran falsas: que el prompt se paga en cada turno
+  (entra una vez al conectar; cada turno suma ~400) y que por eso había que
+  adelgazarlo para bajar el costo. El prompt cuesta ~$0.20/mes. **Adelgazarlo
+  sigue valiendo por latencia y por el techo del test, no por plata.**
+
+  Precios oficiales de `gemini-3.1-flash-live-preview`: audio in $0.005/min,
+  audio out $0.018/min. Con el tutor hablando ~40% del tiempo: **20 min/día ≈
+  $7.30/mes, 30 min/día ≈ $11/mes.** El presupuesto de $8 cierra hasta ~22
+  min/día.
 - **Turnos perdidos** — *"Nueve, por tercera vez te estoy diciendo"*. Puede ser
   el mismo bug del audio suspendido (el niño repetía porque no oía la
   respuesta): verificar en la próxima sesión antes de tocar el VAD.

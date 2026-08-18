@@ -51,13 +51,19 @@ export function useTutor(ninoId: string) {
   // config.py desde la fase 1, y hasta ahora eran ficción: el cierre mandaba
   // `tokens_consumidos: 0` fijo. Todas las sesiones figuran con 0 gastado.
   //
-  // Se suman los `totalTokenCount` que manda el servidor, asumiendo que cada uno
-  // es de SU request. La documentación del SDK dice "the entire request", que se
-  // lee así — pero no está confirmado con datos reales, y si en verdad fuera
-  // acumulativo de la sesión, sumarlos la sobreestimaría. Por eso se loguean los
-  // dos números: la próxima sesión resuelve la duda mirando la consola. Si el
-  // "turno" crece monótono (500, 1200, 2100...), es acumulativo y hay que
-  // reportar `ultimo` en vez de `suma`.
+  // RESUELTO el 18/08 con `scripts/verificar_tokens.py` contra la API real:
+  // `totalTokenCount` es ACUMULATIVO DE LA SESIÓN, no de su request. Medido en
+  // cinco turnos: 10.299 · 10.682 · 11.140 · 11.561 · 11.946.
+  //
+  // Se reporta `ultimo`, NO `suma`. Sumarlos sobreestimaba 4,7x con cinco
+  // turnos y casi 10x con veinte: ses_88be006b825f figura con 178.416 tokens
+  // cuando gastó unos 18.500. Con ese número inflado el techo de sesión
+  // saltaba por gasto que nunca ocurrió, y encima llevó a concluir que el
+  // prompt se pagaba en cada turno. No: entra una vez al conectar y el modelo
+  // mantiene el contexto del lado del servidor. Cada turno suma ~400.
+  //
+  // `suma` se conserva solo para el log: si un día el número dejara de crecer
+  // monótono, la consola lo muestra y esta decisión se revisa.
   const tokensRef = useRef({ suma: 0, ultimo: 0 });
 
   /* ── Reporte de turnos ─────────────────────────────────────────────────
@@ -179,7 +185,7 @@ export function useTutor(ninoId: string) {
           await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
         }
         await api
-          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.suma)
+          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.ultimo)
           .catch(() => {});
       }
       sesionRef.current = null;
@@ -295,7 +301,9 @@ export function useTutor(ninoId: string) {
             if (gastados) {
               tokensRef.current.suma += gastados;
               tokensRef.current.ultimo = gastados;
-              console.info(`[tokens] turno=${gastados} suma=${tokensRef.current.suma}`);
+              console.info(
+                `[tokens] acumulado=${gastados} (suma ingenua ${tokensRef.current.suma})`,
+              );
             }
 
             for (const parte of contenido?.modelTurn?.parts ?? []) {
