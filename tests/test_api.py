@@ -235,3 +235,96 @@ def test_salud_responde(cliente):
     datos = cliente.get("/api/salud").json()
     assert datos["ok"] is True
     assert datos["habilidades"] > 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Panel del papá — la página
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _sesion_auditada(sid: str, regalo_la_respuesta: bool) -> None:
+    """Una sesión ya pasada por el Analista, con su veredicto persistido."""
+    from datetime import datetime
+
+    from tutor.models import AuditoriaCumplimiento, ModoSesion, Sesion
+
+    api._repo.crear_sesion(
+        Sesion(id=sid, nino_id="n1", modo=ModoSesion.GUIADO, inicio=datetime.now())
+    )
+    sesion = api._repo.obtener_sesion(sid)
+    sesion.analizada = True
+    api._repo.actualizar_sesion(sesion)
+    api._repo.guardar_auditoria(
+        sid,
+        AuditoriaCumplimiento(
+            regalo_la_respuesta=regalo_la_respuesta,
+            respeto_escalera_pistas=True,
+            detecto_frustracion=False,
+        ),
+    )
+
+
+def test_el_enlace_del_mail_abre_una_pagina_no_un_json(cliente):
+    """El papá hace clic en el mail y ve el panel, no una respuesta de API."""
+    token = _token_para(cliente, "n1")
+    r = cliente.get("/panel/n1", params={"token": token})
+
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/html")
+    assert "Juan" in r.text
+
+
+def test_el_panel_se_puede_recargar(cliente):
+    """El papá refresca la página, o vuelve mañana con el mismo mail. El enlace
+    dura 24 horas: no puede morir en el primer uso."""
+    token = _token_para(cliente, "n1")
+    assert cliente.get("/panel/n1", params={"token": token}).status_code == 200
+    assert cliente.get("/panel/n1", params={"token": token}).status_code == 200
+
+
+def test_el_panel_de_un_nino_no_se_abre_con_el_enlace_de_otro(cliente):
+    token = _token_para(cliente, "n1")
+    r = cliente.get("/panel/n2", params={"token": token})
+
+    assert r.status_code == 403
+    assert "Sofia" not in r.text
+
+
+def test_un_enlace_vencido_explica_en_castellano(cliente):
+    """Un 401 con JSON en la cara es el momento en que un papá abandona."""
+    r = cliente.get("/panel/n1", params={"token": "inventado"})
+
+    assert r.status_code == 401
+    assert r.headers["content-type"].startswith("text/html")
+    assert "enlace" in r.text.lower()
+    assert "detail" not in r.text
+
+
+def test_sin_medir_el_metodo_el_panel_no_inventa_un_100(cliente):
+    """Nunca se auditó ≠ salió perfecto. Inventar el número acá es exactamente
+    lo que destruye la confianza que el panel existe para construir."""
+    token = _token_para(cliente, "n1")
+    texto = cliente.get("/panel/n1", params={"token": token}).text
+
+    assert "100%" not in texto
+    assert "Todavía no hay sesiones auditadas" in texto
+
+
+def test_el_panel_muestra_la_fraccion_de_sesiones_con_el_metodo_sostenido(cliente):
+    """Tres sesiones auditadas, en una regaló la respuesta: 67%, no 100%."""
+    _sesion_auditada("s_ok1", regalo_la_respuesta=False)
+    _sesion_auditada("s_ok2", regalo_la_respuesta=False)
+    _sesion_auditada("s_mal", regalo_la_respuesta=True)
+    token = _token_para(cliente, "n1")
+
+    assert "67%" in cliente.get("/panel/n1", params={"token": token}).text
+
+
+def test_la_pagina_del_papa_no_habla_en_jerga(cliente):
+    """Ni 'nodos', ni 'grafo', ni ids de habilidad. Temas y qué sabe hacer."""
+    _sesion_auditada("s_ok1", regalo_la_respuesta=False)
+    token = _token_para(cliente, "n1")
+    texto = cliente.get("/panel/n1", params={"token": token}).text.lower()
+
+    for jerga in ["nodo", "grafo", "habilidad_id", "prerequisito", "mat.", "dominio_"]:
+        assert jerga not in texto

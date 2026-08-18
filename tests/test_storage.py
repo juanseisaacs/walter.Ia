@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from tutor.models import (
+    AuditoriaCumplimiento,
     Ejercicio,
     EstadoSesion,
     MetricasReporte,
@@ -312,3 +313,85 @@ def test_guarda_el_reporte_como_archivo(repo):
     )
     repo.guardar_reporte(reporte)
     assert list(repo.ruta_reportes.glob("n1_*.json"))
+
+
+def _reporte(hasta: datetime, contenido: str) -> ReporteParaPapa:
+    return ReporteParaPapa(
+        nino_id="n1",
+        desde=hasta - timedelta(days=7),
+        hasta=hasta,
+        metricas=MetricasReporte(
+            sesiones=3,
+            minutos_totales=95,
+            cumplimiento_metodo=1.0,
+            grado_de_trabajo=3,
+            adelanto_grados=1,
+        ),
+        contenido=contenido,
+    )
+
+
+def test_sin_reportes_no_hay_ultimo(repo):
+    """El panel de un niño que recién arranca no puede reventar."""
+    assert repo.ultimo_reporte("n1") is None
+
+
+def test_el_ultimo_reporte_es_el_mas_reciente(repo):
+    """Se guardan en orden salteado a propósito: el orden de escritura no manda."""
+    repo.guardar_reporte(_reporte(AHORA - timedelta(days=14), "hace dos semanas"))
+    repo.guardar_reporte(_reporte(AHORA, "esta semana"))
+    repo.guardar_reporte(_reporte(AHORA - timedelta(days=7), "la semana pasada"))
+
+    assert repo.ultimo_reporte("n1").contenido == "esta semana"
+
+
+def test_el_reporte_de_un_nino_no_se_le_muestra_a_otro(repo):
+    repo.guardar_reporte(_reporte(AHORA, "esta semana"))
+    assert repo.ultimo_reporte("n2") is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auditoría del método
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_sin_auditoria_devuelve_none(repo):
+    """Nunca se midió ≠ salió bien. El panel necesita poder distinguirlos."""
+    assert repo.obtener_auditoria("s1") is None
+
+
+def test_el_veredicto_del_metodo_va_y_vuelve_entero(repo):
+    repo.guardar_auditoria(
+        "s1",
+        AuditoriaCumplimiento(
+            regalo_la_respuesta=True,
+            respeto_escalera_pistas=False,
+            detecto_frustracion=True,
+            notas="Le dijo 'son dos centenas' sin que el niño llegara.",
+        ),
+    )
+    v = repo.obtener_auditoria("s1")
+
+    assert v.regalo_la_respuesta is True
+    assert v.respeto_escalera_pistas is False
+    assert v.notas.startswith("Le dijo")
+
+
+def test_el_veredicto_sobrevive_al_borrado_de_la_transcripcion(repo):
+    """La razón de ser de esta tabla: son booleanos, no la charla cruda. La
+    evidencia de "no le doy las respuestas" tiene que durar más que la
+    conversación que la produjo."""
+    repo.guardar_nino(_nino())
+    repo.crear_sesion(_sesion("vieja", AHORA - timedelta(days=60)))
+    repo.guardar_transcripcion("vieja", "nino: 32\ntutor: ¡eso! son dos centenas")
+    repo.guardar_auditoria(
+        "vieja",
+        AuditoriaCumplimiento(
+            regalo_la_respuesta=False, respeto_escalera_pistas=True, detecto_frustracion=False
+        ),
+    )
+
+    repo.borrar_transcripciones_anteriores_a(AHORA - timedelta(days=30))
+
+    assert repo.obtener_transcripcion("vieja") is None
+    assert repo.obtener_auditoria("vieja").regalo_la_respuesta is False
