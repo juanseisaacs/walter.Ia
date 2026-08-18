@@ -17,20 +17,69 @@ export const SAMPLE_RATE_ENTRADA = 16_000; // lo que Gemini espera
 /** Colchón por si venimos con retraso: arrancar ya en vez de rellenar un hueco. */
 const COLCHON_SEG = 0.015;
 
+/**
+ * Si lo próximo quedó programado más allá de esto, algo se desincronizó.
+ *
+ * Pasa cuando el contexto estuvo suspendido: su reloj se detiene, pero los
+ * chunks siguen llegando y encolándose uno detrás del otro. Al reanudar, la
+ * cola arranca en un instante que ya quedó lejísimos en el futuro y el tutor
+ * sigue mudo aunque técnicamente esté "reproduciendo".
+ */
+const DERIVA_MAX_SEG = 2;
+
 export class ReproductorContinuo {
   private ctx: AudioContext | null = null;
   private proximoInicio = 0;
   private fuentes = new Set<AudioBufferSourceNode>();
+  private alVolverAlFrente = () => this.asegurarActivo();
 
   /** Tiene que llamarse DENTRO del gesto del usuario o el navegador lo suspende. */
   iniciar(): void {
-    if (this.ctx) return;
+    if (this.ctx) {
+      this.asegurarActivo();
+      return;
+    }
     this.ctx = new AudioContext({ sampleRate: SAMPLE_RATE_SALIDA });
     this.proximoInicio = 0;
+
+    // El navegador puede suspender el contexto por su cuenta — al cambiar de
+    // pestaña, al bloquear la pantalla, por ahorro de energía. Nadie avisa: el
+    // audio simplemente deja de sonar mientras todo lo demás sigue igual.
+    this.ctx.onstatechange = () => {
+      console.info(`[audio] contexto ${this.ctx?.state}`);
+      if (this.ctx?.state === "suspended") this.asegurarActivo();
+    };
+    document.addEventListener("visibilitychange", this.alVolverAlFrente);
+  }
+
+  /**
+   * Despierta el contexto si el navegador lo durmió.
+   *
+   * Sin esto, `iniciar()` veía que el contexto ya existía y volvía sin más: los
+   * chunks se programaban contra un reloj detenido. Es lo que le pasó a Juan en
+   * `ses_91c13b1747a2` — "¿por qué dejaste de hablar y solo estoy viendo el
+   * texto?". El tutor no se colgó: estaba hablando para nadie.
+   */
+  private asegurarActivo(): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== "suspended") return;
+    void ctx.resume().then(() => {
+      // El reloj estuvo detenido: lo encolado quedó en un futuro que ya no
+      // corresponde. Se resincroniza para que la próxima frase suene YA.
+      this.proximoInicio = ctx.currentTime;
+    });
   }
 
   programar(base64: string): void {
     if (!this.ctx) return;
+    this.asegurarActivo();
+
+    // Red de seguridad: si la cola se fue al futuro, se vuelve al presente.
+    // Programar para dentro de tres segundos es indistinguible de estar mudo.
+    if (this.proximoInicio > this.ctx.currentTime + DERIVA_MAX_SEG) {
+      console.info("[audio] cola desincronizada, resincronizando");
+      this.proximoInicio = this.ctx.currentTime;
+    }
 
     const muestras = pcm16DesdeBase64(base64);
     const buffer = this.ctx.createBuffer(1, muestras.length, SAMPLE_RATE_SALIDA);
@@ -78,6 +127,8 @@ export class ReproductorContinuo {
 
   cerrar(): void {
     this.detenerTodo();
+    document.removeEventListener("visibilitychange", this.alVolverAlFrente);
+    if (this.ctx) this.ctx.onstatechange = null;
     void this.ctx?.close();
     this.ctx = null;
   }
