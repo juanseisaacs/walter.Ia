@@ -92,6 +92,8 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar de modelo de voz | `src/tutor/voice.py` (solo ese archivo) |
 | Ajustar presupuestos o retención | `src/tutor/config.py` |
 | Agregar un caso de prueba del método | `evals/parent_trust/` |
+| Cambiar cómo se ve el panel del papá | `src/tutor/panel.py` (solo ese archivo) |
+| Cambiar qué dice el reporte semanal | `knowledge/prompts/parent_companion.es.md` |
 
 ---
 
@@ -127,30 +129,44 @@ python -m scripts.build_exercise_bank
 
 ## Estado
 
-**Fase 5 completa** — el tutor en vivo, con la arquitectura de voz verificada.
+**El circuito completo cierra**, de la voz del niño al panel del papá.
+
+El niño habla → el tutor usa el banco y `check_answer` → la sesión se cierra →
+el Analista escribe el dominio → el planificador de mañana arranca con la
+evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el panel.
 
 - `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
   colgados, IDs duplicados) y lo navega en ambas direcciones
-- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática
+- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática y
+  **presunción de grado** (un niño de 2° no arranca contando hasta 100, ni se
+  le reporta al papá un atraso que nadie midió)
 - `storage.py`: `RepositorioSQLite` completo — WAL, transacciones atómicas,
-  migraciones por `user_version`, idempotencia y retención
+  migraciones por `user_version`, idempotencia, retención, auditorías y reportes
 - `tools.py`: `check_answer` (entiende números hablados en español, tolerante
   con la forma y estricto con el valor), `BancoDeSesion`, `request_camera`,
   `escalate_safety`
-- `voice.py`: prompt de sesión, declaración de tools, detección de fin de turno
-  calibrada por edad, y token con la configuración **atada** (candado #1)
+- `voice.py`: prompt de sesión, tools, fin de turno por edad, token con la
+  configuración **atada** (candado #1), voz `Leda` en `es-CO` y transcripción
+  de entrada con idioma fijo + sesgo aritmético
 - `session.py`: `Orquestador` — abre (precarga + presupuesto + token), registra
   turnos con los dos niveles de seguridad, cierra y encola para el Analista
-- `knowledge/prompts/`: persona, playbook socrático, política de seguridad
+- `pipeline.py`: Analista (señales + auditoría en una llamada), Vigilante,
+  métricas en código, reporte al papá verificado contra la fuente, y las tareas
+  que drenan las dos colas
+- `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
+- `web/`: la interfaz de voz del niño (React + Vite)
+- `evals/`: 30 casos en las 4 suites de YC — **30/30**, estable en dos corridas
 - `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
   ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 161 tests en verde
+- 267 tests en verde
 
 ```
-python -m scripts.demo_planificador    # el cerebro
-python -m scripts.demo_persistencia    # el ciclo completo
-python -m scripts.demo_verificacion    # check_answer con voz
-python -m scripts.verificar_gemini     # los 2 supuestos contra la API real
+python -m scripts.demo_planificador     # el cerebro
+python -m scripts.demo_persistencia     # el ciclo completo
+python -m scripts.demo_verificacion     # check_answer con voz
+python -m scripts.verificar_gemini      # los 2 supuestos contra la API real
+python -m scripts.procesar_pendientes   # drena la cola del Analista
+python -m scripts.generar_reportes      # el reporte semanal al papá
 ```
 
 **Arquitectura de voz verificada (2026-08-17):** `live_connect_constraints`
@@ -158,18 +174,38 @@ funciona (el navegador no puede cambiar el prompt) y tool calling anda. El
 modelo `gemini-3.1-flash-live-preview` **solo devuelve AUDIO** — la entrada sí
 acepta texto.
 
-**`pipeline.py` implementado** — Analista (señales + auditoría en una llamada),
-Vigilante, métricas en código y reporte al papá con verificación de que no
-invente números. `aplicar_analisis()` cierra el circuito adaptativo: el
-pendiente de `madurez_vinculo` quedó resuelto, ahora sube en cada sesión.
-
-⚠️ **Falta `ANTHROPIC_API_KEY` en `.env`** — sin ella los agentes offline corren
-solo con `ClienteFalso`. Los tests no la necesitan; una prueba real sí.
-
-Próximo: **`evals/`** — los niños simulados que intentan sacarle la respuesta al
-tutor, organizados en los 4 criterios de YC. Después: `api.py` y el frontend.
+**Lo que falta es evidencia, no código:** una sesión de voz con audio real que
+confirme que la transcripción arreglada corrige el "dos" → "32", y la medición
+de `check_answer` en la consola del navegador. Ver `PENDIENTE.md`.
 
 Ver `ARCHITECTURE.md` §17 para el plan de fases.
+
+---
+
+## Lección aprendida (fase 6)
+
+Dos datos se estaban **inventando solos**, en direcciones opuestas, y ninguno
+lo detectaron los tests:
+
+- `cumplimiento_metodo` devolvía `1.0` cuando no había ni una sesión auditada:
+  el reporte iba a decirle al papá que el método se sostuvo en el 100% de las
+  sesiones, sin haber mirado ninguna.
+- `grado_de_trabajo` devolvía 1 para un niño de 2° del que no había evidencia,
+  porque contaba nodos de 1° que nunca se midieron. El reporte le decía al papá
+  que su hijo trabaja por debajo de su grado.
+
+Los dos son el mismo error: **tratar la ausencia de evidencia como evidencia.**
+Lo detectó correr el reporte de verdad y leerlo, no la suite.
+
+→ Cuando un número va a llegarle al papá, `None` es una respuesta válida y hay
+que dejar que llegue hasta la superficie. "No lo medimos" se dice; no se
+completa con un default que parece un dato.
+
+Y una tercera, de la misma corrida: **la verificación estricta también hace
+daño si no distingue lo que se afirma de lo que se propone.** `verificar_reporte`
+tumbó un reporte correcto porque la sugerencia para casa decía "este dinosaurio
+pesaba 350 kilos". Un verificador que rechaza lo válido termina dejando al papá
+sin nada, que es el resultado que quería evitar.
 
 ---
 
