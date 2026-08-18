@@ -27,7 +27,14 @@ from .models import Ejercicio, ModoSesion, Nino
 from .notificaciones import Notificador, aviso_de_alerta, notificador_por_defecto
 from .panel import render_error, render_panel
 from .pedagogy import adelanto, esta_dominada, grado_de_trabajo
-from .pipeline import cliente_por_defecto, procesar_sesion
+from .pipeline import (
+    FichaInicial,
+    cliente_por_defecto,
+    crear_nino_desde_ficha,
+    extraer_ficha,
+    procesar_sesion,
+    siguiente_pregunta,
+)
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
 from .tools import Veredicto, check_answer, verify_arithmetic
@@ -80,6 +87,88 @@ def _canjear(token: str) -> str:
 def papa_autenticado(token: str = Query(..., description="Token del enlace del mail")) -> str:
     """Devuelve el nino_id al que el enlace da acceso."""
     return _canjear(token)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Onboarding — la conversación con el papá que da de alta a un niño
+# ─────────────────────────────────────────────────────────────────────────────
+# El motor vivía en pipeline.py con tests desde la fase 6 y no lo exponía nadie:
+# el único niño de la base se había creado a mano. Sin esto no hay segundo
+# usuario, y sin segundo usuario no hay producto.
+#
+# No es un formulario a propósito. Un papá contesta con matices ("le cuesta
+# concentrarse cuando se frustra") que ninguna lista desplegable captura, y esos
+# matices son lo que el tutor va a usar desde la primera sesión.
+#
+# ⚠️ En memoria, igual que _ENLACES: si el proceso se reinicia a mitad de la
+# entrevista, el papá empieza de nuevo. Aceptable mientras sea un solo worker;
+# al escalar va a una tabla.
+
+_ONBOARDINGS: dict[str, list[tuple[str, str]]] = {}
+
+
+def _exigir_entrevistador() -> None:
+    """Sin modelo no hay entrevista, y hay que decirlo en vez de fingirla."""
+    if not _HAY_ANALISTA:
+        raise HTTPException(503, "El onboarding necesita ANTHROPIC_API_KEY configurada.")
+
+
+@app.post("/api/onboarding", tags=["papá"])
+def iniciar_onboarding():
+    """Abre la entrevista y devuelve la primera pregunta."""
+    _exigir_entrevistador()
+
+    onboarding_id = f"onb_{secrets.token_urlsafe(9)}"
+    historial: list[tuple[str, str]] = []
+    ficha = FichaInicial()
+
+    pregunta = siguiente_pregunta(historial, ficha, _cliente_analista)
+    historial.append(("tutor", pregunta))
+    _ONBOARDINGS[onboarding_id] = historial
+
+    return {"onboarding_id": onboarding_id, "pregunta": pregunta, "falta": ficha.falta()}
+
+
+class RespuestaDelPapa(BaseModel):
+    texto: str
+
+
+@app.post("/api/onboarding/{onboarding_id}", tags=["papá"])
+def responder_onboarding(onboarding_id: str, cuerpo: RespuestaDelPapa):
+    """Un turno de la entrevista. Cuando alcanza para arrancar, crea al niño.
+
+    La ficha se re-extrae del historial COMPLETO en cada turno en vez de irse
+    acumulando por partes: el papá corrige sobre la marcha ("tiene siete... no,
+    perdón, ocho") y solo la conversación entera dice cuál de los dos vale.
+    """
+    _exigir_entrevistador()
+
+    historial = _ONBOARDINGS.get(onboarding_id)
+    if historial is None:
+        raise HTTPException(404, "Esa entrevista no está abierta. Hay que empezar de nuevo.")
+
+    historial.append(("papa", cuerpo.texto))
+    ficha = extraer_ficha(historial, _cliente_analista)
+
+    if not ficha.completa:
+        pregunta = siguiente_pregunta(historial, ficha, _cliente_analista)
+        historial.append(("tutor", pregunta))
+        return {"listo": False, "pregunta": pregunta, "falta": ficha.falta()}
+
+    nino = crear_nino_desde_ficha(ficha, f"n_{secrets.token_urlsafe(6)}")
+    _repo.guardar_nino(nino)
+    _ONBOARDINGS.pop(onboarding_id, None)
+
+    # El cierre lo redacta el entrevistador: es el único turno donde el papá
+    # escucha que lo entendieron, y una plantilla ahí se nota.
+    despedida = siguiente_pregunta(historial, ficha, _cliente_analista)
+
+    return {
+        "listo": True,
+        "nino_id": nino.id,
+        "nombre": nino.nombre,
+        "mensaje": despedida,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

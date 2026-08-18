@@ -429,3 +429,73 @@ def test_un_tema_sin_ejercicios_no_devuelve_otra_cosa(cliente):
 
     assert r["ejercicio"] is None
     assert r["temas_disponibles"], "no le dijo al tutor qué sí tiene"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Onboarding — sin esto no hay segundo usuario
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def cliente_con_entrevistador(cliente, monkeypatch):
+    """El entrevistador contesta con un guion; lo que se prueba es el circuito."""
+    from tutor.pipeline import ClienteFalso, FichaInicial
+
+    class Entrevistador(ClienteFalso):
+        """Devuelve ficha incompleta la primera vez y completa después."""
+
+        def __init__(self):
+            super().__init__(texto="¿Cómo se llama tu hijo?")
+            self.vueltas = 0
+
+        def extraer(self, modelo, sistema, mensaje, esquema, **kw):
+            self.vueltas += 1
+            if self.vueltas == 1:
+                return FichaInicial(nombre_nino="Sofía")
+            return FichaInicial(
+                email_papa="papa@ejemplo.com",
+                nombre_nino="Sofía",
+                edad=8,
+                grado=3,
+                intereses=["caballos"],
+            )
+
+    monkeypatch.setattr(api, "_cliente_analista", Entrevistador())
+    monkeypatch.setattr(api, "_HAY_ANALISTA", True)
+    return cliente
+
+
+def test_el_onboarding_da_de_alta_a_un_nino_de_verdad(cliente_con_entrevistador):
+    """El motor existía desde la fase 6 y no lo exponía nadie: el único niño de
+    la base se había creado a mano.
+    """
+    c = cliente_con_entrevistador
+
+    inicio = c.post("/api/onboarding").json()
+    assert inicio["pregunta"], "el papá tiene que recibir una primera pregunta"
+    assert "email_papa" in inicio["falta"]
+
+    oid = inicio["onboarding_id"]
+
+    a_medias = c.post(f"/api/onboarding/{oid}", json={"texto": "Se llama Sofía"}).json()
+    assert a_medias["listo"] is False, "con la ficha incompleta no se da de alta"
+    assert a_medias["pregunta"]
+
+    fin = c.post(f"/api/onboarding/{oid}", json={"texto": "Tiene 8, va en 3°"}).json()
+    assert fin["listo"] is True
+    assert fin["nino_id"]
+
+    # Y el niño existe de verdad: puede abrir sesión.
+    abierta = c.post("/api/sesiones", json={"nino_id": fin["nino_id"]})
+    assert abierta.status_code == 200, "se dio de alta un niño que no puede estudiar"
+
+
+def test_una_entrevista_que_no_existe_lo_dice(cliente_con_entrevistador):
+    r = cliente_con_entrevistador.post("/api/onboarding/onb_inventado", json={"texto": "hola"})
+    assert r.status_code == 404
+
+
+def test_sin_modelo_el_onboarding_lo_dice_en_vez_de_fingirlo(cliente, monkeypatch):
+    """Un formulario de mentira que no guarda nada es peor que un error claro."""
+    monkeypatch.setattr(api, "_HAY_ANALISTA", False)
+    assert cliente.post("/api/onboarding").status_code == 503

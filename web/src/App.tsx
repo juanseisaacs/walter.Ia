@@ -9,15 +9,32 @@
  */
 
 import "./App.css";
+import { ninoActual } from "./nino";
 import { useTutor } from "./voz/useTutor";
 
-const NINO_ID = "n1"; // provisorio: sale del login cuando exista
+const NINO_ID = ninoActual();
 
 export default function App() {
   const { estado, error, tema, textoNino, textoTutor, nivelMic, empezar, terminar } =
-    useTutor(NINO_ID);
+    useTutor(NINO_ID ?? "");
 
   const enSesion = estado === "escuchando" || estado === "hablando";
+
+  // Sin id no hay a quién enseñarle. Se dice, no se falla en silencio ni se
+  // cae en un niño por defecto — que fue lo que hizo que durante semanas todo
+  // el tráfico de prueba se acumulara sobre el mismo chico.
+  if (!NINO_ID) {
+    return (
+      <main className="pantalla">
+        <div className="centro">
+          <h1 className="titulo">¡Hola!</h1>
+          <p className="tenue">
+            Pídele a tu mamá o a tu papá el enlace para entrar.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="pantalla">

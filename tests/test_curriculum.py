@@ -168,3 +168,28 @@ def test_el_curriculum_declara_que_es_verificable_en_codigo():
         h.id for h in g.por_materia(Materia.MATEMATICAS) if not h.verificable_en_codigo
     ]
     assert not sin_declarar, f"habilidades de matemática sin verificación en código: {sin_declarar}"
+
+
+def test_el_schema_deja_escribir_cabeza_de_pista_por_encima_de_5():
+    """SIN TECHO también significa poder ESCRIBIR el nodo.
+
+    `ARCHITECTURE.md` §12: el grafo tiene que tener siempre cabeza de pista por
+    encima del grado del niño, porque uno que termina en 5° le pone techo real a
+    un chico veloz de 5°. Hasta el 18/08 `grado_sugerido` topaba en 5 en el
+    schema Y en Pydantic: el planificador no filtraba por grado, pero el nodo de
+    6° era inválido y no se podía crear. El techo estaba un paso antes de donde
+    lo buscábamos.
+    """
+    adelantada = Habilidad(
+        id="mat.algebra.ecuaciones_simples",
+        nombre=TextoLocalizado(es="Ecuaciones simples"),
+        descripcion=TextoLocalizado(es="Despejar una incógnita"),
+        materia=Materia.MATEMATICAS,
+        grado_sugerido=8,
+    )
+    assert adelantada.grado_sugerido == 8
+
+    esquema = json.loads((CURRICULUM / "schema.json").read_text(encoding="utf-8"))
+    assert esquema["properties"]["grado_sugerido"]["maximum"] > 5, (
+        "el schema volvió a impedir la cabeza de pista"
+    )

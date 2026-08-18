@@ -62,7 +62,16 @@ class Habilidad(BaseModel):
     nombre: TextoLocalizado
     descripcion: TextoLocalizado
     materia: Materia
-    grado_sugerido: int = Field(ge=1, le=5)
+    grado_sugerido: int = Field(ge=1, le=11)
+    """Grado de referencia, NO un límite: el planificador decide por dominio.
+
+    El tope es 11 —el último del sistema colombiano— y está para atajar erratas,
+    no para contener a nadie. Estuvo en 5 hasta el 18/08, y eso contradecía la
+    regla SIN TECHO por un camino que no se veía: no filtraba al niño, pero
+    impedía ESCRIBIR el nodo. ARCHITECTURE.md §12 pide que el grafo tenga
+    siempre cabeza de pista por encima del grado del niño, y con el máximo en 5
+    un chico veloz de 5° se quedaba sin nada que seguir. No mordía porque el
+    grafo llega a 3°; iba a morder justo al extenderlo."""
     prerequisitos: list[str] = Field(default_factory=list, description="IDs de otras habilidades")
     alineacion: Alineacion = Field(default_factory=Alineacion)
 

@@ -25,8 +25,8 @@
     "grado_sugerido": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 5,
-      "description": "Grado de referencia. NO es una restricción: el planificador usa dominio real, no edad"
+      "maximum": 11,
+      "description": "Grado de referencia. NO es una restricción: el planificador usa dominio real, no edad. El máximo es 11 (el último del sistema colombiano) y existe para atajar erratas, no para limitar: con 5 el schema impedía escribir la cabeza de pista que pide ARCHITECTURE.md §12"
     },
     "prerequisitos": {
       "type": "array",
