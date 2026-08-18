@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOKENS DE DISEÑO — el único archivo que hay que tocar para cambiar el look
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Cambiá estos valores y cambia TODA la app. Ningún componente tiene colores,
+   tipografías ni tamaños escritos a mano: todos leen de acá.
+
+   Es la diferencia entre "cambiar la paleta" y "rehacer el frontend".
+
+   Lo de ahora es deliberadamente MINIMALISTA: sin personaje, sin ilustración,
+   sin animaciones de más. Primero que funcione y se sienta bien; el diseño
+   viene después, cuando sepamos cómo se usa de verdad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Color ───────────────────────────────────────────────────────────── */
+  --fondo: #faf9f6;
+  --fondo-suave: #f0efe9;
+  --texto: #2b2b28;
+  --texto-tenue: #7a786f;
+
+  --acento: #2d6a4f;          /* el color del tutor: verde tranquilo       */
+  --acento-suave: #d8e8df;
+  --nino: #3d5a80;            /* el color del niño cuando habla            */
+
+  --alerta: #b23a2f;
+  --exito: #2d6a4f;
+
+  /* ── Tipografía ──────────────────────────────────────────────────────── */
+  --fuente: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --tam-chico: 0.875rem;
+  --tam-base: 1.0625rem;      /* generoso: lo puede leer un chico de 7      */
+  --tam-grande: 1.5rem;
+  --tam-titulo: 2rem;
+
+  /* ── Espacio y forma ─────────────────────────────────────────────────── */
+  --espacio-xs: 0.5rem;
+  --espacio-s: 0.75rem;
+  --espacio-m: 1.25rem;
+  --espacio-l: 2rem;
+  --espacio-xl: 3rem;
+
+  --radio: 16px;
+  --radio-chico: 10px;
+
+  /* Botones grandes: un chico de 7 no apunta con precisión de adulto */
+  --boton-alto: 64px;
+
+  --sombra: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --transicion: 180ms ease;
+}
+
+/* ── Reset mínimo ──────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente);
+  font-size: var(--tam-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Respetá a quien pidió menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

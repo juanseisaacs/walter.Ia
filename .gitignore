@@ -24,3 +24,7 @@ node_modules/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Node (fase web)
+web/node_modules/
+web/dist/

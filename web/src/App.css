@@ -1,0 +1,101 @@
+/* Todo sale de tokens.css. Acá no hay ni un color ni un tamaño escrito a mano. */
+
+.pantalla {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--espacio-l);
+  gap: var(--espacio-l);
+}
+
+.tema {
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+}
+
+.centro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espacio-m);
+  text-align: center;
+}
+
+.titulo {
+  font-size: var(--tam-titulo);
+  font-weight: 600;
+}
+
+.tenue {
+  color: var(--texto-tenue);
+}
+
+.error {
+  color: var(--alerta);
+  max-width: 32ch;
+}
+
+/* Botón grande: un chico de 7 no apunta con precisión de adulto. */
+.boton {
+  min-height: var(--boton-alto);
+  padding: 0 var(--espacio-l);
+  background: var(--acento);
+  color: var(--fondo);
+  font-size: var(--tam-grande);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  transition: transform var(--transicion);
+}
+
+.boton:active {
+  transform: scale(0.97);
+}
+
+/* Un círculo que respira: quién habla se ve por el color, no por un cartel. */
+.indicador {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  transition: transform var(--transicion), background var(--transicion);
+}
+
+.indicador.es-tutor {
+  background: var(--acento);
+}
+
+.indicador.es-nino {
+  background: var(--acento-suave);
+  border: 3px solid var(--nino);
+}
+
+.dialogo {
+  width: min(60ch, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-xs);
+}
+
+.dice-tutor,
+.dice-nino {
+  padding: var(--espacio-s) var(--espacio-m);
+  border-radius: var(--radio-chico);
+}
+
+.dice-tutor {
+  background: var(--acento-suave);
+}
+
+.dice-nino {
+  background: var(--fondo-suave);
+  color: var(--texto-tenue);
+  align-self: flex-end;
+}
+
+.salir {
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+  padding: var(--espacio-s);
+  text-decoration: underline;
+}
