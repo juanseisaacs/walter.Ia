@@ -24,13 +24,19 @@ export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "erro
 const TURNOS_POR_REPORTE = 2;
 
 /**
- * Cuánto esperar entre mandar la foto y preguntarle al tutor qué ve.
+ * Cuánto esperar antes de EMPUJAR al tutor a hablar de la foto.
  *
- * La imagen viaja por el stream y tarda en estar disponible. Preguntar antes de
- * tiempo hace que conteste "no veo nada" sobre una foto que sí llegó — el peor
- * resultado posible, porque el niño la tomó bien y le dicen que no.
+ * Solo se empuja si en ese tiempo no dijo nada. La versión anterior preguntaba
+ * a los 900 ms pasara lo que pasara, y eso resultó ser peor que no preguntar:
+ * el modelo ya había empezado a contestar la imagen —"A ver,"— y el mensaje lo
+ * CORTÓ, abriendo un turno nuevo donde la foto ya no estaba en foco. Después
+ * decía, con razón, que no le había llegado nada.
+ *
+ * Tres cosas empujan turnos en esta pantalla a la vez: la voz del niño, la
+ * imagen y este mensaje. La imagen es la única que no puede esperar su lugar,
+ * así que las otras dos le ceden el paso.
  */
-const ESPERA_ANTES_DE_PREGUNTAR_MS = 900;
+const ESPERA_ANTES_DE_EMPUJAR_MS = 2500;
 
 export function useTutor(ninoId: string) {
   // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
@@ -53,6 +59,8 @@ export function useTutor(ninoId: string) {
   const [fotoEnviada, setFotoEnviada] = useState(false);
   /** El tutor todavía no dijo nada sobre la foto. Se apaga cuando habla. */
   const [mirandoFoto, setMirandoFoto] = useState(false);
+  /** ¿El tutor ya dijo algo desde que salió la foto? Si sí, no se le empuja. */
+  const hablóTrasFotoRef = useRef(false);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
@@ -241,6 +249,12 @@ export function useTutor(ninoId: string) {
           .then((stream) => {
             setCamara(stream);
             console.info("[camara] visor abierto");
+            // Que espere en silencio. Sin esto sigue conversando mientras el
+            // niño acomoda el cuaderno, y cada pregunta suya le da algo que
+            // contestar en vez de tomar la foto: los dos turnos se atropellan.
+            avisarAlTutor(
+              "[Sistema: se le abrió la cámara y está tomando la foto AHORA. Dile en una frase corta que apunte y toque el botón, y después espera en silencio hasta que llegue la imagen. No le hagas preguntas mientras tanto. No menciones este aviso.]",
+            );
           })
           .catch((e: any) => {
             const falla = explicarFallo(e);
@@ -306,28 +320,32 @@ export function useTutor(ninoId: string) {
         });
         console.info("[camara] foto enviada al tutor");
 
-        // La imagen entra al stream, pero NADA le pide al tutor que hable de
-        // ella: por eso había que preguntarle "¿qué ves?" para que reaccionara.
-        // Un texto corto cierra el turno y dispara la respuesta.
+        // EMPUJÓN CONDICIONAL. La imagen entra al stream y a veces el modelo
+        // arranca solo; cuando arranca, mandarle algo lo interrumpe. Así que se
+        // espera, y solo si NO dijo nada se le pide que mire.
         //
-        // Con retraso a propósito: si el texto llega antes de que la imagen
-        // esté procesada, el tutor contesta "no veo nada" sobre una foto que sí
-        // llegó — que es exactamente el peor resultado posible acá.
+        // El error anterior fue empujar siempre: cortó un "A ver," que ya iba
+        // en camino y dejó al tutor diciendo que no le llegó la foto.
+        hablóTrasFotoRef.current = false;
         setTimeout(() => {
+          if (hablóTrasFotoRef.current) {
+            console.info("[camara] el tutor ya está contestando: no se empuja");
+            return;
+          }
           try {
             liveRef.current?.sendClientContent({
               turns: {
                 role: "user",
-                parts: [{ text: "Ya te mandé la foto de mi cuaderno. ¿Qué ves?" }],
+                parts: [{ text: "¿Qué ves en la foto que te mandé?" }],
               },
               turnComplete: true,
             });
-            console.info("[camara] turno disparado");
+            console.info("[camara] no dijo nada: se le pide que mire");
           } catch (e) {
             // La imagen ya llegó igual; el niño puede preguntarle a viva voz.
-            console.warn("[camara] no se pudo disparar el turno:", e);
+            console.warn("[camara] no se pudo empujar:", e);
           }
-        }, ESPERA_ANTES_DE_PREGUNTAR_MS);
+        }, ESPERA_ANTES_DE_EMPUJAR_MS);
 
         // Confirmar ANTES de cerrar. Al tocar el botón el visor desaparecía de
         // golpe y lo único que quedaba era "cámara desactivada": el niño no
@@ -620,6 +638,7 @@ export function useTutor(ninoId: string) {
 
             for (const parte of contenido?.modelTurn?.parts ?? []) {
               if (parte.inlineData?.data) {
+                hablóTrasFotoRef.current = true; // no interrumpirlo
                 setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
                 reproductor.programar(parte.inlineData.data);
