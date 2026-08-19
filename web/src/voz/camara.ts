@@ -14,8 +14,19 @@
  * piden. El visor es un componente aparte.
  */
 
-/** Ancho al que se manda. Suficiente para leer un cuaderno, sin gastar de más. */
-const ANCHO_MAX = 1024;
+/**
+ * Ancho al que se manda la foto.
+ *
+ * 768 y no 1024, y el número no es arbitrario: los modelos de visión procesan
+ * la imagen en mosaicos, y hasta 768 px cabe en el mínimo. Pasado ese punto se
+ * parte en más mosaicos — más tokens que leer antes de poder contestar, y el
+ * niño esperando con el cuaderno en la mano.
+ *
+ * Un cuaderno de primaria con letra de niño se lee perfecto a 768. Lo que se
+ * gana en nitidez arriba de eso no lo necesita nadie; lo que se pierde en
+ * tiempo de respuesta se nota en cada foto.
+ */
+const ANCHO_MAX = 768;
 
 /** Un fallo de cámara con algo que el niño pueda leer y hacer. */
 export class ErrorCamara extends Error {
@@ -108,8 +119,9 @@ export function capturarCuadro(video: HTMLVideoElement): FotoTomada {
   if (!ctx) throw new Error("No pude preparar la imagen.");
   ctx.drawImage(video, 0, 0, lienzo.width, lienzo.height);
 
-  // 0.8: el texto a lápiz sigue legible y pesa la mitad que sin comprimir.
-  const url = lienzo.toDataURL("image/jpeg", 0.8);
+  // 0.75: el lápiz sigue legible y el archivo baja otro tanto. Cada kB es
+  // tiempo que el niño pasa esperando.
+  const url = lienzo.toDataURL("image/jpeg", 0.75);
   const base64 = url.split(",")[1] ?? "";
   if (base64.length < 1000) {
     // Un JPEG de un cuaderno pesa decenas de kB. Menos de 1 kB es un cuadro

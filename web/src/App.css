@@ -340,3 +340,40 @@
   margin: 0 var(--espacio-s);
   text-shadow: none;
 }
+
+
+/* Acuse de recibo de la foto: cubre el video con un destello y el visto.
+   Un disparo sin confirmación se siente como un error aunque haya salido. */
+.visor-listo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espacio-xs);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--acento);
+  font-size: var(--tam-base);
+  font-weight: 600;
+  animation: destello 0.7s ease-out;
+}
+
+.visor-listo-tic {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+@keyframes destello {
+  0%   { background: #fff; opacity: 1; }
+  100% { background: rgba(255, 255, 255, 0.94); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visor-listo { animation: none; }
+}
+
+.visor-disparo:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

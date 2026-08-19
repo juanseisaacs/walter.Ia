@@ -64,6 +64,8 @@ function Tutor({ ninoId }: { ninoId: string }) {
     camara,
     fallaCamara,
     avisoVisor,
+    fotoEnviada,
+    mirandoFoto,
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
@@ -106,7 +108,11 @@ function Tutor({ ninoId }: { ninoId: string }) {
               aria-hidden
             />
             <p className="tenue">
-              {estado === "hablando" ? "Tu tutor está hablando" : "Te escucho"}
+              {mirandoFoto
+                ? "Está mirando tu foto..."
+                : estado === "hablando"
+                  ? "Tu tutor está hablando"
+                  : "Te escucho"}
             </p>
           </>
         )}
@@ -152,6 +158,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
           stream={camara}
           falla={fallaCamara}
           aviso={avisoVisor}
+          enviada={fotoEnviada}
           alTomar={tomarFoto}
           alCancelar={cancelarFoto}
         />

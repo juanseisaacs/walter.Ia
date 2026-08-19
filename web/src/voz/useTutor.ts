@@ -40,6 +40,10 @@ export function useTutor(ninoId: string) {
   const [fallaCamara, setFallaCamara] = useState<string | null>(null);
   /** Aviso sobre el video sin cerrar el visor: 'espera y toca otra vez'. */
   const [avisoVisor, setAvisoVisor] = useState<string | null>(null);
+  /** La foto salió: se confirma en pantalla antes de cerrar el visor. */
+  const [fotoEnviada, setFotoEnviada] = useState(false);
+  /** El tutor todavía no dijo nada sobre la foto. Se apaga cuando habla. */
+  const [mirandoFoto, setMirandoFoto] = useState(false);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
@@ -298,6 +302,23 @@ export function useTutor(ninoId: string) {
           turnComplete: true,
         });
         console.info("[camara] foto enviada al tutor");
+
+        // Confirmar ANTES de cerrar. Al tocar el botón el visor desaparecía de
+        // golpe y lo único que quedaba era "cámara desactivada": el niño no
+        // tenía cómo saber si la foto salió o si algo se rompió. Un disparo sin
+        // acuse de recibo se siente como un error, aunque haya funcionado.
+        setFotoEnviada(true);
+        setMirandoFoto(true);
+        setTimeout(() => {
+          setFotoEnviada(false);
+          setAvisoVisor(null);
+          setFallaCamara(null);
+          setCamara((s) => {
+            cerrarCamara(s);
+            return null;
+          });
+        }, 700);
+        return;
       } catch (e) {
         console.error("[camara] no se pudo enviar:", e);
         avisarAlTutor(
@@ -326,6 +347,7 @@ export function useTutor(ninoId: string) {
   const abrirCamaraManual = useCallback(() => {
     setFallaCamara(null);
     setAvisoVisor(null);
+    setMirandoFoto(false);
     void abrirCamara()
       .then((stream) => {
         setCamara(stream);
@@ -572,6 +594,7 @@ export function useTutor(ninoId: string) {
 
             for (const parte of contenido?.modelTurn?.parts ?? []) {
               if (parte.inlineData?.data) {
+                setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
                 reproductor.programar(parte.inlineData.data);
               }
@@ -717,6 +740,8 @@ export function useTutor(ninoId: string) {
     camara,
     fallaCamara,
     avisoVisor,
+    fotoEnviada,
+    mirandoFoto,
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,

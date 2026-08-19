@@ -15,12 +15,14 @@ export default function VisorCamara({
   stream,
   falla,
   aviso,
+  enviada,
   alTomar,
   alCancelar,
 }: {
   stream: MediaStream | null;
   falla: string | null;
   aviso: string | null;
+  enviada: boolean;
   alTomar: (video: HTMLVideoElement) => void;
   alCancelar: () => void;
 }) {
@@ -66,9 +68,18 @@ export default function VisorCamara({
     <div className="visor" role="dialog" aria-label="Cámara">
       <div className="visor-marco">
         <video ref={videoRef} className="visor-video" muted playsInline />
-        <p className={aviso ? "visor-ayuda visor-ayuda-aviso" : "visor-ayuda"}>
-          {aviso ?? "Apunta a tu cuaderno"}
-        </p>
+        {/* Acuse de recibo: el niño ve que la foto salió, no un cierre seco. */}
+        {enviada && (
+          <div className="visor-listo" role="status">
+            <span className="visor-listo-tic" aria-hidden>✓</span>
+            <span>¡Listo! Ya se la mandé</span>
+          </div>
+        )}
+        {!enviada && (
+          <p className={aviso ? "visor-ayuda visor-ayuda-aviso" : "visor-ayuda"}>
+            {aviso ?? "Apunta a tu cuaderno"}
+          </p>
+        )}
       </div>
 
       <div className="visor-botones">
@@ -77,6 +88,7 @@ export default function VisorCamara({
         </button>
         <button
           className="visor-disparo"
+          disabled={enviada}
           onClick={() => videoRef.current && alTomar(videoRef.current)}
           aria-label="Tomar la foto"
         >
