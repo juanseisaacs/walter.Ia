@@ -84,9 +84,16 @@ MODELO_GENERADOR = "claude-haiku-4-5"
 # Se cobra suscripción fija; sin techo, el costo por niño es ilimitado.
 
 MAX_MINUTOS_SESION = 45
-MAX_TOKENS_SESION = 150_000
-MAX_SESIONES_DIA = 3
 MAX_COSTO_MES_USD_POR_NINO = 8.0
+
+# Los dos que hay que soltar para probar. Se leen del entorno, pero NO los pases
+# por el shell en Windows: `VAR=x python ...` en Git Bash no propaga a un .exe y
+# `export` no sobrevive al lanzamiento en segundo plano. El servidor arranca
+# igual, sin avisar, con los topes de producción — y se pierde un rato
+# entendiendo por qué la API contesta 429 con el cupo "en 100".
+# Para probar: `python -m scripts.servidor_pruebas`, que los pone en el proceso.
+MAX_TOKENS_SESION = int(os.getenv("MAX_TOKENS_SESION", "150000"))
+MAX_SESIONES_DIA = int(os.getenv("MAX_SESIONES_DIA", "3"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
