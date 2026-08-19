@@ -148,6 +148,57 @@ Lo arreglado está en los commits; esto es lo que quedó abierto.
   el mismo bug del audio suspendido (el niño repetía porque no oía la
   respuesta): verificar en la próxima sesión antes de tocar el VAD.
 
+### Estructura que falta (confirmado el 18/08, no es contenido)
+
+- 🔴 **El modo Pedido no se puede activar.** El backend lo soporta entero
+  —`ModoSesion.PEDIDO`, su bloque en el prompt, "Con la tarea del colegio" en el
+  playbook— y el frontend **siempre abre en guiado**. `ARCHITECTURE.md` §6
+  define dos modos de sesión y hoy solo uno es alcanzable: la mitad del producto
+  está construida y nadie puede llegar a ella. Es también el modo donde vive la
+  promesa que nos separa del "ChatGPT para la tarea".
+
+- 🔴 **`request_camera` es un stub.** Devuelve `{pedido: true}` y no abre nada.
+  El tutor cree que pidió ver el cuaderno, se lo dice al niño, y no pasa nada —
+  queda esperando una foto que nunca llega. Es central en modo Pedido: sin ver
+  la tarea, ayudar con ella es adivinar.
+
+- 🔴 **No existe la primera sesión del niño.** El tutor arranca igual la sesión 1
+  que la 50. No hay presentación, ni acuerdo de cómo van a trabajar, ni forma de
+  ganarse la confianza — y el niño llega a hablar con un desconocido que ya sabe
+  cosas de él. Lo detectó RBH en la primera prueba real del onboarding: el tutor
+  le dijo al niño que lo conocía porque él se lo había contado. Eso ya se
+  arregló (ver abajo), pero el hueco de fondo sigue: **falta el guion del primer
+  encuentro.**
+
+- **El techo de tokens no corta durante la sesión.** Se verifica al abrir. Con la
+  medición corregida no está sangrando, pero el hueco sigue.
+
+- **Aviso suave al papá por tema de familia** (Constitución §7.4). Evento nuevo,
+  distinto de `escalate_safety`: no es un riesgo, es un aviso.
+
+- ⚠️ **El prompt de sesión está a 208 caracteres de su techo** (37.792 / 38.000).
+  Lo próximo que alguien quiera agregar no entra. Adelgazarlo dejó de ser deuda
+  cómoda: es un bloqueo. No es costo (~$0.20/mes, medido) — es latencia y es
+  espacio.
+
+### Alimentar el contenido (decidido con RBH el 18/08)
+
+- **El onboarding del papá pregunta poco.** Funciona de punta a punta, pero
+  `parent_interview.es.md` se conforma con los cuatro obligatorios. Falta
+  decidir qué más vale la pena preguntar y cómo, para que el tutor arranque con
+  material de verdad.
+
+- **El onboarding del papá no debería ser solo texto.** Hoy es chat escrito. Las
+  tres opciones son texto (datos exactos, barato), voz (coherente con el
+  producto, el papá prueba lo que va a vivir su hijo) o las dos. El motor de la
+  entrevista vive en el backend y no sabe qué le llega: **cambiar esto es la
+  pantalla, no la arquitectura.**
+
+- **Falta el onboarding del NIÑO como pieza propia.** Reglas, pasos y cómo se
+  gana la confianza en el primer encuentro. Va en `knowledge/prompts/` — pero
+  ojo con el techo del prompt: probablemente tenga que ser un bloque que **solo
+  se inyecte cuando `madurez_vinculo == 0`**, no texto permanente.
+
 ### Lo demás
 
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa

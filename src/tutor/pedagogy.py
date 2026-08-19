@@ -406,7 +406,22 @@ def resumen_para_prompt(
     if p.notas:
         lineas.append(p.notas)
 
-    if p.madurez_vinculo < 3:
-        lineas.append("Todavía lo conocés poco: preguntá y explorá.")
+    # De dónde viene lo que sabe. El tutor tiene una regla dura sobre no decir
+    # "me contaron", y en la primera sesión esa regla lo hace mentir: todavía no
+    # habló con el niño ni una vez, todo esto se lo dijo el papá en el
+    # onboarding. Si el niño contesta "yo nunca te dije eso", el tutor queda
+    # como alguien que inventa — que es exactamente lo que la regla quería
+    # evitar. La distinción ya existía en el código (`madurez_vinculo=0` al
+    # crear desde la ficha); faltaba que llegara al prompt.
+    if p.madurez_vinculo == 0:
+        lineas.append(
+            "PRIMERA VEZ que hablan. Todo lo de arriba te lo contó su papá o su "
+            "mamá, no él: no digas que te lo contó él. Úsalo para preguntar, no "
+            "para demostrar que ya lo sabes. Si te pregunta cómo lo sabes, dile "
+            "la verdad con naturalidad — que su familia te contó para que se "
+            "conocieran más rápido."
+        )
+    elif p.madurez_vinculo < 3:
+        lineas.append("Todavía lo conoces poco: pregunta y explora.")
 
     return "\n".join(lineas)

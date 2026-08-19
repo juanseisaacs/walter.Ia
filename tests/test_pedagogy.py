@@ -390,8 +390,13 @@ def test_el_resumen_es_corto():
 
 
 def test_el_resumen_avisa_cuando_el_tutor_conoce_poco_al_nino():
+    """Dos avisos distintos, porque son dos situaciones distintas: no haber
+    hablado NUNCA (todo vino del papá) y llevar dos o tres sesiones."""
     g = cargar_grafo()
-    assert "conocés poco" in resumen_para_prompt(_nino(), g, AHORA)
+
+    poco = _nino()
+    poco.perfil.madurez_vinculo = 1
+    assert "lo conoces poco" in resumen_para_prompt(poco, g, AHORA)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -461,3 +466,51 @@ def test_no_se_presume_el_grado_que_esta_cursando():
         previos = [g.habilidad(p) for p in h.prerequisitos if g.existe(p)]
         if previos and all(p.grado_sugerido >= 2 for p in previos):
             assert h.id not in disponibles, f"{h.nombre} se coló sin evidencia de 2°"
+
+
+def test_la_primera_vez_el_tutor_sabe_que_se_lo_conto_el_papa():
+    """El tutor tiene prohibido decir "me contaron" — y en la primera sesión esa
+    regla lo hacía mentir.
+
+    Detectado en la primera prueba real del onboarding (18/08): el papá terminó
+    la entrevista, el niño entró, y el tutor le dijo que lo que sabía de él se
+    lo había contado él mismo. Nunca habían hablado. Si el niño responde "yo
+    nunca te dije eso", el tutor queda como alguien que inventa — justo lo
+    contrario de lo que la regla protegía, y contra "Verdad, siempre" de la
+    Constitución.
+
+    El código ya distinguía (`madurez_vinculo=0` al crear desde la ficha del
+    papá); lo que faltaba era que la distinción llegara al prompt.
+    """
+    grafo = cargar_grafo()
+    recien = Nino(id="n1", nombre="Juan", edad=7, grado=2)
+    recien.perfil.intereses = ["dinosaurios"]
+    recien.perfil.madurez_vinculo = 0
+
+    texto = resumen_para_prompt(recien, grafo, AHORA)
+    assert "PRIMERA VEZ" in texto
+    assert "no digas que te lo contó él" in texto
+
+
+def test_cuando_ya_se_conocen_no_le_avisa_de_la_primera_vez():
+    """La advertencia tiene que desaparecer sola, o el tutor le sigue diciendo
+    a un niño de la sesión diez que es la primera vez que hablan."""
+    grafo = cargar_grafo()
+    conocido = Nino(id="n1", nombre="Juan", edad=7, grado=2)
+    conocido.perfil.intereses = ["dinosaurios"]
+    conocido.perfil.madurez_vinculo = 4
+
+    texto = resumen_para_prompt(conocido, grafo, AHORA)
+    assert "PRIMERA VEZ" not in texto
+
+
+def test_el_resumen_del_nino_no_vosea():
+    """Va al prompt del tutor, que tiene prohibido el voseo. Ya se coló dos
+    veces por acá: es texto en Python, no en el .md que todos revisan."""
+    grafo = cargar_grafo()
+    nino = Nino(id="n1", nombre="Juan", edad=7, grado=2)
+    nino.perfil.madurez_vinculo = 1
+
+    texto = resumen_para_prompt(nino, grafo, AHORA).lower()
+    for forma in ["conocés", "preguntá", "explorá", "seguí", "tenés", "usá"]:
+        assert forma not in texto, f"voseo en el resumen del niño: {forma!r}"
