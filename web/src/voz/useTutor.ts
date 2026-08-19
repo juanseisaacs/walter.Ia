@@ -195,33 +195,63 @@ export function useTutor(ninoId: string) {
         });
       }
       case "request_camera": {
-        // Era un stub: devolvía {pedido:true} y no abría nada. El tutor le
-        // decía al niño "muéstrame tu cuaderno" y esperaba una foto que nunca
-        // iba a llegar.
+        // NO SE ESPERA A LA FOTO ACÁ, y es la corrección que costó una sesión.
+        //
+        // La primera versión hacía `await capturarFoto()` dentro del tool. Pedir
+        // la cámara abre un diálogo de permiso: el niño tarda lo que tarda un
+        // humano en leer y tocar "Permitir" — cinco, diez, quince segundos. Y
+        // Gemini bloquea el turno hasta que el tool responde. La conexión se
+        // cayó justo al aceptar el permiso (18/08, ses_a46dfd72a562).
+        //
+        // La regla del proyecto ya lo decía: un tool call es ~100ms, ocasional.
+        // Esperar a una persona adentro de uno rompe ese contrato.
+        //
+        // Ahora se contesta al instante y la foto viaja después, por su cuenta,
+        // cuando esté. Además el tutor puede seguir hablando mientras el niño
+        // acomoda el cuaderno — que es lo que haría alguien de verdad.
         const live = liveRef.current;
         if (!live) return { error: "no hay conexión para mandar la foto" };
 
-        try {
-          const foto = await capturarFoto();
-          // La imagen va por el mismo canal que el audio, directo a Gemini: no
-          // pasa por nuestro backend. Es la foto del cuaderno de un niño — el
-          // camino más corto es también el que menos copias deja.
-          live.sendRealtimeInput({
-            media: { data: foto.base64, mimeType: foto.mimeType },
+        void capturarFoto()
+          .then((foto) => {
+            // Directo a Gemini, por el mismo canal que el audio: no pasa por
+            // nuestro backend. Es la foto del cuaderno de un niño — el camino
+            // más corto es también el que menos copias deja.
+            liveRef.current?.sendRealtimeInput({
+              video: { data: foto.base64, mimeType: foto.mimeType },
+            });
+            console.info("[camara] foto enviada");
+          })
+          .catch((e: any) => {
+            const denegado = e?.name === "NotAllowedError";
+            console.warn("[camara] no se pudo:", e);
+            // Se le cuenta al tutor por el canal de texto, no como respuesta
+            // del tool: el turno de ese tool ya cerró hace rato.
+            try {
+              liveRef.current?.sendClientContent({
+                turns: {
+                  role: "user",
+                  parts: [
+                    {
+                      text: denegado
+                        ? "[Sistema: no se pudo abrir la cámara. Sigue sin la foto: pídele que te lo lea o te lo cuente. No menciones este aviso.]"
+                        : "[Sistema: la foto no salió. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
+                    },
+                  ],
+                },
+                turnComplete: false,
+              });
+            } catch {
+              /* si tampoco se puede avisar, el tutor sigue hablando igual */
+            }
           });
-          return medir({ foto_enviada: true, motivo: args.motivo });
-        } catch (e: any) {
-          // El tutor lee esto y puede seguir hablando. Quedarse esperando en
-          // silencio sería lo peor: el niño no sabría si tiene que hacer algo.
-          const denegado = e?.name === "NotAllowedError";
-          return medir({
-            foto_enviada: false,
-            motivo_falla: denegado
-              ? "el niño no dio permiso de cámara"
-              : (e?.message ?? "no se pudo tomar la foto"),
-            que_hacer: "Sigue sin la foto: pídele que te lo lea o te lo cuente.",
-          });
-        }
+
+        return medir({
+          pidiendo_camara: true,
+          que_hacer:
+            "Dile que acomode el cuaderno frente a la cámara y sigue hablando. " +
+            "La imagen te va a llegar en unos segundos.",
+        });
       }
       case "escalate_safety":
         await api.escalateSafety(sesion.sesion_id, args.motivo, args.evidencia);
