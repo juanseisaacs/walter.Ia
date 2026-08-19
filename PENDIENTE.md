@@ -199,6 +199,29 @@ Lo arreglado está en los commits; esto es lo que quedó abierto.
   ojo con el techo del prompt: probablemente tenga que ser un bloque que **solo
   se inyecte cuando `madurez_vinculo == 0`**, no texto permanente.
 
+### La cámara abre una puerta a la trampa (18/08, anotado con RBH)
+
+Con cámara, el niño puede **mostrar el ejercicio y esperar que el tutor lo
+resuelva**. Es la misma línea de siempre —ayudar con la tarea ≠ hacer la
+tarea— pero por un camino nuevo: hasta ahora tenía que *decir* el problema, y
+decirlo ya es trabajo. Enfocar la cámara no lo es.
+
+Tres formas concretas, y ninguna está cubierta hoy:
+
+1. **La página entera de la tarea.** El tutor ve diez ejercicios y puede
+   empezar a resolverlos en cadena, sin que el niño haya intentado ninguno.
+2. **La hoja de respuestas** del libro, o el cuaderno del compañero.
+3. **La foto en vez del intento.** "Mira" reemplazando a "yo creo que da…" —
+   el niño delega la lectura del problema, que es parte de resolverlo.
+
+Lo que hoy lo contiene es solo el playbook general. Falta decidir qué reglas
+propias lleva la cámara: por ejemplo, que ante una hoja con varios ejercicios el
+tutor elija UNO y pregunte por dónde empezaría; que nunca lea en voz alta un
+enunciado completo que el niño podría leer; y que una foto **no cuente como
+intento** para la escalera de pistas.
+
+Va con la tanda de reglas del modo Pedido, no suelto: es el mismo problema.
+
 ### Medido y descartado
 
 - ❌ **Prompt caching en los agentes offline.** El mínimo cacheable son 1024

@@ -35,8 +35,12 @@ const TURNOS_POR_REPORTE = 2;
  * Tres cosas empujan turnos en esta pantalla a la vez: la voz del niño, la
  * imagen y este mensaje. La imagen es la única que no puede esperar su lugar,
  * así que las otras dos le ceden el paso.
+ *
+ * Bajó de 2.500 a 1.200 cuando la guardia dejó de esperar al audio: ahora se
+ * detecta que el modelo arrancó en cuanto EMPIEZA a generar, no cuando ya
+ * suena. Con eso, esperar de más solo agrega silencio.
  */
-const ESPERA_ANTES_DE_EMPUJAR_MS = 2500;
+const ESPERA_ANTES_DE_EMPUJAR_MS = 1200;
 
 export function useTutor(ninoId: string) {
   // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
@@ -582,6 +586,16 @@ export function useTutor(ninoId: string) {
         callbacks: {
           onmessage: (mensaje: LiveServerMessage) => {
             const contenido = mensaje.serverContent as any;
+
+            // El modelo empezó a generar. Se marca ACÁ y no al llegar el primer
+            // audio: entre que arranca y suena hay un hueco, y en ese hueco la
+            // guardia lo veía callado y lo empujaba — cortándole la respuesta.
+            // Es lo que hacía que la PRIMERA foto de cada sesión tardara: se
+            // comía el timeout entero. Las siguientes ya encontraban el ciclo
+            // caliente y contestaban solas.
+            if (contenido?.modelTurn || contenido?.generationComplete) {
+              hablóTrasFotoRef.current = true;
+            }
 
             const gastados = (mensaje as any).usageMetadata?.totalTokenCount;
             if (gastados) {
