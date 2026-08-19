@@ -287,6 +287,7 @@ def construir_instruccion_sistema(
     idioma: str = cfg.IDIOMA_POR_DEFECTO,
     temas: list[tuple[str, str]] | None = None,
     tema_principal: str | None = None,
+    primer_encuentro: bool = False,
 ) -> str:
     """Persona + método + valores + seguridad + este niño.
 
@@ -308,6 +309,13 @@ def construir_instruccion_sistema(
         cargar_prompt("safety_policy", idioma),
         f"# Este niño\n\n{resumen_nino}",
     ]
+
+    # El primer encuentro NO es texto permanente, y ese es el patrón que
+    # mantiene el prompt flaco: lo que solo aplica a veces, entra solo a veces.
+    # Un tutor que en la sesión 40 sigue leyendo cómo presentarse gasta atención
+    # en algo que ya pasó, además de gastar espacio.
+    if primer_encuentro:
+        partes.append(cargar_prompt("primer_encuentro", idioma))
 
     if temas:
         partes.append(_bloque_temas(temas, tema_principal))

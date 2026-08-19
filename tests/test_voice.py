@@ -321,3 +321,41 @@ def test_el_bloque_del_modo_pedido_no_vosea():
     assert solo_pedido.strip(), "el modo pedido dejó de agregar su bloque"
     for forma in ["usá", "aplicás", "tenés", "querés", "mirá", "decile", "cerrá", "dale"]:
         assert forma not in solo_pedido, f"voseo en el bloque del modo pedido: {forma!r}"
+
+
+def test_el_primer_encuentro_solo_entra_la_primera_vez():
+    """El patrón que mantiene el prompt flaco: lo que aplica a veces, entra a
+    veces. Un tutor que en la sesión 40 sigue leyendo cómo presentarse gasta
+    atención en algo que ya pasó, además de gastar espacio.
+    """
+    normal = construir_instruccion_sistema("Juan, 7 años.")
+    primera = construir_instruccion_sistema("Juan, 7 años.", primer_encuentro=True)
+
+    assert "Hoy se conocen" in primera
+    assert "Hoy se conocen" not in normal, "el guion del primer día quedó pegado siempre"
+    assert "Yo no te doy las respuestas" in primera, "falta el acuerdo que más se prueba"
+
+
+def test_el_primer_encuentro_tambien_cabe_bajo_el_techo():
+    """El caso especial es el MÁS pesado, así que es el que hay que medir.
+
+    Mirar solo la sesión normal deja crecer el primer encuentro sin que nadie
+    lo vea — hasta que un niño nuevo estrena el prompt más gordo del sistema.
+    """
+    texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.", primer_encuentro=True)
+    assert len(texto) < 38_000, (
+        f"el prompt del primer encuentro llegó a {len(texto)} caracteres"
+    )
+
+
+def test_el_primer_encuentro_no_escribe_el_nombre_a_mano():
+    """El nombre vive en `config.NOMBRE_TUTOR` para tener un solo lugar que
+    cambiar — por país, o el día que la familia pueda elegirlo. Un ejemplo con
+    el nombre escrito en el .md lo convierte en dos lugares, y el segundo es el
+    que nadie se acuerda de tocar."""
+    from tutor import config as cfg
+
+    guion = cargar_prompt("primer_encuentro")
+    assert cfg.NOMBRE_TUTOR not in guion, (
+        f"'{cfg.NOMBRE_TUTOR}' quedó escrito a mano en primer_encuentro.es.md"
+    )

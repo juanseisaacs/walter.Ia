@@ -213,6 +213,7 @@ class Orquestador:
                 nino.idioma,
                 temas=self._temas_para_prompt(banco),
                 tema_principal=objetivo.id,
+                primer_encuentro=nino.perfil.madurez_vinculo == 0,
             ),
             deteccion=deteccion_para_edad(nino.edad),
         )
