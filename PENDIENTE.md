@@ -1,7 +1,28 @@
 # Pendiente — retomar acá
 
-_Última actualización: 2026-08-18, después de limpiar lo que dejaron dos sesiones
-de Claude Code trabajando en paralelo._
+_Última actualización: 2026-08-18, cierre del día. 40 commits._
+
+## 🔴 LO ÚNICO QUE IMPORTA AHORA — cinco niños que no sean nuestros
+
+El cuello de botella dejó de ser técnico. El circuito completo cierra y está
+verificado: voz → banco → `check_answer` → dominio → reporte → panel, más la
+cámara. Lo que falta es **evidencia de que alguien lo usa y vuelve**.
+
+En la base hay **2 niños, los dos de prueba, y 29 sesiones todas de depuración**.
+La más larga duró 7 minutos, contra un modelo de negocio que asume 20–30 diarios.
+
+Tres cosas se miden en esa semana, y ninguna se puede simular:
+
+1. **¿Vuelve un niño sin que se lo pidan?** Es el dato que ningún competidor
+   tiene y que ninguna feature reemplaza.
+2. **¿Aprende?** Todo el sistema mide dominio y nadie verificó que ese número
+   corresponda a aprendizaje real. Un pre/post simple lo responde.
+3. **¿Aguanta 20 minutos?** Un niño de 7 se distrae, contesta con monosílabos y
+   se levanta. Nada de eso apareció todavía porque el único usuario fue RBH.
+
+⚠️ Construir features nuevas antes de esto es sumar superficie sobre una
+hipótesis sin validar. Lo de abajo sigue siendo cierto y sigue pendiente — pero
+se ordena solo cuando exista ese dato.
 
 ## Estado: el circuito completo cierra, y está verificado salvo la voz
 
