@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
 import { ReproductorContinuo, aPcm16Base64 } from "./audio";
+import { capturarFoto } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
@@ -23,6 +24,8 @@ export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "erro
 const TURNOS_POR_REPORTE = 2;
 
 export function useTutor(ninoId: string) {
+  // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
+  const modoRef = useRef<"guiado" | "pedido">("guiado");
   const [estado, setEstado] = useState<Estado>("inicio");
   const [error, setError] = useState<string | null>(null);
   const [tema, setTema] = useState("");
@@ -188,8 +191,35 @@ export function useTutor(ninoId: string) {
           tema: r.ejercicio.habilidad_id,
         });
       }
-      case "request_camera":
-        return { pedido: true, motivo: args.motivo };
+      case "request_camera": {
+        // Era un stub: devolvía {pedido:true} y no abría nada. El tutor le
+        // decía al niño "muéstrame tu cuaderno" y esperaba una foto que nunca
+        // iba a llegar.
+        const live = liveRef.current;
+        if (!live) return { error: "no hay conexión para mandar la foto" };
+
+        try {
+          const foto = await capturarFoto();
+          // La imagen va por el mismo canal que el audio, directo a Gemini: no
+          // pasa por nuestro backend. Es la foto del cuaderno de un niño — el
+          // camino más corto es también el que menos copias deja.
+          live.sendRealtimeInput({
+            media: { data: foto.base64, mimeType: foto.mimeType },
+          });
+          return medir({ foto_enviada: true, motivo: args.motivo });
+        } catch (e: any) {
+          // El tutor lee esto y puede seguir hablando. Quedarse esperando en
+          // silencio sería lo peor: el niño no sabría si tiene que hacer algo.
+          const denegado = e?.name === "NotAllowedError";
+          return medir({
+            foto_enviada: false,
+            motivo_falla: denegado
+              ? "el niño no dio permiso de cámara"
+              : (e?.message ?? "no se pudo tomar la foto"),
+            que_hacer: "Sigue sin la foto: pídele que te lo lea o te lo cuente.",
+          });
+        }
+      }
       case "escalate_safety":
         await api.escalateSafety(sesion.sesion_id, args.motivo, args.evidencia);
         return { escalado: true };
@@ -294,7 +324,7 @@ export function useTutor(ninoId: string) {
 
   /* ── Arranque ──────────────────────────────────────────────────────────── */
 
-  const empezar = useCallback(async () => {
+  const empezar = useCallback(async (modo: "guiado" | "pedido" = "guiado") => {
     // GUARDIA DE REENTRADA — el bug de "dos tutores".
     //
     // Sin esto, dos llamadas a empezar() abren dos conexiones Live. liveRef y
@@ -337,7 +367,8 @@ export function useTutor(ninoId: string) {
       reproductor.alTerminar = () => setEstado((e) => (e === "hablando" ? "escuchando" : e));
       reproductorRef.current = reproductor;
 
-      const sesion = await api.abrirSesion(ninoId);
+      modoRef.current = modo;
+      const sesion = await api.abrirSesion(ninoId, modo);
       sesionRef.current = sesion;
       bancoRef.current = sesion.ejercicios ?? [];
       entregadosRef.current = new Set();
@@ -497,5 +528,15 @@ export function useTutor(ninoId: string) {
 
   useEffect(() => () => void terminar(true), [terminar]);
 
-  return { estado, error, tema, textoNino, textoTutor, nivelMic, empezar, terminar };
+  return {
+    estado,
+    error,
+    tema,
+    textoNino,
+    textoTutor,
+    nivelMic,
+    modo: modoRef.current,
+    empezar,
+    terminar,
+  };
 }

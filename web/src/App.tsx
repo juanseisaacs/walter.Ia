@@ -52,21 +52,30 @@ function SinNino({ alRegistrar }: { alRegistrar: () => void }) {
 }
 
 function Tutor({ ninoId }: { ninoId: string }) {
-  const { estado, error, tema, textoNino, textoTutor, nivelMic, empezar, terminar } =
+  const { estado, error, tema, textoNino, textoTutor, nivelMic, modo, empezar, terminar } =
     useTutor(ninoId);
 
   const enSesion = estado === "escuchando" || estado === "hablando";
 
   return (
     <main className="pantalla">
-      {tema && enSesion && <p className="tema">Hoy: {tema}</p>}
+      {enSesion && (
+        <p className="tema">{modo === "pedido" ? "Tu tarea" : tema ? `Hoy: ${tema}` : ""}</p>
+      )}
 
       <div className="centro">
         {estado === "inicio" && (
           <>
             <h1 className="titulo">¿Empezamos?</h1>
-            <button className="boton" onClick={() => void empezar()}>
+            <button className="boton" onClick={() => void empezar("guiado")}>
               Hablar con mi tutor
+            </button>
+            {/* El modo Pedido existía completo en el backend y no había forma
+                de llegar a él: la mitad del producto, construida y cerrada.
+                Es donde vive la promesa que nos separa del "ChatGPT para la
+                tarea" — y el método socrático ahí es MÁS estricto, no menos. */}
+            <button className="boton boton-segundo" onClick={() => void empezar("pedido")}>
+              Traigo una tarea
             </button>
           </>
         )}
@@ -89,7 +98,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
         {estado === "error" && (
           <>
             <p className="error">{error}</p>
-            <button className="boton" onClick={() => void empezar()}>
+            <button className="boton" onClick={() => void empezar(modo)}>
               Probar de nuevo
             </button>
           </>

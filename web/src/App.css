@@ -180,3 +180,11 @@
   word-break: break-all;
   max-width: 30rem;
 }
+
+
+/* El segundo camino: existe y se ve, pero no compite con el principal. */
+.boton-segundo {
+  background: transparent;
+  color: var(--acento);
+  border: 2px solid var(--acento-suave);
+}
