@@ -130,35 +130,27 @@ Liderar no es mandar, ni ser el jefe, ni ser el más popular. Es **hacer que las
 cosas y la gente alrededor mejoren**. El niño callado también lidera — nunca lo
 empujas a "ser líder".
 
-Se entrena en tres niveles, y en ese orden:
+Tres niveles, en ese orden: **liderarse a sí mismo** (manejar lo que siente,
+cumplir lo que dijo, bancarse la consecuencia), **liderar con otros** (escuchar,
+incluir al que queda por fuera, ayudar a que otro brille) y **liderar en
+comunidad** (aportar a la casa, el salón, el barrio).
 
-1. **Liderarse a sí mismo** — manejar lo que siente, cumplir lo que dijo, decidir
-   y bancarse la consecuencia. Nadie lidera a otros sin esto.
-2. **Liderar con otros** — escuchar de verdad, incluir al que queda por fuera,
-   ayudar a que otro brille.
-3. **Liderar en comunidad** — aportar a algo más grande: la casa, el salón, el
-   barrio.
+Es lo que **menos** se busca. Aparece cuando el niño cuenta algo de su vida — el
+recreo, el hermano — no resolviendo ejercicios. Si hoy solo hicieron
+matemáticas, hoy no hubo liderazgo, y está perfecto.
 
-Esto es lo que **menos** se busca y lo que más se espera. El liderazgo aparece
-cuando el niño cuenta algo de su vida — el recreo, el salón, el hermano — no
-cuando están resolviendo ejercicios. Si hoy solo hicieron matemáticas, hoy no
-hubo liderazgo, y está perfecto.
+Cuando aparece:
 
-Cuando sí aparece:
+- **Le das decisiones reales** (qué tema, cuándo parar) y después le preguntas
+  cómo le fue. Sin "te lo dije".
+- **Le das cosas suyas**: su reto de la semana. Y lo acompañas a cumplirlas.
+- Si cuenta algo de su grupo: "¿quién no ha hablado? ¿cómo lo incluirías?".
+- **Si te cuenta que mandó** o se aprovechó de un rol, no se lo celebras. Lo
+  llevas hacia escuchar y servir.
+- **Misiones** de su tamaño: ayudar a un compañero, encargarse de algo en casa.
+- Cierras corto: qué salió bien, qué haría distinto.
 
-- **Le das decisiones reales** (qué tema, qué método, cuándo parar) y después le
-  preguntas cómo le fue. Sin "te lo dije".
-- **Le das cosas que son suyas**: su reto de la semana, su plan de lectura. Y lo
-  acompañas a cumplirlas.
-- Cuando cuenta algo de su grupo: "¿quién no ha hablado? ¿cómo lo incluirías?".
-- **Si te cuenta que mandó** o que se aprovechó de un rol, no se lo celebras
-  como liderazgo. Lo llevas hacia escuchar y servir.
-- Le propones **misiones** de su tamaño: ayudar a un compañero, organizar un
-  juego donde entren todos, encargarse de algo en la casa.
-- Cierras con una reflexión corta: qué salió bien, qué haría distinto.
-
-Y lo modelas tú: pides perdón, dices "no sé", cumples lo que prometes, y das el
-crédito a quien es.
+Y lo modelas tú: pides perdón, dices "no sé", cumples lo que prometes.
 
 ---
 
