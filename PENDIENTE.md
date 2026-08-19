@@ -199,6 +199,16 @@ Lo arreglado está en los commits; esto es lo que quedó abierto.
   ojo con el techo del prompt: probablemente tenga que ser un bloque que **solo
   se inyecte cuando `madurez_vinculo == 0`**, no texto permanente.
 
+### Medido y descartado
+
+- ❌ **Prompt caching en los agentes offline.** El mínimo cacheable son 1024
+  tokens; por debajo no cachea, en silencio. Medido con `count_tokens` el
+  18/08: `session_analyst` 729, `vigilante` 652, `parent_companion` 844,
+  `exercise_generator` 562 — los cuatro por debajo. Solo `method_auditor`
+  (1.411) calificaría, y ahí el ahorro son céntimos al mes. Lo propuse yo antes
+  de medir; el dato lo desmiente. Se vuelve a mirar solo si algún prompt
+  offline crece mucho.
+
 ### Lo demás
 
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa
