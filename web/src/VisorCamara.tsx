@@ -13,10 +13,12 @@ import { useEffect, useRef } from "react";
 
 export default function VisorCamara({
   stream,
+  falla,
   alTomar,
   alCancelar,
 }: {
-  stream: MediaStream;
+  stream: MediaStream | null;
+  falla: string | null;
   alTomar: (video: HTMLVideoElement) => void;
   alCancelar: () => void;
 }) {
@@ -24,7 +26,7 @@ export default function VisorCamara({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !stream) return;
     video.srcObject = stream;
     void video.play().catch(() => {
       /* si el navegador lo bloquea, el niño ve el visor negro y puede cancelar */
@@ -39,6 +41,24 @@ export default function VisorCamara({
     window.addEventListener("keydown", alTecla);
     return () => window.removeEventListener("keydown", alTecla);
   }, [alCancelar]);
+
+  // Cuando la cámara no abre, el visor NO desaparece: muestra por qué y cómo
+  // arreglarlo. Antes fallaba en silencio y el niño se quedaba oyendo "toca el
+  // botón" sin botón en ninguna parte.
+  if (falla) {
+    return (
+      <div className="visor" role="alert" aria-label="La cámara no se pudo abrir">
+        <div className="visor-marco visor-marco-falla">
+          <p className="visor-falla">{falla}</p>
+        </div>
+        <div className="visor-botones">
+          <button className="visor-cancelar" onClick={alCancelar}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="visor" role="dialog" aria-label="Cámara">

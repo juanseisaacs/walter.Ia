@@ -62,6 +62,8 @@ function Tutor({ ninoId }: { ninoId: string }) {
     nivelMic,
     modo,
     camara,
+    fallaCamara,
+    abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
     empezar,
@@ -125,6 +127,17 @@ function Tutor({ ninoId }: { ninoId: string }) {
         </div>
       )}
 
+      {enSesion && !camara && !fallaCamara && (
+        <button
+          className="camara-boton"
+          onClick={abrirCamaraManual}
+          aria-label="Mostrarle algo con la cámara"
+          title="Mostrarle algo"
+        >
+          📷
+        </button>
+      )}
+
       {enSesion && (
         <button className="salir" onClick={() => void terminar()}>
           Terminar
@@ -133,8 +146,13 @@ function Tutor({ ninoId }: { ninoId: string }) {
 
       {/* Flota encima de la sesión: el tutor le sigue hablando mientras
           acomoda el cuaderno. */}
-      {camara && (
-        <VisorCamara stream={camara} alTomar={tomarFoto} alCancelar={cancelarFoto} />
+      {(camara || fallaCamara) && (
+        <VisorCamara
+          stream={camara}
+          falla={fallaCamara}
+          alTomar={tomarFoto}
+          alCancelar={cancelarFoto}
+        />
       )}
     </main>
   );

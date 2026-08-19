@@ -293,3 +293,40 @@
 }
 
 .visor-cancelar:hover { color: var(--texto); }
+
+
+/* La cámara no abrió: se dice y se explica, en vez de no mostrar nada. */
+.visor-marco-falla {
+  aspect-ratio: auto;
+  background: var(--fondo-suave);
+  display: grid;
+  place-items: center;
+  padding: var(--espacio-m);
+}
+
+.visor-falla {
+  margin: 0;
+  color: var(--texto);
+  font-size: var(--tam-chico);
+  text-align: center;
+  line-height: 1.5;
+}
+
+
+/* El niño puede mostrar algo cuando quiera, sin esperar a que se lo pidan. */
+.camara-boton {
+  position: fixed;
+  right: var(--espacio-m);
+  bottom: var(--espacio-m);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--fondo-suave);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+.camara-boton:active { transform: scale(0.94); }

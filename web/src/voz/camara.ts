@@ -17,6 +17,41 @@
 /** Ancho al que se manda. Suficiente para leer un cuaderno, sin gastar de más. */
 const ANCHO_MAX = 1024;
 
+/** Un fallo de cámara con algo que el niño pueda leer y hacer. */
+export class ErrorCamara extends Error {
+  constructor(
+    readonly clase: "sin_soporte" | "sin_permiso" | "sin_camara" | "ocupada" | "otro",
+    readonly paraElNino: string,
+  ) {
+    super(paraElNino);
+    this.name = "ErrorCamara";
+  }
+}
+
+/** Traduce el error del navegador a algo accionable. */
+export function explicarFallo(e: any): ErrorCamara {
+  if (e instanceof ErrorCamara) return e;
+  switch (e?.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return new ErrorCamara(
+        "sin_permiso",
+        "No tengo permiso para la cámara. Toca el candado 🔒 al lado de la dirección y permite la cámara.",
+      );
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return new ErrorCamara("sin_camara", "No encuentro ninguna cámara en este equipo.");
+    case "NotReadableError":
+    case "AbortError":
+      return new ErrorCamara(
+        "ocupada",
+        "La cámara la está usando otro programa. Ciérralo y volvemos a intentar.",
+      );
+    default:
+      return new ErrorCamara("otro", e?.message ?? "No pude abrir la cámara.");
+  }
+}
+
 export interface FotoTomada {
   base64: string;
   mimeType: "image/jpeg";
@@ -29,6 +64,16 @@ export interface FotoTomada {
  * el tutor no puede quedarse esperando una foto que no va a llegar.
  */
 export async function abrirCamara(): Promise<MediaStream> {
+  // `mediaDevices` no existe fuera de un contexto seguro (https o localhost) ni
+  // en algunos navegadores embebidos. Sin este chequeo el fallo es un
+  // "cannot read property of undefined" que no le dice nada a nadie.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new ErrorCamara(
+      "sin_soporte",
+      "Este navegador no me deja usar la cámara. Prueba abriendo la página en Chrome.",
+    );
+  }
+
   return navigator.mediaDevices.getUserMedia({
     // La de atrás si existe — el niño apunta al cuaderno. `ideal` y no `exact`:
     // en un portátil solo hay cámara frontal y con `exact` fallaría entero.

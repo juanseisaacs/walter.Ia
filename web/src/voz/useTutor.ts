@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
 import { ReproductorContinuo, aPcm16Base64 } from "./audio";
-import { abrirCamara, capturarCuadro, cerrarCamara } from "./camara";
+import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
@@ -35,6 +35,9 @@ export function useTutor(ninoId: string) {
   const [sesionMurio, setSesionMurio] = useState(false);
   /** Cuando no es null, hay un visor abierto esperando que el niño dispare. */
   const [camara, setCamara] = useState<MediaStream | null>(null);
+  /** Por qué no se pudo abrir. Se muestra EN PANTALLA, no solo en consola:
+      un fallo invisible deja al niño oyendo 'toca el botón' sin botón. */
+  const [fallaCamara, setFallaCamara] = useState<string | null>(null);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
@@ -218,26 +221,29 @@ export function useTutor(ninoId: string) {
         // a una persona adentro tumbó la sesión el 18/08 (ses_a46dfd72a562).
         if (!liveRef.current) return { error: "no hay conexión para mandar la foto" };
 
+        setFallaCamara(null);
         void abrirCamara()
           .then((stream) => {
             setCamara(stream);
             console.info("[camara] visor abierto");
           })
           .catch((e: any) => {
-            console.warn("[camara] no se pudo abrir:", e);
+            const falla = explicarFallo(e);
+            console.warn(`[camara] ${falla.clase}:`, e);
+            // En pantalla Y al tutor. Solo en consola era invisible: el niño
+            // oía "toca el botón" y no había botón en ningún lado.
+            setFallaCamara(falla.paraElNino);
             avisarAlTutor(
-              e?.name === "NotAllowedError"
-                ? "[Sistema: no hay permiso de cámara. Sigue sin la foto: pídele que te lo lea o te lo cuente. No menciones este aviso.]"
-                : "[Sistema: no se pudo abrir la cámara. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
+              `[Sistema: no se pudo abrir la cámara (${falla.clase}). En la pantalla ya se le explicó qué hacer. Sigue sin la foto: pídele que te lo lea o te lo cuente. No menciones este aviso.]`,
             );
           });
 
         return medir({
-          camara_abierta: true,
+          camara_pedida: true,
           que_hacer:
-            "Se le abrió la cámara. Dile en voz alta que apunte al cuaderno y " +
-            "toque el botón redondo para tomar la foto. Sigue hablando mientras " +
-            "acomoda; la imagen te llega cuando dispare.",
+            "Se le está abriendo la cámara. Dile que apunte al cuaderno y toque " +
+            "el botón redondo. Si no se le abre, en la pantalla le aparece qué " +
+            "hacer. Sigue hablando mientras acomoda.",
         });
       }
       case "escalate_safety":
@@ -268,6 +274,7 @@ export function useTutor(ninoId: string) {
           "[Sistema: la foto no salió. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
         );
       } finally {
+        setFallaCamara(null);
         setCamara((s) => {
           cerrarCamara(s);
           return null;
@@ -277,7 +284,33 @@ export function useTutor(ninoId: string) {
     [avisarAlTutor],
   );
 
+  /**
+   * Abrir la cámara sin que el tutor la pida.
+   *
+   * Sirve para dos cosas. Para el niño: mostrar algo cuando él quiere, sin
+   * tener que pedir permiso de hablar. Y para nosotros: separa "la cámara del
+   * navegador funciona" de "el flujo con el tutor funciona" — cuando falló el
+   * 18/08 no había forma de saber cuál de las dos estaba rota.
+   */
+  const abrirCamaraManual = useCallback(() => {
+    setFallaCamara(null);
+    void abrirCamara()
+      .then((stream) => {
+        setCamara(stream);
+        console.info("[camara] visor abierto (a pedido del niño)");
+        avisarAlTutor(
+          "[Sistema: abrió la cámara por su cuenta para mostrarte algo. Pregúntale qué te quiere enseñar. No menciones este aviso.]",
+        );
+      })
+      .catch((e: any) => {
+        const falla = explicarFallo(e);
+        console.warn(`[camara] ${falla.clase}:`, e);
+        setFallaCamara(falla.paraElNino);
+      });
+  }, [avisarAlTutor]);
+
   const cancelarFoto = useCallback(() => {
+    setFallaCamara(null);
     setCamara((s) => {
       cerrarCamara(s);
       return null;
@@ -649,6 +682,8 @@ export function useTutor(ninoId: string) {
     nivelMic,
     modo: modoRef.current,
     camara,
+    fallaCamara,
+    abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
     empezar,
