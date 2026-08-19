@@ -23,6 +23,15 @@ export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "erro
 /** Cada cuántos turnos se reporta al backend. Bajo = más seguro, más llamadas. */
 const TURNOS_POR_REPORTE = 2;
 
+/**
+ * Cuánto esperar entre mandar la foto y preguntarle al tutor qué ve.
+ *
+ * La imagen viaja por el stream y tarda en estar disponible. Preguntar antes de
+ * tiempo hace que conteste "no veo nada" sobre una foto que sí llegó — el peor
+ * resultado posible, porque el niño la tomó bien y le dicen que no.
+ */
+const ESPERA_ANTES_DE_PREGUNTAR_MS = 900;
+
 export function useTutor(ninoId: string) {
   // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
   const modoRef = useRef<"guiado" | "pedido">("guiado");
@@ -279,29 +288,46 @@ export function useTutor(ninoId: string) {
         return;
       }
 
-      // Va como CONTENIDO DE TURNO, no por sendRealtimeInput.
+      // POR `sendRealtimeInput`, y esto está verificado con una foto real: el
+      // 18/08 el tutor describió correctamente una mano con cinco dedos que
+      // llegó por acá.
       //
-      // `sendRealtimeInput` es el canal del stream de audio en vivo: entrega
-      // sin garantía de que el modelo lo tome como parte de ESTE turno. Una
-      // foto no es un flujo continuo — es algo que el niño acaba de mostrar y
-      // sobre lo que espera respuesta ahora. Por ese canal quedaba en un limbo:
-      // el tutor no la veía y hablaba igual, que fue lo que se leyó como que
-      // "mintió" sobre lo que estaba viendo.
+      // Se probó cambiarlo a `sendClientContent` con la imagen dentro de un
+      // turno, razonando que era el canal "correcto" para contenido puntual.
+      // El resultado fue que el tutor dejó de ver la foto y se quedaba
+      // colgado. Se revirtió.
       //
-      // Como turno de usuario con `turnComplete`, la imagen entra en la
-      // conversación y el modelo responde a ella.
+      // Queda anotado porque el razonamiento sonaba bien y era falso: se
+      // cambió algo que YA FUNCIONABA por un argumento sobre canales, sin una
+      // sola prueba en contra. Lo verificado le gana a lo que parece correcto.
       try {
-        liveRef.current?.sendClientContent({
-          turns: {
-            role: "user",
-            parts: [
-              { inlineData: { data: foto.base64, mimeType: foto.mimeType } },
-              { text: "Mira, esto es lo que te quería mostrar." },
-            ],
-          },
-          turnComplete: true,
+        liveRef.current?.sendRealtimeInput({
+          video: { data: foto.base64, mimeType: foto.mimeType },
         });
         console.info("[camara] foto enviada al tutor");
+
+        // La imagen entra al stream, pero NADA le pide al tutor que hable de
+        // ella: por eso había que preguntarle "¿qué ves?" para que reaccionara.
+        // Un texto corto cierra el turno y dispara la respuesta.
+        //
+        // Con retraso a propósito: si el texto llega antes de que la imagen
+        // esté procesada, el tutor contesta "no veo nada" sobre una foto que sí
+        // llegó — que es exactamente el peor resultado posible acá.
+        setTimeout(() => {
+          try {
+            liveRef.current?.sendClientContent({
+              turns: {
+                role: "user",
+                parts: [{ text: "Ya te mandé la foto de mi cuaderno. ¿Qué ves?" }],
+              },
+              turnComplete: true,
+            });
+            console.info("[camara] turno disparado");
+          } catch (e) {
+            // La imagen ya llegó igual; el niño puede preguntarle a viva voz.
+            console.warn("[camara] no se pudo disparar el turno:", e);
+          }
+        }, ESPERA_ANTES_DE_PREGUNTAR_MS);
 
         // Confirmar ANTES de cerrar. Al tocar el botón el visor desaparecía de
         // golpe y lo único que quedaba era "cámara desactivada": el niño no
