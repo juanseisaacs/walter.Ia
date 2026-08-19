@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
 import { ReproductorContinuo, aPcm16Base64 } from "./audio";
-import { capturarFoto } from "./camara";
+import { abrirCamara, capturarCuadro, cerrarCamara } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
@@ -33,6 +33,8 @@ export function useTutor(ninoId: string) {
   const [textoTutor, setTextoTutor] = useState("");
   const [nivelMic, setNivelMic] = useState(0);
   const [sesionMurio, setSesionMurio] = useState(false);
+  /** Cuando no es null, hay un visor abierto esperando que el niño dispare. */
+  const [camara, setCamara] = useState<MediaStream | null>(null);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
@@ -97,6 +99,18 @@ export function useTutor(ninoId: string) {
 
   /* ── Tool calls ────────────────────────────────────────────────────────
      El modelo los pide; nosotros los resolvemos contra el backend. */
+
+  /** Le cuenta algo al tutor por el canal de texto, fuera del ciclo de un tool. */
+  const avisarAlTutor = useCallback((texto: string) => {
+    try {
+      liveRef.current?.sendClientContent({
+        turns: { role: "user", parts: [{ text: texto }] },
+        turnComplete: false,
+      });
+    } catch {
+      /* si no se puede avisar, el tutor sigue hablando igual */
+    }
+  }, []);
 
   const atenderTool = useCallback(async (nombre: string, args: any): Promise<object> => {
     const sesion = sesionRef.current;
@@ -195,62 +209,35 @@ export function useTutor(ninoId: string) {
         });
       }
       case "request_camera": {
-        // NO SE ESPERA A LA FOTO ACÁ, y es la corrección que costó una sesión.
+        // Se abre el VISOR, no se dispara la foto. La primera versión capturaba
+        // sola a los 350ms: la cámara parpadeaba, se apagaba, y la foto salía de
+        // lo que hubiera enfrente. Nadie fotografía un cuaderno a ciegas.
         //
-        // La primera versión hacía `await capturarFoto()` dentro del tool. Pedir
-        // la cámara abre un diálogo de permiso: el niño tarda lo que tarda un
-        // humano en leer y tocar "Permitir" — cinco, diez, quince segundos. Y
-        // Gemini bloquea el turno hasta que el tool responde. La conexión se
-        // cayó justo al aceptar el permiso (18/08, ses_a46dfd72a562).
-        //
-        // La regla del proyecto ya lo decía: un tool call es ~100ms, ocasional.
-        // Esperar a una persona adentro de uno rompe ese contrato.
-        //
-        // Ahora se contesta al instante y la foto viaja después, por su cuenta,
-        // cuando esté. Además el tutor puede seguir hablando mientras el niño
-        // acomoda el cuaderno — que es lo que haría alguien de verdad.
-        const live = liveRef.current;
-        if (!live) return { error: "no hay conexión para mandar la foto" };
+        // Y no se espera acá al niño: pedir la cámara abre un diálogo de permiso
+        // y después hay que acomodar el cuaderno. Un tool call es ~100ms; meter
+        // a una persona adentro tumbó la sesión el 18/08 (ses_a46dfd72a562).
+        if (!liveRef.current) return { error: "no hay conexión para mandar la foto" };
 
-        void capturarFoto()
-          .then((foto) => {
-            // Directo a Gemini, por el mismo canal que el audio: no pasa por
-            // nuestro backend. Es la foto del cuaderno de un niño — el camino
-            // más corto es también el que menos copias deja.
-            liveRef.current?.sendRealtimeInput({
-              video: { data: foto.base64, mimeType: foto.mimeType },
-            });
-            console.info("[camara] foto enviada");
+        void abrirCamara()
+          .then((stream) => {
+            setCamara(stream);
+            console.info("[camara] visor abierto");
           })
           .catch((e: any) => {
-            const denegado = e?.name === "NotAllowedError";
-            console.warn("[camara] no se pudo:", e);
-            // Se le cuenta al tutor por el canal de texto, no como respuesta
-            // del tool: el turno de ese tool ya cerró hace rato.
-            try {
-              liveRef.current?.sendClientContent({
-                turns: {
-                  role: "user",
-                  parts: [
-                    {
-                      text: denegado
-                        ? "[Sistema: no se pudo abrir la cámara. Sigue sin la foto: pídele que te lo lea o te lo cuente. No menciones este aviso.]"
-                        : "[Sistema: la foto no salió. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
-                    },
-                  ],
-                },
-                turnComplete: false,
-              });
-            } catch {
-              /* si tampoco se puede avisar, el tutor sigue hablando igual */
-            }
+            console.warn("[camara] no se pudo abrir:", e);
+            avisarAlTutor(
+              e?.name === "NotAllowedError"
+                ? "[Sistema: no hay permiso de cámara. Sigue sin la foto: pídele que te lo lea o te lo cuente. No menciones este aviso.]"
+                : "[Sistema: no se pudo abrir la cámara. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
+            );
           });
 
         return medir({
-          pidiendo_camara: true,
+          camara_abierta: true,
           que_hacer:
-            "Dile que acomode el cuaderno frente a la cámara y sigue hablando. " +
-            "La imagen te va a llegar en unos segundos.",
+            "Se le abrió la cámara. Dile en voz alta que apunte al cuaderno y " +
+            "toque el botón redondo para tomar la foto. Sigue hablando mientras " +
+            "acomoda; la imagen te llega cuando dispare.",
         });
       }
       case "escalate_safety":
@@ -259,13 +246,56 @@ export function useTutor(ninoId: string) {
       default:
         return { error: `tool desconocido: ${nombre}` };
     }
-  }, []);
+  }, [avisarAlTutor]);
+
+  /* ── La foto ────────────────────────────────────────────────────────────
+     La dispara el niño, no un temporizador. */
+
+  const tomarFoto = useCallback(
+    (video: HTMLVideoElement) => {
+      try {
+        const foto = capturarCuadro(video);
+        // Directo a Gemini por el mismo canal que el audio: no pasa por nuestro
+        // backend. Es la foto del cuaderno de un niño — el camino más corto es
+        // también el que menos copias deja.
+        liveRef.current?.sendRealtimeInput({
+          video: { data: foto.base64, mimeType: foto.mimeType },
+        });
+        console.info("[camara] foto enviada");
+      } catch (e) {
+        console.warn("[camara] falló la captura:", e);
+        avisarAlTutor(
+          "[Sistema: la foto no salió. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
+        );
+      } finally {
+        setCamara((s) => {
+          cerrarCamara(s);
+          return null;
+        });
+      }
+    },
+    [avisarAlTutor],
+  );
+
+  const cancelarFoto = useCallback(() => {
+    setCamara((s) => {
+      cerrarCamara(s);
+      return null;
+    });
+    avisarAlTutor(
+      "[Sistema: cerró la cámara sin tomar la foto. No insistas: pídele que te lo cuente. No menciones este aviso.]",
+    );
+  }, [avisarAlTutor]);
 
   /* ── Soltar recursos ────────────────────────────────────────
      Micrófono, WebSocket y audio. Lo llaman terminar(), onerror y empezar():
      este último para que NUNCA queden dos sesiones vivas a la vez. */
 
   const soltarRecursos = useCallback(() => {
+    setCamara((s) => {
+      cerrarCamara(s); // que se acabe la sesión no puede dejarla encendida
+      return null;
+    });
     micRef.current?.detener();
     micRef.current = null;
     try {
@@ -618,6 +648,9 @@ export function useTutor(ninoId: string) {
     textoTutor,
     nivelMic,
     modo: modoRef.current,
+    camara,
+    tomarFoto,
+    cancelarFoto,
     empezar,
     terminar,
   };

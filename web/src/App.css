@@ -188,3 +188,108 @@
   color: var(--acento);
   border: 2px solid var(--acento-suave);
 }
+
+
+/* ── Visor de la cámara ───────────────────────────────────────────────
+   Flota sobre la sesión, abajo a la derecha en pantalla grande y ocupando
+   el ancho en el teléfono, que es donde de verdad se va a usar. */
+
+.visor {
+  position: fixed;
+  right: var(--espacio-m);
+  bottom: var(--espacio-m);
+  width: min(21rem, calc(100vw - var(--espacio-m) * 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-s);
+  padding: var(--espacio-s);
+  background: var(--fondo);
+  border-radius: var(--radio);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+  animation: visor-entra 0.22s ease-out;
+}
+
+@keyframes visor-entra {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visor { animation: none; }
+}
+
+.visor-marco {
+  position: relative;
+  border-radius: calc(var(--radio) - 4px);
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 4 / 3;
+}
+
+.visor-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Sobre el video, con sombra para que se lea sobre cualquier fondo. */
+.visor-ayuda {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--espacio-s);
+  text-align: center;
+  color: #fff;
+  font-size: var(--tam-chico);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  margin: 0;
+}
+
+.visor-botones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espacio-s);
+}
+
+/* Redondo y grande: un chico de 7 no apunta con precisión de adulto. */
+.visor-disparo {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 4px solid var(--acento);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease;
+}
+
+.visor-disparo:active { transform: scale(0.92); }
+
+.visor-disparo-punto {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--acento);
+}
+
+.visor-cancelar,
+.visor-equilibrio {
+  flex: 0 0 5.5rem;
+}
+
+.visor-cancelar {
+  background: none;
+  border: none;
+  color: var(--texto-tenue);
+  font: inherit;
+  font-size: var(--tam-chico);
+  text-align: left;
+  cursor: pointer;
+  padding: var(--espacio-xs);
+}
+
+.visor-cancelar:hover { color: var(--texto); }

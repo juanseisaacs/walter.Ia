@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import "./App.css";
 import Onboarding from "./Onboarding";
+import VisorCamara from "./VisorCamara";
 import { ninoActual } from "./nino";
 import { useTutor } from "./voz/useTutor";
 
@@ -52,8 +53,20 @@ function SinNino({ alRegistrar }: { alRegistrar: () => void }) {
 }
 
 function Tutor({ ninoId }: { ninoId: string }) {
-  const { estado, error, tema, textoNino, textoTutor, nivelMic, modo, empezar, terminar } =
-    useTutor(ninoId);
+  const {
+    estado,
+    error,
+    tema,
+    textoNino,
+    textoTutor,
+    nivelMic,
+    modo,
+    camara,
+    tomarFoto,
+    cancelarFoto,
+    empezar,
+    terminar,
+  } = useTutor(ninoId);
 
   const enSesion = estado === "escuchando" || estado === "hablando";
 
@@ -116,6 +129,12 @@ function Tutor({ ninoId }: { ninoId: string }) {
         <button className="salir" onClick={() => void terminar()}>
           Terminar
         </button>
+      )}
+
+      {/* Flota encima de la sesión: el tutor le sigue hablando mientras
+          acomoda el cuaderno. */}
+      {camara && (
+        <VisorCamara stream={camara} alTomar={tomarFoto} alCancelar={cancelarFoto} />
       )}
     </main>
   );
