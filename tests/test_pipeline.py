@@ -751,3 +751,39 @@ def test_si_el_modelo_devuelve_basura_los_demas_ninos_igual_reciben(tmp_path):
     assert [r.nino_id for r in generados] == ["n1"]
     assert fallidos[0].nino_id == "n2"
     assert "JSON" in fallidos[0].motivo
+
+
+def test_el_entrevistador_del_papa_no_vosea():
+    """El modelo imita el registro de sus instrucciones — es la lección que ya
+    costó cara en el prompt del tutor.
+
+    Este archivo estuvo entero en voseo argentino ("Sos", "Tenés", "Escuchá",
+    "Decile") hasta el 18/08, y de ahí salía el registro con el que le hablaba a
+    un papá colombiano. Cuarta vez que el voseo se cuela por un lugar que nadie
+    revisa.
+    """
+    from tutor.pipeline import cargar_prompt
+
+    # Se salta la línea que las VETA, que obviamente las nombra. Mismo cuidado
+    # que en el test del bloque del modo pedido: buscar a ciegas da un falso
+    # positivo justo sobre la regla que uno quiere proteger.
+    lineas = [
+        l for l in cargar_prompt("parent_interview").lower().splitlines()
+        if "sin voseo" not in l
+    ]
+    guion = chr(10).join(lineas)
+    for forma in ["sos ", "tenés", "conversás", "escuchá", "preguntá", "decile", "cerrá"]:
+        assert forma not in guion, f"voseo en el entrevistador del papá: {forma!r}"
+
+
+def test_el_entrevistador_no_pide_datos_medicos():
+    """Pedir diagnósticos cambia lo que somos, y no hace falta para empezar.
+
+    Si el papá los trae por su cuenta se reciben sin repreguntar; lo que no se
+    hace es ir a buscarlos.
+    """
+    from tutor.pipeline import cargar_prompt
+
+    guion = cargar_prompt("parent_interview")
+    assert "Diagnósticos, terapias o condiciones médicas" in guion
+    assert "Lo que NO preguntas" in guion
