@@ -330,3 +330,13 @@
 }
 
 .camara-boton:active { transform: scale(0.94); }
+
+
+/* Aviso sobre el video sin sacar al niño del visor. */
+.visor-ayuda-aviso {
+  background: rgba(178, 58, 47, 0.92);
+  padding: var(--espacio-xs) var(--espacio-s);
+  border-radius: var(--radio-chico);
+  margin: 0 var(--espacio-s);
+  text-shadow: none;
+}

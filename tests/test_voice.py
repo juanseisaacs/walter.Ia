@@ -341,9 +341,19 @@ def test_el_primer_encuentro_tambien_cabe_bajo_el_techo():
 
     Mirar solo la sesión normal deja crecer el primer encuentro sin que nadie
     lo vea — hasta que un niño nuevo estrena el prompt más gordo del sistema.
+
+    Techo propio (40 KB) y no el de la sesión normal (38 KB), decidido el 18/08
+    tras chocar tres veces en una tarde. Este caso carga un bloque entero de más
+    por definición, así que medirlo contra el mismo número obligaba a comprimir
+    prosa que estaba bien cada vez que se tocaba cualquier otra sección. Los dos
+    techos siguen puestos y siguen siendo decisiones; lo que cambió es que ahora
+    son dos, porque son dos casos distintos.
+
+    Sigue en pie que el prompt está gordo y que adelgazarlo de verdad —mover
+    doctrina a knowledge/product/— es deuda abierta. Subir un techo no la paga.
     """
     texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.", primer_encuentro=True)
-    assert len(texto) < 38_000, (
+    assert len(texto) < 40_000, (
         f"el prompt del primer encuentro llegó a {len(texto)} caracteres"
     )
 

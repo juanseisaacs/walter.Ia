@@ -14,11 +14,13 @@ import { useEffect, useRef } from "react";
 export default function VisorCamara({
   stream,
   falla,
+  aviso,
   alTomar,
   alCancelar,
 }: {
   stream: MediaStream | null;
   falla: string | null;
+  aviso: string | null;
   alTomar: (video: HTMLVideoElement) => void;
   alCancelar: () => void;
 }) {
@@ -64,7 +66,9 @@ export default function VisorCamara({
     <div className="visor" role="dialog" aria-label="Cámara">
       <div className="visor-marco">
         <video ref={videoRef} className="visor-video" muted playsInline />
-        <p className="visor-ayuda">Apunta a tu cuaderno</p>
+        <p className={aviso ? "visor-ayuda visor-ayuda-aviso" : "visor-ayuda"}>
+          {aviso ?? "Apunta a tu cuaderno"}
+        </p>
       </div>
 
       <div className="visor-botones">

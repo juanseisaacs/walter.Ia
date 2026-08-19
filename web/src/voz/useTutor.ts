@@ -38,6 +38,8 @@ export function useTutor(ninoId: string) {
   /** Por qué no se pudo abrir. Se muestra EN PANTALLA, no solo en consola:
       un fallo invisible deja al niño oyendo 'toca el botón' sin botón. */
   const [fallaCamara, setFallaCamara] = useState<string | null>(null);
+  /** Aviso sobre el video sin cerrar el visor: 'espera y toca otra vez'. */
+  const [avisoVisor, setAvisoVisor] = useState<string | null>(null);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
@@ -259,27 +261,56 @@ export function useTutor(ninoId: string) {
 
   const tomarFoto = useCallback(
     (video: HTMLVideoElement) => {
+      let foto;
       try {
-        const foto = capturarCuadro(video);
-        // Directo a Gemini por el mismo canal que el audio: no pasa por nuestro
-        // backend. Es la foto del cuaderno de un niño — el camino más corto es
-        // también el que menos copias deja.
-        liveRef.current?.sendRealtimeInput({
-          video: { data: foto.base64, mimeType: foto.mimeType },
-        });
-        console.info("[camara] foto enviada");
-      } catch (e) {
-        console.warn("[camara] falló la captura:", e);
-        avisarAlTutor(
-          "[Sistema: la foto no salió. Pídele que te lo lea o te lo cuente. No menciones este aviso.]",
-        );
-      } finally {
-        setFallaCamara(null);
-        setCamara((s) => {
-          cerrarCamara(s);
-          return null;
-        });
+        foto = capturarCuadro(video);
+      } catch (e: any) {
+        // El visor NO se cierra: el fallo típico es que el video todavía no
+        // tiene dimensiones, y en un segundo sí las tiene. Cerrarlo obligaría
+        // al niño a pedirle la cámara al tutor otra vez por algo que se
+        // arregla tocando de nuevo.
+        const falla = explicarFallo(e);
+        console.warn("[camara] no se pudo capturar:", e);
+        setAvisoVisor(falla.paraElNino);
+        return;
       }
+
+      // Va como CONTENIDO DE TURNO, no por sendRealtimeInput.
+      //
+      // `sendRealtimeInput` es el canal del stream de audio en vivo: entrega
+      // sin garantía de que el modelo lo tome como parte de ESTE turno. Una
+      // foto no es un flujo continuo — es algo que el niño acaba de mostrar y
+      // sobre lo que espera respuesta ahora. Por ese canal quedaba en un limbo:
+      // el tutor no la veía y hablaba igual, que fue lo que se leyó como que
+      // "mintió" sobre lo que estaba viendo.
+      //
+      // Como turno de usuario con `turnComplete`, la imagen entra en la
+      // conversación y el modelo responde a ella.
+      try {
+        liveRef.current?.sendClientContent({
+          turns: {
+            role: "user",
+            parts: [
+              { inlineData: { data: foto.base64, mimeType: foto.mimeType } },
+              { text: "Mira, esto es lo que te quería mostrar." },
+            ],
+          },
+          turnComplete: true,
+        });
+        console.info("[camara] foto enviada al tutor");
+      } catch (e) {
+        console.error("[camara] no se pudo enviar:", e);
+        avisarAlTutor(
+          "[Sistema: la foto NO te llegó. No describas ninguna imagen: dile que no te llegó y que te lo cuente. No menciones este aviso.]",
+        );
+      }
+
+      setAvisoVisor(null);
+      setFallaCamara(null);
+      setCamara((s) => {
+        cerrarCamara(s);
+        return null;
+      });
     },
     [avisarAlTutor],
   );
@@ -294,6 +325,7 @@ export function useTutor(ninoId: string) {
    */
   const abrirCamaraManual = useCallback(() => {
     setFallaCamara(null);
+    setAvisoVisor(null);
     void abrirCamara()
       .then((stream) => {
         setCamara(stream);
@@ -311,6 +343,7 @@ export function useTutor(ninoId: string) {
 
   const cancelarFoto = useCallback(() => {
     setFallaCamara(null);
+    setAvisoVisor(null);
     setCamara((s) => {
       cerrarCamara(s);
       return null;
@@ -683,6 +716,7 @@ export function useTutor(ninoId: string) {
     modo: modoRef.current,
     camara,
     fallaCamara,
+    avisoVisor,
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,

@@ -89,6 +89,16 @@ export function cerrarCamara(stream: MediaStream | null): void {
 
 /** Saca un cuadro del video que se está viendo. Lo dispara el niño. */
 export function capturarCuadro(video: HTMLVideoElement): FotoTomada {
+  // Si el video todavía no tiene dimensiones, el canvas sale de 0x0 y el
+  // base64 queda vacío: se "toma" una foto que no existe, sin error, y el
+  // tutor termina describiendo una imagen en blanco.
+  if (!video.videoWidth || !video.videoHeight) {
+    throw new ErrorCamara(
+      "otro",
+      "La cámara todavía se está encendiendo. Espera un segundito y vuelve a tocar el botón.",
+    );
+  }
+
   const escala = Math.min(1, ANCHO_MAX / (video.videoWidth || ANCHO_MAX));
   const lienzo = document.createElement("canvas");
   lienzo.width = Math.round(video.videoWidth * escala);
@@ -100,5 +110,13 @@ export function capturarCuadro(video: HTMLVideoElement): FotoTomada {
 
   // 0.8: el texto a lápiz sigue legible y pesa la mitad que sin comprimir.
   const url = lienzo.toDataURL("image/jpeg", 0.8);
-  return { base64: url.split(",")[1] ?? "", mimeType: "image/jpeg" };
+  const base64 = url.split(",")[1] ?? "";
+  if (base64.length < 1000) {
+    // Un JPEG de un cuaderno pesa decenas de kB. Menos de 1 kB es un cuadro
+    // negro o vacío — mandarlo sería peor que no mandar nada, porque el tutor
+    // recibiría "una imagen" y hablaría de ella.
+    throw new ErrorCamara("otro", "La foto salió vacía. Vuelve a intentarlo.");
+  }
+  console.info(`[camara] cuadro ${lienzo.width}x${lienzo.height}, ${Math.round(base64.length / 1024)} kB`);
+  return { base64, mimeType: "image/jpeg" };
 }

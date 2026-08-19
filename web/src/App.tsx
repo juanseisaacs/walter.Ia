@@ -63,6 +63,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
     modo,
     camara,
     fallaCamara,
+    avisoVisor,
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
@@ -150,6 +151,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
         <VisorCamara
           stream={camara}
           falla={fallaCamara}
+          aviso={avisoVisor}
           alTomar={tomarFoto}
           alCancelar={cancelarFoto}
         />
