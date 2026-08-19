@@ -137,6 +137,20 @@ class SesionAbierta(BaseModel):
     habilidad_nombre: str
     ejercicios: list[Ejercicio]
 
+    max_tokens: int = cfg.MAX_TOKENS_SESION
+    """El techo de gasto, que hasta ahora solo conocía el backend.
+
+    Se verificaba al ABRIR y nunca durante: una sesión podía pasarse y nadie la
+    paraba. El navegador es el único que ve el consumo en vivo (Gemini se lo
+    manda en cada mensaje), así que es el único que puede cortar a tiempo —
+    pero no puede respetar un límite que no conoce."""
+
+    avisar_tokens: int = int(cfg.MAX_TOKENS_SESION * 0.9)
+    """Desde acá se le pide al tutor que vaya cerrando.
+
+    Cortar seco a un niño a mitad de una explicación es la peor forma de
+    terminar. Con el 10% que queda alcanza para despedirse bien."""
+
 
 # Firma del Vigilante. Se inyecta para que session.py no dependa de pipeline.py
 # ni de la red. En tests se pasa uno falso.

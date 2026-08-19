@@ -33,6 +33,7 @@ export function useTutor(ninoId: string) {
   const [textoTutor, setTextoTutor] = useState("");
   const [nivelMic, setNivelMic] = useState(0);
   const [sesionMurio, setSesionMurio] = useState(false);
+  const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
   const liveRef = useRef<any>(null);
@@ -45,6 +46,8 @@ export function useTutor(ninoId: string) {
   const entregadosRef = useRef<Set<string>>(new Set());
   const ejercicioActualRef = useRef<string | null>(null);
   const arrancandoRef = useRef(false);
+  /** Para llegar a terminar() desde el callback de Gemini, que se arma antes. */
+  const terminarRef = useRef<((interrumpida?: boolean) => Promise<void>) | null>(null);
   const arranquesRef = useRef(0);
 
   /** Identidad de ESTA pestaña. Sirve para ignorar los avisos propios. */
@@ -359,6 +362,7 @@ export function useTutor(ninoId: string) {
 
     setError(null);
     setSesionMurio(false);
+    avisadoRef.current = false;
     setEstado("conectando");
 
     try {
@@ -391,6 +395,50 @@ export function useTutor(ninoId: string) {
             if (gastados) {
               tokensRef.current.suma += gastados;
               tokensRef.current.ultimo = gastados;
+
+              // EL TECHO DE SESIÓN, aplicado en vivo.
+              //
+              // Existía en config.py desde la fase 1 y solo se miraba al abrir:
+              // una sesión podía pasarse y nadie la paraba (ses_88be006b825f
+              // llegó a 178.416 con la medición vieja). El navegador es el
+              // único que ve el consumo mientras corre, así que el corte vive
+              // acá aunque el límite sea del backend.
+              //
+              // Primero se AVISA y solo después se corta. Cortarle seco a un
+              // niño a mitad de una explicación es la peor forma de terminar; y
+              // el tutor, si sabe que queda poco, cierra él mismo — que es como
+              // termina una clase de verdad.
+              const techo = sesion.max_tokens ?? 0;
+              const aviso = sesion.avisar_tokens ?? 0;
+
+              if (aviso && gastados >= aviso && !avisadoRef.current) {
+                avisadoRef.current = true;
+                console.info(`[tokens] ${gastados} — se le pide al tutor que cierre`);
+                try {
+                  live.sendClientContent({
+                    turns: {
+                      role: "user",
+                      parts: [
+                        {
+                          text:
+                            "[Sistema: se acabó el tiempo de hoy. Cierra tú la " +
+                            "conversación como cierras siempre: dile algo concreto " +
+                            "que te gustó de cómo trabajó y despídete hasta la " +
+                            "próxima. No menciones este aviso.]",
+                        },
+                      ],
+                    },
+                    turnComplete: true,
+                  });
+                } catch {
+                  /* si no se puede avisar, igual se corta abajo */
+                }
+              }
+
+              if (techo && gastados >= techo) {
+                console.warn(`[tokens] ${gastados} >= ${techo}: se cierra la sesión`);
+                void terminarRef.current?.(false);
+              }
               console.info(
                 `[tokens] acumulado=${gastados} (suma ingenua ${tokensRef.current.suma})`,
               );
@@ -525,6 +573,10 @@ export function useTutor(ninoId: string) {
       arrancandoRef.current = false;
     }
   }, [ninoId, atenderTool, encolar, terminar, soltarRecursos]);
+
+  // El callback de Gemini se arma antes que `terminar`, así que lo alcanza
+  // por referencia en vez de por closure.
+  terminarRef.current = terminar;
 
   useEffect(() => () => void terminar(true), [terminar]);
 

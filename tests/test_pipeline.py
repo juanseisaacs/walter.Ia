@@ -767,9 +767,14 @@ def test_el_entrevistador_del_papa_no_vosea():
     # Se salta la línea que las VETA, que obviamente las nombra. Mismo cuidado
     # que en el test del bloque del modo pedido: buscar a ciegas da un falso
     # positivo justo sobre la regla que uno quiere proteger.
+    # Se saltan las líneas que las VETAN, que obviamente las nombran: la línea
+    # de la regla y la tabla de ejemplos (empieza con ✗). Buscar a ciegas da un
+    # falso positivo justo sobre la regla que uno quiere proteger — ya pasó con
+    # el test del modo pedido.
     lineas = [
-        l for l in cargar_prompt("parent_interview").lower().splitlines()
-        if "sin voseo" not in l
+        l
+        for l in cargar_prompt("parent_interview").lower().splitlines()
+        if "voseo" not in l and not l.strip().startswith("> ✗")
     ]
     guion = chr(10).join(lineas)
     for forma in ["sos ", "tenés", "conversás", "escuchá", "preguntá", "decile", "cerrá"]:

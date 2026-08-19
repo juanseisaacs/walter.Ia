@@ -14,6 +14,8 @@ export interface Ejercicio {
 
 export interface SesionAbierta {
   sesion_id: string;
+  max_tokens?: number;
+  avisar_tokens?: number;
   token: string;
   modelo: string;
   deteccion: { silencio_ms: number };

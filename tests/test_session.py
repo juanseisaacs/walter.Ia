@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from tutor import config as cfg
 from tutor.curriculum import cargar_grafo
 from tutor.models import (
     Ejercicio,
@@ -382,3 +383,24 @@ def test_no_se_cierra_la_sesion_que_el_nino_esta_usando(orq, repo):
         "le cerraron la sesión al niño mientras hablaba"
     )
     assert orq.banco(en_uso.sesion_id), "sin banco el tutor no puede entregar ejercicios"
+
+
+def test_el_navegador_recibe_el_techo_de_gasto(orq):
+    """El techo existía en config desde la fase 1 y solo se miraba al ABRIR.
+
+    Una sesión podía pasarse y nadie la paraba. El navegador es el único que ve
+    el consumo mientras corre —Gemini se lo manda en cada mensaje— así que es el
+    único que puede cortar a tiempo. Pero no puede respetar un límite que no
+    conoce.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    assert a.max_tokens == cfg.MAX_TOKENS_SESION
+    assert a.avisar_tokens < a.max_tokens, "el aviso tiene que llegar antes del corte"
+
+
+def test_queda_margen_para_despedirse(orq):
+    """Cortarle seco a un niño a mitad de una explicación es la peor forma de
+    terminar. Entre el aviso y el corte tiene que caber una despedida."""
+    a = orq.abrir("n1", ahora=AHORA)
+    margen = a.max_tokens - a.avisar_tokens
+    assert margen >= 5_000, f"solo quedan {margen} tokens para cerrar la conversación"
