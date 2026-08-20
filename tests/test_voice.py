@@ -451,3 +451,22 @@ def test_el_primer_encuentro_no_escribe_el_nombre_a_mano():
     assert cfg.NOMBRE_TUTOR not in guion, (
         f"'{cfg.NOMBRE_TUTOR}' quedó escrito a mano en primer_encuentro.es.md"
     )
+
+
+def test_el_primer_encuentro_no_le_ensena_al_nino_a_desconfiar_de_la_memoria():
+    """PASÓ DE VERDAD, `ses_47dfebd9aa43` (20/08).
+
+    Felipe preguntó "¿sabes quién soy?". El tutor contestó que no estaba seguro
+    de si ya habían hablado y que *"como soy una inteligencia artificial, a veces
+    mi memoria no funciona tan bien"*. Cuatro turnos después lo llamó Felipe, y
+    el niño lo cazó: *"¿por qué antes no me dijiste que era Felipe?"*.
+
+    Dos daños en una frase. El chico: le enseñó que puede contradecirse. Y el
+    producto: la memoria longitudinal es el criterio #3 de YC, y el tutor la
+    estaba desmintiendo con su propia boca. Un niño al que le dicen que a este
+    tutor se le olvidan las cosas no le cuenta nada que valga la pena recordar.
+    """
+    texto = cargar_prompt("primer_encuentro").lower()
+    assert "primera vez que hablamos" in texto, "falta la respuesta directa"
+    assert "tu memoria falla" in texto, "falta la prohibición de desmentir su memoria"
+    assert "tu familia" in texto, "no debe adivinar si fue la mamá o el papá"

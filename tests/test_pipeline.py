@@ -679,10 +679,18 @@ def test_la_extraccion_no_deja_la_temperatura_al_azar():
 
     capturado = {}
 
+    class _Bloque:
+        type = "tool_use"
+        input = {
+            "regalo_la_respuesta": False,
+            "respeto_escalera_pistas": True,
+            "detecto_frustracion": False,
+        }
+
     class _Messages:
-        def parse(self, **kw):
+        def create(self, **kw):
             capturado.update(kw)
-            return type("R", (), {"parsed_output": _cumplio()})()
+            return type("R", (), {"content": [_Bloque()], "stop_reason": "tool_use"})()
 
     cliente = ClienteAnthropic(api_key="test")
     cliente._cliente = type("C", (), {"messages": _Messages()})()
@@ -690,6 +698,49 @@ def test_la_extraccion_no_deja_la_temperatura_al_azar():
     cliente.extraer("modelo-x", "sistema", "mensaje", AuditoriaCumplimiento)
 
     assert capturado["temperature"] == TEMPERATURA_EXTRACCION == 0.0
+
+
+def test_la_salida_estructurada_va_por_tool_use_y_no_por_parse():
+    """MEDIDO el 20/08 con `ses_47dfebd9aa43`, mismo modelo y mismo prompt:
+
+    · `messages.parse(output_format=…)` → 38.642 chars, cortada por `max_tokens`.
+      JSON partido a la mitad de una cadena, Pydantic lo rechaza ENTERO y la
+      sesión del niño queda sin registrar.
+    · tool use con `tool_choice` forzado → 2.813 chars, 1.199 tokens, y tres
+      corridas idénticas a temperatura 0.
+
+    Con el esquema como contrato de la herramienta el modelo lo llena y para. Si
+    alguien vuelve a `parse` porque "es más corto", esto se cae — y con razón:
+    el camino corto perdía sesiones enteras en silencio.
+    """
+    from tutor.pipeline import ClienteAnthropic
+
+    capturado = {}
+
+    class _Bloque:
+        type = "tool_use"
+        input = {
+            "regalo_la_respuesta": False,
+            "respeto_escalera_pistas": True,
+            "detecto_frustracion": False,
+        }
+
+    class _Messages:
+        def create(self, **kw):
+            capturado.update(kw)
+            return type("R", (), {"content": [_Bloque()], "stop_reason": "tool_use"})()
+
+        def parse(self, **kw):
+            raise AssertionError("la extracción volvió a `parse`: pierde sesiones enteras")
+
+    cliente = ClienteAnthropic(api_key="test")
+    cliente._cliente = type("C", (), {"messages": _Messages()})()
+    cliente.extraer("modelo-x", "sistema", "mensaje", AuditoriaCumplimiento)
+
+    assert capturado["tool_choice"]["type"] == "tool", "hay que forzar la herramienta"
+    assert capturado["tools"][0]["input_schema"]["properties"].keys() >= {
+        "regalo_la_respuesta"
+    }, "el esquema tiene que viajar como contrato de la herramienta"
 
 
 def test_los_numeros_de_la_sugerencia_no_tumban_el_reporte(tmp_path):

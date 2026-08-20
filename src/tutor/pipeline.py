@@ -76,6 +76,26 @@ TEMPERATURA_PROSA = 1.0
 campos (afirmaciones + sugerencia), o sea que sale por `extraer` — pero sigue
 siendo prosa, y no queremos la misma carta calcada todas las semanas."""
 
+_NOMBRE_TOOL_SALIDA = "responder"
+"""La salida estructurada se pide como TOOL USE, no con `messages.parse`.
+
+No es preferencia de estilo: es una diferencia medida, el 20/08, con el mismo
+modelo, el mismo prompt y la misma transcripción (`ses_47dfebd9aa43`).
+
+| Camino | Salida | Estabilidad a temperatura 0 |
+|---|---|---|
+| `messages.parse(output_format=…)` | 38.642 chars, **cortada** | fallaba |
+| tool use + `tool_choice` forzado | 2.813 chars · 1.199 tokens | 3 corridas idénticas |
+
+Con `parse` el modelo se iba de largo hasta agotar `max_tokens`, el JSON llegaba
+partido a la mitad de una cadena, Pydantic lo rechazaba **entero** y la sesión
+del niño quedaba sin registrar. Con tool use el esquema viaja como contrato de
+la herramienta y el modelo lo llena y para.
+
+Esto explica además la inestabilidad que se le venía achacando al modelo —
+"la misma transcripción daba 0 observaciones en una corrida y 5 en la
+siguiente". No era el muestreo: era este camino."""
+
 MAX_ITEMS_PERFIL = 6
 """Tope por lista de la ficha personal. Consolidar, no acumular: una ficha con
 cien intereses no describe a nadie."""
@@ -127,17 +147,29 @@ class ClienteAnthropic(ClienteLLM):
         formato: type[T],
         temperatura: float = TEMPERATURA_EXTRACCION,
     ) -> T:
-        respuesta = self._obtener().messages.parse(
+        respuesta = self._obtener().messages.create(
             model=modelo,
             max_tokens=MAX_TOKENS_EXTRACCION,
             temperature=temperatura,
             system=sistema,
             messages=[{"role": "user", "content": mensaje}],
-            output_format=formato,
+            tools=[
+                {
+                    "name": _NOMBRE_TOOL_SALIDA,
+                    "description": f"Devuelve el resultado como {formato.__name__}.",
+                    "input_schema": formato.model_json_schema(),
+                }
+            ],
+            tool_choice={"type": "tool", "name": _NOMBRE_TOOL_SALIDA},
         )
-        if respuesta.parsed_output is None:
-            raise RuntimeError(f"El modelo no devolvió {formato.__name__} válido")
-        return respuesta.parsed_output
+
+        for bloque in respuesta.content:
+            if bloque.type == "tool_use":
+                return formato.model_validate(bloque.input)
+
+        raise RuntimeError(
+            f"El modelo no devolvió {formato.__name__} (stop_reason={respuesta.stop_reason})"
+        )
 
     def redactar(self, modelo: str, sistema: str, mensaje: str) -> str:
         respuesta = self._obtener().messages.create(
