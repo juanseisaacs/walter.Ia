@@ -249,6 +249,91 @@ DECLARACIONES_TOOLS: list[dict] = [
         },
     },
     {
+        "name": "mostrar_en_pizarra",
+        # NON_BLOCKING es la diferencia entre que esto sirva y que estorbe.
+        #
+        # Un tool normal corta el turno: el modelo se calla, espera la respuesta
+        # y arranca de nuevo. Eso es exactamente el silencio del que Felipe se
+        # quejó ("¿te fuiste?"). Con esto el tutor SIGUE HABLANDO mientras el
+        # tablero se pinta, que es lo que hace un profesor de verdad: escribe y
+        # explica a la vez.
+        "behavior": "NON_BLOCKING",
+        "description": (
+            "Escribe en la pizarra que el niño ve al lado tuyo, SIN dejar de "
+            "hablar. Úsala cuando algo se entiende mejor viéndolo: una cuenta en "
+            "columna, grupos para multiplicar, una recta, una fracción, una letra. "
+            "No la uses para decorar ni en cada turno — si lo que dices se "
+            "entiende solo con la voz, no dibujes nada. Tú dices QUÉ mostrar; "
+            "dónde ponerlo lo resuelve la pizarra."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "tipo": {
+                    "type": "string",
+                    "enum": ["operacion", "grupos", "recta", "fraccion", "texto"],
+                    "description": (
+                        "operacion: una cuenta en columna · grupos: N grupos de M "
+                        "cosas · recta: recta numérica · fraccion: una fracción "
+                        "partida · texto: una letra o palabra grande"
+                    ),
+                },
+                "a": {"type": "number", "description": "operacion: primer número"},
+                "b": {"type": "number", "description": "operacion: segundo número"},
+                "op": {"type": "string", "enum": ["+", "−", "×", "÷"]},
+                "resultado": {
+                    "type": "number",
+                    "description": (
+                        "operacion: el resultado. NO lo pongas si el niño todavía "
+                        "lo está resolviendo — la cuenta queda abierta para él."
+                    ),
+                },
+                "llevada": {"type": "number", "description": "operacion: la que se lleva"},
+                "grupos": {"type": "number", "description": "grupos: cuántos grupos"},
+                "por_grupo": {"type": "number", "description": "grupos: cuántos en cada uno"},
+                "nombre": {"type": "string", "description": "grupos: 'cajas', 'bolsas'"},
+                "desde": {"type": "number", "description": "recta: número inicial"},
+                "hasta": {"type": "number", "description": "recta: número final"},
+                "marca": {"type": "number", "description": "recta: dónde está parado"},
+                "salta_a": {"type": "number", "description": "recta: a dónde salta"},
+                "numerador": {"type": "number"},
+                "denominador": {"type": "number"},
+                "contenido": {"type": "string", "description": "texto: la letra o palabra"},
+                "senalar": {
+                    "type": "string",
+                    "enum": ["unidades", "decenas", "centenas", "llevada", "resultado"],
+                    "description": "Rodea con el marcador la parte que estás nombrando",
+                },
+                "tachar": {
+                    "type": "string",
+                    "enum": ["unidades", "decenas", "centenas", "resultado"],
+                    "description": "Tacha lo que quedó mal, para corregirlo a la vista",
+                },
+            },
+            "required": ["tipo"],
+        },
+    },
+    {
+        "name": "pedir_dibujo",
+        "behavior": "NON_BLOCKING",
+        "description": (
+            "Abre una hoja en blanco para que el niño dibuje con el dedo o el "
+            "mouse, y te la manda cuando termina. Úsala para trazar una letra o "
+            "un número, o para que dibuje lo que está pensando. Sigue hablando "
+            "mientras la acomoda: la hoja tarda en llenarse."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "consigna": {
+                    "type": "string",
+                    "description": "Qué le pides que dibuje. Corto. Ej: 'Dibújame la letra ñ'",
+                }
+            },
+            "required": ["consigna"],
+        },
+    },
+    {
         "name": "escalate_safety",
         "description": (
             "Levanta una alerta si el niño dice algo preocupante: que alguien le hace "

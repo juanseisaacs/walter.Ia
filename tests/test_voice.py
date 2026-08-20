@@ -302,7 +302,7 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_estan_declarados_los_cinco_tools():
+def test_estan_declarados_los_tools():
     nombres = {t["name"] for t in DECLARACIONES_TOOLS}
     assert nombres == {
         "check_answer",
@@ -310,7 +310,39 @@ def test_estan_declarados_los_cinco_tools():
         "get_next_problem",
         "request_camera",
         "escalate_safety",
+        "mostrar_en_pizarra",
+        "pedir_dibujo",
     }
+
+
+def test_los_tools_de_la_pizarra_no_cortan_el_habla():
+    """LA CONDICIÓN PARA QUE LA PIZARRA SIRVA EN VEZ DE ESTORBAR.
+
+    Un tool normal corta el turno: el modelo se calla, espera la respuesta y
+    arranca de nuevo. Es exactamente el silencio del que Felipe se quejó
+    ("¿te fuiste? ¿por qué te quedas callado?", ses_c973ffe7b267).
+
+    Con NON_BLOCKING el tutor sigue hablando mientras el tablero se pinta —
+    escribe y explica a la vez, como un profesor. Sin esto, cada dibujo le
+    devuelve al niño la latencia que costó dos días sacar.
+    """
+    for nombre in ("mostrar_en_pizarra", "pedir_dibujo"):
+        tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == nombre)
+        assert tool.get("behavior") == "NON_BLOCKING", f"{nombre} cortaría el habla"
+
+
+def test_la_pizarra_no_le_pide_coordenadas_al_modelo():
+    """El tutor dice QUÉ mostrar, nunca DÓNDE.
+
+    Pedirle `x, y` obliga al modelo a hacer cálculo de maquetación —es malo en
+    eso— y produce elementos superpuestos, fuera de pantalla o de tamaños
+    inconsistentes, que además no se adaptan entre un celular y un portátil.
+    """
+    tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == "mostrar_en_pizarra")
+    campos = set(tool["parameters"]["properties"])
+    assert not (campos & {"x", "y", "x1", "y1", "ancho", "alto", "color", "tamano"}), (
+        "la pizarra volvió a pedir coordenadas: el layout lo resuelve ella"
+    )
 
 
 def test_check_answer_le_dice_al_modelo_que_no_calcule_el():
@@ -346,7 +378,7 @@ def test_la_config_de_gemini_lleva_todo_lo_necesario():
     assert d["systemInstruction"]
     assert d["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"]
     assert d["realtimeInputConfig"]["automaticActivityDetection"]
-    assert len(d["tools"][0]["functionDeclarations"]) == 5
+    assert len(d["tools"][0]["functionDeclarations"]) == len(DECLARACIONES_TOOLS)
 
 
 def test_pide_transcripcion_de_las_dos_puntas():

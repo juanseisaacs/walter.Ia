@@ -13,6 +13,8 @@ import { useState } from "react";
 import "./App.css";
 import Onboarding from "./Onboarding";
 import VisorCamara from "./VisorCamara";
+import HojaDelNino from "./pizarra/HojaDelNino";
+import Pizarra from "./pizarra/Pizarra";
 import { ninoActual } from "./nino";
 import { useTutor } from "./voz/useTutor";
 
@@ -69,14 +71,21 @@ function Tutor({ ninoId }: { ninoId: string }) {
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
+    cuadro,
+    hoja,
+    enviarDibujo,
+    cancelarDibujo,
     empezar,
     terminar,
   } = useTutor(ninoId);
 
   const enSesion = estado === "escuchando" || estado === "hablando";
+  // El tablero COMPARTE pantalla: no tapa al tutor, se pone al lado. Y sale
+  // solo cuando hay algo que mostrar — vacío le competiría la atención al niño.
+  const hayTablero = enSesion && (cuadro !== null || hoja !== null);
 
   return (
-    <main className="pantalla">
+    <main className={`pantalla ${hayTablero ? "con-tablero" : ""}`}>
       {enSesion && (
         <p className="tema">{modo === "pedido" ? "Tu tarea" : tema ? `Hoy: ${tema}` : ""}</p>
       )}
@@ -126,6 +135,16 @@ function Tutor({ ninoId }: { ninoId: string }) {
           </>
         )}
       </div>
+
+      {hayTablero && (
+        <section className="tablero">
+          {hoja !== null ? (
+            <HojaDelNino consigna={hoja} alEnviar={enviarDibujo} alCancelar={cancelarDibujo} />
+          ) : (
+            <Pizarra cuadro={cuadro} />
+          )}
+        </section>
+      )}
 
       {enSesion && (
         <div className="dialogo">

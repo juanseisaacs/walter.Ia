@@ -377,3 +377,53 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* ── El tablero ────────────────────────────────────────────────────────────
+   COMPARTE pantalla, no la toma: el niño le habla al tutor y de reojo ve lo
+   que se está escribiendo. Aparece solo cuando hay algo — un tablero vacío la
+   mitad de la sesión le compite la atención sin dar nada a cambio.
+
+   Cuando no hay tablero, `.pantalla` queda exactamente como estaba. Todo lo de
+   acá cuelga de `.con-tablero`, así que la pantalla de siempre no se movió. */
+
+.tablero {
+  width: min(560px, 100%);
+}
+
+@media (min-width: 900px) {
+  .pantalla.con-tablero {
+    display: grid;
+    /* El tutor a la izquierda con ancho fijo; el tablero se queda con el resto. */
+    grid-template-columns: minmax(240px, 340px) 1fr;
+    grid-template-areas:
+      "tema    tablero"
+      "centro  tablero"
+      "dialogo tablero";
+    align-content: center;
+    justify-items: center;
+    column-gap: var(--espacio-l);
+  }
+
+  .pantalla.con-tablero .tema {
+    grid-area: tema;
+  }
+  .pantalla.con-tablero .centro {
+    grid-area: centro;
+  }
+  .pantalla.con-tablero .dialogo {
+    grid-area: dialogo;
+  }
+  .pantalla.con-tablero .tablero {
+    grid-area: tablero;
+    align-self: center;
+    width: 100%;
+  }
+}
+
+/* En angosto va abajo, en columna: en un celular al lado no entra nada. */
+@media (max-width: 899px) {
+  .pantalla.con-tablero {
+    justify-content: flex-start;
+    padding-top: var(--espacio-m);
+  }
+}

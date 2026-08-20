@@ -17,6 +17,8 @@ import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from ".
 import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
+import { aCuadro } from "../pizarra/desdeElTutor";
+import type { Cuadro } from "../pizarra/escenas";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
 
@@ -73,6 +75,11 @@ export function useTutor(ninoId: string) {
   const [sesionMurio, setSesionMurio] = useState(false);
   /** Cuando no es null, hay un visor abierto esperando que el niño dispare. */
   const [camara, setCamara] = useState<MediaStream | null>(null);
+  /** Lo que hay escrito en la pizarra ahora. `null` = no hay tablero en pantalla:
+      sale solo cuando hay algo que valga la pena mirar, no todo el rato. */
+  const [cuadro, setCuadro] = useState<Cuadro | null>(null);
+  /** La consigna del dibujo, cuando el tutor le pidió al niño que trace algo. */
+  const [hoja, setHoja] = useState<string | null>(null);
   /** Por qué no se pudo abrir. Se muestra EN PANTALLA, no solo en consola:
       un fallo invisible deja al niño oyendo 'toca el botón' sin botón. */
   const [fallaCamara, setFallaCamara] = useState<string | null>(null);
@@ -257,6 +264,29 @@ export function useTutor(ninoId: string) {
           tema: r.ejercicio.habilidad_id,
         });
       }
+      // ── La pizarra ──────────────────────────────────────────────────────
+      //
+      // Se resuelven ACÁ, sin tocar el backend: dibujar es cosa del navegador.
+      // Un salto a nuestra API serían ~5 ms más por nada, y este es justo el
+      // camino donde no se regala latencia.
+      //
+      // Los dos tools son NON_BLOCKING (ver DECLARACIONES_TOOLS): el tutor
+      // sigue hablando mientras esto pasa, que es lo que hace un profesor
+      // cuando escribe en el tablero y explica al mismo tiempo.
+      case "mostrar_en_pizarra": {
+        const cuadro = aCuadro(args);
+        if (!cuadro) return { error: "no entendí qué mostrar" };
+        setHoja(null); // si había una hoja abierta, el tablero la reemplaza
+        setCuadro(cuadro);
+        return { mostrado: true };
+      }
+
+      case "pedir_dibujo": {
+        setCuadro(null); // la hoja toma el lugar del tablero
+        setHoja(String(args?.consigna ?? "Dibújame lo que estás pensando"));
+        return { hoja_abierta: true };
+      }
+
       case "request_camera": {
         // Se abre el VISOR, no se dispara la foto. La primera versión capturaba
         // sola a los 350ms: la cámara parpadeaba, se apagaba, y la foto salía de
@@ -305,6 +335,27 @@ export function useTutor(ninoId: string) {
         return { error: `tool desconocido: ${nombre}` };
     }
   }, [avisarAlTutor]);
+
+  /* ── El dibujo del niño ─────────────────────────────────────────────────
+     Sale por `sendRealtimeInput`, el MISMO canal que la foto de la cámara.
+     Ese camino está verificado con imágenes reales (el 20/08 el tutor leyó las
+     letras de una gorra), así que un dibujo es una foto con otra fuente.
+
+     Lo que NO se hace acá es el empujón condicional que sí lleva la cámara: la
+     foto llega sin aviso y a veces el modelo se queda esperando, pero acá el
+     tutor sabe que pidió un dibujo y que el niño lo está haciendo. */
+
+  const enviarDibujo = useCallback((pngBase64: string) => {
+    setHoja(null);
+    try {
+      liveRef.current?.sendRealtimeInput({
+        video: { data: pngBase64, mimeType: "image/png" },
+      });
+      console.info("[pizarra] dibujo enviado al tutor");
+    } catch (e) {
+      console.warn("[pizarra] no se pudo enviar el dibujo:", e);
+    }
+  }, []);
 
   /* ── La foto ────────────────────────────────────────────────────────────
      La dispara el niño, no un temporizador. */
@@ -856,6 +907,10 @@ export function useTutor(ninoId: string) {
     abrirCamaraManual,
     tomarFoto,
     cancelarFoto,
+    cuadro,
+    hoja,
+    enviarDibujo,
+    cancelarDibujo: () => setHoja(null),
     empezar,
     terminar,
   };
