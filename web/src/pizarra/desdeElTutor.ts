@@ -9,9 +9,24 @@
 
 import type { Anotacion, Cuadro, Escena } from "./escenas";
 
-/** Los grupos y las porciones de fracción se dibujan de a uno: hay un límite
- *  físico de lo que cabe y de lo que un chico puede contar de un vistazo. */
-const MAX_GRUPOS = 12;
+/** Cuántas cajas caben en el tablero sin volverse ilegibles. */
+const MAX_GRUPOS = 10;
+
+/** Cuántas cosas por grupo, como mucho.
+ *
+ * Alto a propósito. Estaba en 12 y rechazaba en silencio pedidos perfectamente
+ * razonables: en `ses_697a02991605` el tutor pidió "3 cajitas con 45 canicas",
+ * el validador devolvió `null`, no se dibujó nada — y el tutor igual le dijo al
+ * niño "ahí en la pizarra te estoy mostrando". El niño tuvo que contestarle
+ * "no veo ninguna pizarra".
+ *
+ * El tope real no era de validación sino de DIBUJO: 45 puntos apretados en una
+ * cajita no son un dibujo. Eso ahora lo resuelve la escena escribiendo el
+ * número adentro de la caja (`MAX_PUNTOS_CONTABLES`), que es lo que hace un
+ * profesor. Acá solo queda el límite de lo que un niño de primaria multiplica. */
+const MAX_POR_GRUPO = 999;
+
+/** Partes de una fracción. Más de doce no se distinguen ni en barra. */
 const MAX_PARTES = 12;
 /** Una recta con doscientas marcas es una línea negra. */
 const MAX_PUNTOS_RECTA = 40;
@@ -68,7 +83,7 @@ function aEscena(args: any): Escena | null {
 
     case "grupos": {
       const grupos = entero(args.grupos, 1, MAX_GRUPOS);
-      const porGrupo = entero(args.por_grupo ?? args.porGrupo, 1, MAX_PARTES);
+      const porGrupo = entero(args.por_grupo ?? args.porGrupo, 1, MAX_POR_GRUPO);
       if (grupos === undefined || porGrupo === undefined) return null;
       return {
         tipo: "grupos",

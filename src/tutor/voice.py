@@ -271,7 +271,12 @@ DECLARACIONES_TOOLS: list[dict] = [
             "'así se escribe la eñe' → texto contenido='ñ'. "
             "No la uses para decorar ni en cada turno: si lo que dices se entiende "
             "solo con la voz, no dibujes nada. Tú dices QUÉ mostrar; dónde ponerlo "
-            "lo resuelve la pizarra."
+            "lo resuelve la pizarra. "
+            "Habla del CONTENIDO, no del tablero: di 'son 3 cajas de 45' y no "
+            "'ahí en la pizarra te lo estoy mostrando' — tú no ves su pantalla, y "
+            "afirmarlo te deja mintiendo si algo falló. Si el niño dice que no ve "
+            "nada, manda la pizarra otra vez con números más chicos en vez de "
+            "pedirle que espere."
         ),
         "parameters": {
             "type": "object",

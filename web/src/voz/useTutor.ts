@@ -275,7 +275,20 @@ export function useTutor(ninoId: string) {
       // cuando escribe en el tablero y explica al mismo tiempo.
       case "mostrar_en_pizarra": {
         const cuadro = aCuadro(args);
-        if (!cuadro) return { error: "no entendí qué mostrar" };
+        if (!cuadro) {
+          // Que el tutor SEPA que no se dibujó, y qué hacer. Antes devolvía un
+          // "error" pelado y el tutor le decía al niño "ahí te lo estoy
+          // mostrando" sobre un tablero vacío (ses_697a02991605): el niño tuvo
+          // que contestarle "no veo ninguna pizarra".
+          console.warn("[pizarra] no se pudo armar la escena:", args);
+          return {
+            mostrado: false,
+            que_hacer:
+              "No se pudo dibujar eso: la pantalla del niño sigue vacía. NO le " +
+              "digas que se lo estás mostrando. Probá otra vez con números más " +
+              "chicos, o seguí explicándolo de palabra.",
+          };
+        }
         setHoja(null); // si había una hoja abierta, el tablero la reemplaza
         setCuadro(cuadro);
         return { mostrado: true };

@@ -151,3 +151,12 @@
 .pz-anot-exito {
   stroke: var(--exito);
 }
+
+/* El número adentro de la caja, cuando son demasiadas cosas para contarlas. */
+.pz-en-caja {
+  fill: var(--pizarra-tinta);
+  font-family: var(--fuente);
+  font-size: 34px;
+  font-weight: 600;
+  text-anchor: middle;
+}

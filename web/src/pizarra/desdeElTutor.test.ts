@@ -53,6 +53,25 @@ describe("lo que el tutor pide bien", () => {
   });
 });
 
+describe("grupos grandes: se dibujan igual, con el número adentro", () => {
+  it("3 cajitas con 45 canicas — EL CASO QUE FALLÓ (ses_697a02991605)", () => {
+    // El tope estaba en 12 y esto devolvía null: no se dibujaba nada, y el
+    // tutor igual le decía al niño "ahí en la pizarra te estoy mostrando".
+    // El niño tuvo que contestarle "no veo ninguna pizarra".
+    //
+    // El límite real no era de validación sino de DIBUJO: 45 puntos apretados
+    // en una cajita no son un dibujo. Lo resuelve la escena escribiendo el
+    // número adentro de la caja, que es lo que hace un profesor.
+    const c = aCuadro({ tipo: "grupos", grupos: 3, por_grupo: 45, nombre: "cajitas" });
+    expect(c?.escena).toMatchObject({ tipo: "grupos", grupos: 3, porGrupo: 45 });
+  });
+
+  it("sigue rechazando lo que de verdad no se puede dibujar", () => {
+    expect(aCuadro({ tipo: "grupos", grupos: 3, por_grupo: 5000 })).toBeNull();
+    expect(aCuadro({ tipo: "grupos", grupos: 3, por_grupo: 0 })).toBeNull();
+  });
+});
+
 describe("lo que el tutor pide mal: no se dibuja nada", () => {
   it("una cuenta sin números", () => {
     expect(aCuadro({ tipo: "operacion", op: "+" })).toBeNull();
@@ -66,7 +85,7 @@ describe("lo que el tutor pide mal: no se dibuja nada", () => {
     expect(aCuadro({ tipo: "fraccion", numerador: 7, denominador: 4 })).toBeNull();
   });
 
-  it("cien grupos, que no caben ni se pueden contar de un vistazo", () => {
+  it("cien grupos, que no caben en el tablero", () => {
     expect(aCuadro({ tipo: "grupos", grupos: 100, por_grupo: 3 })).toBeNull();
   });
 

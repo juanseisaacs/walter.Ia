@@ -16,7 +16,13 @@
 import { useEffect, useState } from "react";
 
 import "./Pizarra.css";
-import { MS_ENTRE_TRAZOS, type Anotacion, type Cuadro, type Escena } from "./escenas";
+import {
+  MAX_PUNTOS_CONTABLES,
+  MS_ENTRE_TRAZOS,
+  type Anotacion,
+  type Cuadro,
+  type Escena,
+} from "./escenas";
 
 /** Lienzo lógico. Todo se dibuja acá adentro y el SVG lo escala solo. */
 const ANCHO = 400;
@@ -187,7 +193,10 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
   const x0 = (ANCHO - (cajaAncho + 12) * cols + 12) / 2;
   const y0 = 70;
 
-  // Los puntos adentro de cada caja, en grilla.
+  // Con pocas cosas por grupo se dibujan los puntos y el niño los cuenta. Con
+  // muchas se escribe el número adentro: 45 puntos apretados en una cajita no
+  // son un dibujo, son una mancha, y nadie cuenta 135.
+  const conPuntos = e.porGrupo <= MAX_PUNTOS_CONTABLES;
   const pCols = Math.ceil(Math.sqrt(e.porGrupo));
   const pFilas = Math.ceil(e.porGrupo / pCols);
 
@@ -205,15 +214,21 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
         return (
           <Trazo key={g} paso={g + 1}>
             <rect x={cx} y={cy} width={cajaAncho} height={cajaAlto} rx="8" className="pz-caja" />
-            {Array.from({ length: e.porGrupo }, (_, p) => (
-              <circle
-                key={p}
-                cx={cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1)}
-                cy={cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1)}
-                r="6"
-                className="pz-punto"
-              />
-            ))}
+            {conPuntos ? (
+              Array.from({ length: e.porGrupo }, (_, p) => (
+                <circle
+                  key={p}
+                  cx={cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1)}
+                  cy={cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1)}
+                  r="6"
+                  className="pz-punto"
+                />
+              ))
+            ) : (
+              <text x={cx + cajaAncho / 2} y={cy + cajaAlto / 2 + 12} className="pz-en-caja">
+                {e.porGrupo}
+              </text>
+            )}
           </Trazo>
         );
       })}

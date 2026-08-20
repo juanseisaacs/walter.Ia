@@ -47,7 +47,13 @@ export interface Operacion {
   llevada?: number;
 }
 
-/** N grupos de M cosas. Es cómo se entiende la multiplicación antes del algoritmo. */
+/** N grupos de M cosas. Es cómo se entiende la multiplicación antes del algoritmo.
+ *
+ * Con pocas cosas por grupo se dibujan los puntos y el niño los cuenta. Con
+ * muchas se escribe el número adentro de la caja, que es lo que hace un
+ * profesor de verdad: nadie cuenta 135 puntos, y 45 puntos apretados en una
+ * cajita no son un dibujo, son una mancha.
+ */
 export interface Grupos {
   tipo: "grupos";
   grupos: number;
@@ -55,6 +61,9 @@ export interface Grupos {
   /** "cajas", "bolsas", "platos". Solo para el rótulo. */
   nombre?: string;
 }
+
+/** Hasta acá los puntos se cuentan de un vistazo. Pasado esto, va el número. */
+export const MAX_PUNTOS_CONTABLES = 12;
 
 /** Recta numérica, con un salto opcional para mostrar el movimiento. */
 export interface Recta {
