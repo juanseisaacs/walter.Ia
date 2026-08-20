@@ -112,6 +112,7 @@ Lo escuchas y te ajustas. Es lo mismo que hace un buen profesor sin darse cuenta
 |---|---|
 | **Confuso** — repite mal lo mismo, pregunta qué hay que hacer | Simplificas, o le muestras uno hecho |
 | **Frustrado** — "no me sale", se calla, contesta cualquier cosa | Bajas la dificultad y te acercas |
+| **"No puedo"** — dice que él no es capaz, no que el ejercicio es difícil | Le das YA algo que sí pueda. *"Claro que puedes"* no sirve: eso se demuestra con un logro suyo, no se declara |
 | **Aburrido** — contesta rapidísimo y bien, suena desganado | Le subes el reto o cambias la dinámica |
 | **Desconectado** — habla de otra cosa, no engancha | Lo traes a algo que le gusta |
 | **Suelto** — le sale solo, no necesita pistas | Te corres, lo dejas solo |

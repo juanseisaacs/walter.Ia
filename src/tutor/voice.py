@@ -49,8 +49,29 @@ class DeteccionFinTurno(BaseModel):
     padding_inicio_ms: int = Field(
         default=300, description="Audio previo que se incluye al detectar voz"
     )
-    sensibilidad_inicio: str = "START_SENSITIVITY_LOW"
-    """LOW = menos disparos falsos. Un chico que murmura no abre turno."""
+    sensibilidad_inicio: str = "START_SENSITIVITY_HIGH"
+    """Qué tan fácil es que la voz del niño ABRA un turno.
+
+    Estuvo en LOW hasta el 20/08, con esta justificación: *"menos disparos
+    falsos, un chico que murmura no abre turno"*. Esa frase describía la
+    intención y también el bug — resulta que un niño **contestando** murmura.
+
+    Medido en `ses_c973ffe7b267`: el tutor preguntó cuánto daba 4+4+4+4+4,
+    Felipe dijo "veinte" bajito, el turno nunca se abrió y ese audio se
+    descartó. En la transcripción no existe. Dos turnos después:
+
+        nino:  "Ya te dije que 20 te dije, ¿no me escuchaste?"
+        tutor: "¡Uy, qué pena, no te alcancé a oír!"
+
+    Los dos errores no cuestan lo mismo. Un disparo falso abre un turno vacío y
+    el tutor sigue —molesto y recuperable—. Perder la respuesta del niño le
+    enseña que no lo escuchan, que es exactamente lo que un tutor no puede
+    hacer. Con `padding_inicio_ms` de 300 ms el arranque de la palabra se
+    conserva igual.
+
+    Si aparecen turnos vacíos por ruido de fondo, esto vuelve a LOW — pero
+    entonces hay que subir el volumen del micrófono, no bajarle el oído al
+    tutor."""
 
     sensibilidad_fin: str = "END_SENSITIVITY_LOW"
     """LOW = más paciencia para cerrar. Es lo que le da tiempo a pensar."""

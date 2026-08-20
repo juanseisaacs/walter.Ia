@@ -470,3 +470,38 @@ def test_el_primer_encuentro_no_le_ensena_al_nino_a_desconfiar_de_la_memoria():
     assert "primera vez que hablamos" in texto, "falta la respuesta directa"
     assert "tu memoria falla" in texto, "falta la prohibición de desmentir su memoria"
     assert "tu familia" in texto, "no debe adivinar si fue la mamá o el papá"
+
+
+def test_la_voz_del_nino_abre_turno_aunque_hable_bajito():
+    """PASÓ DE VERDAD, `ses_c973ffe7b267` (20/08).
+
+    El tutor preguntó cuánto daba 4+4+4+4+4, Felipe contestó "veinte" bajito y
+    ese audio se descartó: el turno nunca se abrió. En la transcripción no
+    existe. Dos turnos después el niño reclamó *"ya te dije que 20, ¿no me
+    escuchaste?"*.
+
+    La configuración lo decía sin darse cuenta: LOW = "un chico que murmura no
+    abre turno". Un niño CONTESTANDO murmura.
+
+    Los dos errores no cuestan lo mismo: un disparo falso abre un turno vacío y
+    se sigue; perder la respuesta le enseña al niño que no lo escuchan.
+    """
+    d = deteccion_para_edad(7)
+    assert d.sensibilidad_inicio == "START_SENSITIVITY_HIGH", (
+        "con LOW se pierde la respuesta del niño que contesta bajito"
+    )
+    assert d.padding_inicio_ms >= 300, "sin padding se come el arranque de la palabra"
+
+
+def test_el_playbook_no_deja_declararle_al_nino_que_si_puede():
+    """`ses_c973ffe7b267`: Felipe dijo "yo creo que no puedo" y el tutor
+    respondió "claro que puedes".
+
+    La Constitución es explícita: la confianza en sí mismo no se declara, se
+    construye con logros reales. Decirle "sí puedes" mientras sigue sin poder es
+    la versión amable de no ayudarlo — y le enseña que las palabras del tutor no
+    describen la realidad.
+    """
+    playbook = cargar_prompt("socratic_playbook").lower()
+    assert "no puedo" in playbook, "falta el caso: dice que ÉL no es capaz"
+    assert "no se declara" in playbook, "falta la razón, y sin razón no se sostiene"
