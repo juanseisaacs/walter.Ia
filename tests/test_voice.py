@@ -537,3 +537,39 @@ def test_el_playbook_no_deja_declararle_al_nino_que_si_puede():
     playbook = cargar_prompt("socratic_playbook").lower()
     assert "no puedo" in playbook, "falta el caso: dice que ÉL no es capaz"
     assert "no se declara" in playbook, "falta la razón, y sin razón no se sostiene"
+
+
+def test_el_tutor_sabe_que_tiene_pizarra_y_no_la_niega():
+    """PASÓ DE VERDAD, `ses_6a7a36736734` (20/08), con la pizarra ya integrada.
+
+        nino:  "no lo logro imaginar, ¿me lo podrías hacer más visual?"
+        tutor: [se lo explica de palabra]
+        nino:  "¿pero no podrías tú dibujarlo?"
+        tutor: "Mira que no puedo dibujar por ahora."
+
+    Los siete tools estaban en el token —verificado: Google valida `behavior` y
+    rechaza un valor inventado con 400—. O sea que el tutor TENÍA el tablero y
+    dijo que no. La instrucción hablaba de CUÁNDO usarla y nunca de que la
+    tiene, así que al preguntarle por su capacidad contestó desde lo que cree
+    ser, no desde lo que puede hacer.
+
+    Negar algo que sí puede hacer es peor que no poder: el niño aprende a no
+    pedirlo, y la función queda muerta aunque funcione.
+    """
+    playbook = cargar_prompt("socratic_playbook").lower()
+    assert "tienes una pizarra" in playbook, "falta que sepa que la tiene"
+    assert "nunca digas que no puedes dibujar" in playbook, "falta la prohibición"
+
+
+def test_la_pizarra_le_muestra_al_modelo_como_traducir_lo_que_pide_el_nino():
+    """El otro medio hallazgo de esa sesión: el niño pidió "2 canastas con 9
+    manzanas" y eso el tablero SÍ lo puede mostrar (`grupos`). El modelo no hizo
+    la conexión porque la descripción listaba los tipos en abstracto.
+
+    Un ejemplo concreto por tipo vale más que la lista de tipos. Y va en la
+    descripción del tool, que no paga el techo del prompt de sesión.
+    """
+    tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == "mostrar_en_pizarra")
+    d = tool["description"]
+    assert "canastas" in d, "falta el ejemplo que traduce lo que pide el niño"
+    assert "→" in d, "los ejemplos tienen que mostrar el mapeo, no solo nombrar tipos"

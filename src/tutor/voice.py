@@ -260,11 +260,18 @@ DECLARACIONES_TOOLS: list[dict] = [
         "behavior": "NON_BLOCKING",
         "description": (
             "Escribe en la pizarra que el niño ve al lado tuyo, SIN dejar de "
-            "hablar. Úsala cuando algo se entiende mejor viéndolo: una cuenta en "
-            "columna, grupos para multiplicar, una recta, una fracción, una letra. "
-            "No la uses para decorar ni en cada turno — si lo que dices se "
-            "entiende solo con la voz, no dibujes nada. Tú dices QUÉ mostrar; "
-            "dónde ponerlo lo resuelve la pizarra."
+            "hablar. Es tu tablero: cuando el niño pide ver algo, dibujarlo o "
+            "que se lo hagas más visual, se lo muestras acá. "
+            "Ejemplos de qué mandar según lo que pasa en la conversación: "
+            "'2 canastas con 9 manzanas' → grupos=2, por_grupo=9, nombre='canastas'. "
+            "'56 más 38 escrito' → operacion a=56 b=38 op='+'. "
+            "'¿dónde cae si salto 5 desde el 7?' → recta desde=0 hasta=20 marca=7 "
+            "salta_a=12. "
+            "'tres cuartos' → fraccion numerador=3 denominador=4. "
+            "'así se escribe la eñe' → texto contenido='ñ'. "
+            "No la uses para decorar ni en cada turno: si lo que dices se entiende "
+            "solo con la voz, no dibujes nada. Tú dices QUÉ mostrar; dónde ponerlo "
+            "lo resuelve la pizarra."
         ),
         "parameters": {
             "type": "object",
