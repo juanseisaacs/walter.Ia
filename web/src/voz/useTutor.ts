@@ -14,7 +14,7 @@ import { GoogleGenAI, type LiveServerMessage, Modality } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
-import { ReproductorContinuo, aPcm16Base64 } from "./audio";
+import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 
@@ -22,6 +22,25 @@ export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "erro
 
 /** Cada cuántos turnos se reporta al backend. Bajo = más seguro, más llamadas. */
 const TURNOS_POR_REPORTE = 2;
+
+/**
+ * Volumen (RMS) desde el que se considera que el niño está hablando de verdad,
+ * y no que se coló el eco del propio tutor por los parlantes.
+ *
+ * El micrófono pide `echoCancellation`, así que lo que queda del tutor es
+ * residuo: bien por debajo de esto. Una voz normal a medio metro anda en 0,03 a
+ * 0,15. Si el tutor llegara a cortarse solo, este número sube; si al niño le
+ * cuesta interrumpir, baja.
+ */
+const UMBRAL_BARGE_IN = 0.045;
+
+/**
+ * Cuánto tiene que sostenerse esa voz antes de callar al tutor.
+ *
+ * Los bloques del micrófono son de ~64 ms: esto son tres seguidos. Una sílaba
+ * los llena; una tos o un golpe en la mesa, no.
+ */
+const MS_PARA_CORTAR = 200;
 
 /**
  * Cuánto esperar antes de EMPUJAR al tutor a hablar de la foto.
@@ -754,8 +773,41 @@ export function useTutor(ninoId: string) {
       });
       liveRef.current = live;
 
+      let vozSostenidaMs = 0;
+
       const { captura } = await abrirMicrofono((muestras, nivel) => {
         setNivelMic(Math.min(1, nivel * 5));
+
+        // ── Barge-in local: el niño manda ──────────────────────────────────
+        //
+        // Felipe lo dijo dos veces sin que nadie le preguntara (ses_a1b410cf3833):
+        //   "te intenté interrumpir y no pude, me tocó esperar a que acabaras
+        //    de hablar. Eso está como muy radical."
+        //
+        // No alcanzaba con el `interrupted` del servidor, y la razón es de
+        // relojes: Gemini TERMINA de generar mucho antes de que suene la última
+        // sílaba. Los chunks quedan encolados acá y se reproducen varios
+        // segundos más. Cuando el niño por fin habla, del lado del servidor no
+        // hay turno en curso — no hay nada que interrumpir, así que `interrupted`
+        // nunca llega — pero en el parlante el tutor sigue hablando.
+        //
+        // O sea: la única que sabe que el tutor todavía está hablando es esta
+        // máquina. Entonces la decisión se toma acá.
+        //
+        // El umbral va por encima del eco residual que deja la cancelación del
+        // navegador, y se exige que se sostenga: un golpe en la mesa dura un
+        // bloque, una sílaba dura varios.
+        if (reproductor.hablando && nivel > UMBRAL_BARGE_IN) {
+          vozSostenidaMs += (muestras.length / SAMPLE_RATE_ENTRADA) * 1000;
+          if (vozSostenidaMs >= MS_PARA_CORTAR) {
+            reproductor.detenerTodo();
+            setEstado("escuchando");
+            vozSostenidaMs = 0;
+          }
+        } else if (nivel <= UMBRAL_BARGE_IN) {
+          vozSostenidaMs = 0;
+        }
+
         try {
           live.sendRealtimeInput({
             audio: { data: aPcm16Base64(muestras), mimeType: "audio/pcm;rate=16000" },
