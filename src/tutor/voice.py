@@ -72,12 +72,15 @@ def deteccion_para_edad(edad: int) -> DeteccionFinTurno:
     Un nene de 5 recién está armando la frase mientras habla; uno de 10 ya
     responde parecido a un adulto. Un solo valor para todos molesta a los dos
     extremos.
+
+    Los tres valores viven en `config.SILENCIO_FIN_TURNO_MS`: es la perilla que
+    más se va a mover con niños de verdad, y moverla no debería tocar código.
     """
     if edad <= 6:
-        return DeteccionFinTurno(silencio_ms=2000)
+        return DeteccionFinTurno(silencio_ms=cfg.SILENCIO_FIN_TURNO_MS["hasta_6"])
     if edad <= 8:
-        return DeteccionFinTurno(silencio_ms=1500)
-    return DeteccionFinTurno(silencio_ms=cfg.SILENCIO_FIN_TURNO_MS)
+        return DeteccionFinTurno(silencio_ms=cfg.SILENCIO_FIN_TURNO_MS["de_7_a_8"])
+    return DeteccionFinTurno(silencio_ms=cfg.SILENCIO_FIN_TURNO_MS["desde_9"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -438,16 +441,30 @@ class EmisorGoogle(EmisorDeTokens):
         if not api_key:
             raise ValueError("Falta GOOGLE_API_KEY")
         self._api_key = api_key
+        self._cliente = None
+
+    def _obtener(self):
+        """El cliente se arma UNA vez y se reusa, como el de Anthropic.
+
+        Estaba dentro de `emitir()`: cada apertura de sesión levantaba un cliente
+        nuevo, con su handshake TLS y su pool de conexiones desde cero. Eso corre
+        justo después de que el niño aprieta el botón y antes de que pueda hablar
+        — el peor lugar posible para pagar una conexión.
+        """
+        if self._cliente is None:
+            from google import genai  # import perezoso: los módulos puros no lo cargan
+
+            self._cliente = genai.Client(
+                api_key=self._api_key, http_options={"api_version": "v1alpha"}
+            )
+        return self._cliente
 
     def emitir(self, configuracion: ConfiguracionSesion) -> TokenEfimero:
         from datetime import datetime, timedelta
 
-        from google import genai  # import perezoso: los módulos puros no lo cargan
-
         ahora = datetime.now(UTC)
-        cliente = genai.Client(api_key=self._api_key, http_options={"api_version": "v1alpha"})
 
-        token = cliente.auth_tokens.create(
+        token = self._obtener().auth_tokens.create(
             config={
                 "uses": 1,
                 "new_session_expire_time": (

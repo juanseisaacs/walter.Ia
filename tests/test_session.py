@@ -112,7 +112,7 @@ def test_abrir_deja_todo_listo(orq):
     # tests. Acá solo importa que la sesión venga con una de verdad.
     assert a.habilidad_id in {h.id for h in cargar_grafo()}
     assert len(a.ejercicios) > 15, "vienen la habilidad del día MÁS las vecinas"
-    assert a.deteccion.silencio_ms >= 1200, "paciencia calibrada por edad"
+    assert a.deteccion.silencio_ms >= 800, "paciencia calibrada por edad"
 
 
 def test_el_banco_trae_mas_de_una_habilidad(orq):

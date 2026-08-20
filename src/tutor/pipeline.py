@@ -823,6 +823,19 @@ def extraer_ficha(
     )
 
 
+def primera_pregunta() -> str:
+    """El saludo con el que abre la entrevista. Fijo, y por eso instantáneo.
+
+    Se le pedía al modelo con la conversación vacía: sin nada que leer devolvía
+    siempre el mismo saludo, y costaba 3,5 s de Sonnet en la primera pantalla
+    que ve un papá. El criterio del entrevistador no aporta en un turno donde no
+    hay nada que interpretar; entra en el turno 2, cuando ya hay algo que leer.
+
+    Sigue siendo un dato editable sin tocar Python, como el resto de los prompts.
+    """
+    return cargar_prompt("parent_interview_apertura").strip()
+
+
 def siguiente_pregunta(
     historial: list[tuple[str, str]],
     ficha: FichaInicial,

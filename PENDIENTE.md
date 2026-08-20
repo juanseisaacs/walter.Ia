@@ -2,6 +2,31 @@
 
 _Última actualización: 2026-08-19, cierre del día._
 
+## ⚡ Latencia — lo hecho el 20/08 y lo que queda
+
+Tres sesiones reales. El niño preguntó *"¿por qué te demoraste tanto?"* en su
+primer turno. Se midió todo y se arregló lo medible (`ARCHITECTURE.md` §9):
+
+- Onboarding, primera pantalla: **3.590 ms → 5 ms**
+- Onboarding, cada turno: **7.170 ms → ~3.600 ms** (las dos llamadas iban en fila)
+- Abrir sesión de voz: **1.010 ms → ~380 ms** (el cliente de Google se rearmaba)
+- Silencio de fin de turno, 7-8 años: **1.500 ms → 900 ms**
+
+**Lo que falta probar con un niño de verdad:** que 900 ms de silencio no lo corte
+mientras piensa. Si lo corta, se sube `config.SILENCIO_FIN_TURNO_MS` y nada más —
+está aislado ahí a propósito.
+
+**Lo más grande que queda, ya medido:** el turno del onboarding sigue costando
+~3,5 s de modelo con la pantalla quieta. **Streaming** pondría las primeras
+palabras a ~600 ms sin bajar el total. Requiere SSE en la API y un cambio en el
+front.
+
+**Y la deuda #1 sigue siendo el prompt de sesión:** 36,2 KB de base, y
+`tutor_persona` + `socratic_playbook` son 22,5 KB de eso — el 62 %. Es lo que
+Gemini tiene que digerir antes de la primera palabra.
+
+---
+
 ## ⏭️ Para retomar mañana — en este orden
 
 **1. Probar la velocidad.** Es lo único que quedó pendiente de sentir:

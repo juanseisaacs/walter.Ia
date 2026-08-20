@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import os
 import secrets
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
@@ -32,6 +34,7 @@ from .pipeline import (
     cliente_por_defecto,
     crear_nino_desde_ficha,
     extraer_ficha,
+    primera_pregunta,
     procesar_sesion,
     siguiente_pregunta,
 )
@@ -40,12 +43,33 @@ from .storage import RepositorioSQLite
 from .tools import Veredicto, check_answer, verify_arithmetic
 from .voice import emisor_por_defecto
 
-app = FastAPI(title="RBH Tutor", version="0.1.0")
+
+@asynccontextmanager
+async def _ciclo_de_vida(_app: FastAPI):
+    """Arma el cliente de Google antes de que llegue el primer niño.
+
+    Construirlo cuesta ~1,6 s de handshake TLS y pool. Cacheado, la apertura de
+    sesión bajó de 1010 ms a ~400 ms — pero la PRIMERA del día se comía los 2 s
+    enteros, que es justo el peor lugar: el niño ya apretó el botón.
+
+    Que falle no puede tumbar el arranque: sin llave el emisor es el falso, y un
+    error de red acá solo significa que la primera sesión paga lo de antes.
+    """
+    if (calentar := getattr(_emisor, "_obtener", None)) is not None:
+        try:
+            calentar()
+        except Exception as e:  # noqa: BLE001 — es optimización, no requisito
+            print(f"[arranque] no se pudo precalentar el emisor: {e}")
+    yield
+
+
+app = FastAPI(title="RBH Tutor", version="0.1.0", lifespan=_ciclo_de_vida)
 
 # Se arman una vez al arrancar, no por request.
 _repo = RepositorioSQLite(cfg.DB, cfg.DATOS)
 _grafo = cargar_grafo()
-_orquestador = Orquestador(_repo, _grafo, emisor_por_defecto())
+_emisor = emisor_por_defecto()
+_orquestador = Orquestador(_repo, _grafo, _emisor)
 _notificador: Notificador = notificador_por_defecto()
 
 # El Analista corre offline con este cliente. Sin ANTHROPIC_API_KEY es un
@@ -103,6 +127,15 @@ def papa_autenticado(token: str = Query(..., description="Token del enlace del m
 
 _ONBOARDINGS: dict[str, list[tuple[str, str]]] = {}
 
+_FICHAS_EN_CURSO: dict[str, FichaInicial] = {}
+"""La ficha del turno ANTERIOR de cada entrevista.
+
+Existe para poder lanzar la extracción y la pregunta a la vez. La pregunta
+necesita saber qué falta, y esperar a la extracción para averiguarlo costaba
+3,5 s de los 7,2 que tardaba cada turno (medido el 20/08). Con la ficha previa
+alcanza: es una PISTA de qué falta, no la verdad — la verdad está en la
+conversación, que el entrevistador lee entera y sí tiene el último mensaje."""
+
 
 def _exigir_entrevistador() -> None:
     """Sin modelo no hay entrevista, y hay que decirlo en vez de fingirla."""
@@ -119,9 +152,15 @@ def iniciar_onboarding():
     historial: list[tuple[str, str]] = []
     ficha = FichaInicial()
 
-    pregunta = siguiente_pregunta(historial, ficha, _cliente_analista)
+    # La primera pregunta no depende de nada: la conversación está vacía y el
+    # modelo devolvía siempre el mismo saludo. Gastábamos 3,5 s de Sonnet para
+    # generar un "hola" en la pantalla que el papá ve PRIMERO. Ahora es
+    # instantánea, y el entrevistador entra en el turno 2, cuando ya hay algo
+    # que leer y su criterio sirve para algo.
+    pregunta = primera_pregunta()
     historial.append(("tutor", pregunta))
     _ONBOARDINGS[onboarding_id] = historial
+    _FICHAS_EN_CURSO[onboarding_id] = ficha
 
     return {"onboarding_id": onboarding_id, "pregunta": pregunta, "falta": ficha.falta()}
 
@@ -145,27 +184,57 @@ def responder_onboarding(onboarding_id: str, cuerpo: RespuestaDelPapa):
         raise HTTPException(404, "Esa entrevista no está abierta. Hay que empezar de nuevo.")
 
     historial.append(("papa", cuerpo.texto))
-    ficha = extraer_ficha(historial, _cliente_analista)
+    previa = _FICHAS_EN_CURSO.get(onboarding_id, FichaInicial())
+
+    # Las dos llamadas a la vez. Eran secuenciales y sumaban 7,2 s por turno con
+    # la pantalla en blanco — la primera impresión que se lleva un papá.
+    #
+    # Se pueden paralelizar porque la pregunta NO necesita la ficha fresca:
+    # necesita la conversación, que ya incluye lo que el papá acaba de decir. La
+    # ficha previa solo le dice por dónde iba. Si el papá acaba de dar el último
+    # dato, el entrevistador lo ve en la conversación y no lo vuelve a pedir.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        tarea_ficha = pool.submit(extraer_ficha, historial, _cliente_analista)
+        tarea_pregunta = pool.submit(siguiente_pregunta, historial, previa, _cliente_analista)
+        ficha = tarea_ficha.result()
+        pregunta = tarea_pregunta.result()
 
     if not ficha.completa:
-        pregunta = siguiente_pregunta(historial, ficha, _cliente_analista)
+        _FICHAS_EN_CURSO[onboarding_id] = ficha
         historial.append(("tutor", pregunta))
         return {"listo": False, "pregunta": pregunta, "falta": ficha.falta()}
 
     nino = crear_nino_desde_ficha(ficha, f"n_{secrets.token_urlsafe(6)}")
     _repo.guardar_nino(nino)
     _ONBOARDINGS.pop(onboarding_id, None)
+    _FICHAS_EN_CURSO.pop(onboarding_id, None)
 
-    # El cierre lo redacta el entrevistador: es el único turno donde el papá
-    # escucha que lo entendieron, y una plantilla ahí se nota.
-    despedida = siguiente_pregunta(historial, ficha, _cliente_analista)
-
+    # El cierre NO se le vuelve a pedir al modelo: sería una tercera llamada de
+    # 3,5 s justo en el momento en que el papá ya quiere entrar. Se arma con los
+    # datos de la ficha, que es exactamente lo que el papá quiere oír de vuelta
+    # —y como sale de la ficha, no puede afirmar nada que él no haya dicho.
     return {
         "listo": True,
         "nino_id": nino.id,
         "nombre": nino.nombre,
-        "mensaje": despedida,
+        "mensaje": _despedida(ficha),
     }
+
+
+def _despedida(ficha: FichaInicial) -> str:
+    """Lo que el papá lee al terminar la entrevista. Solo datos que él dio."""
+    partes = [
+        f"Listo. {ficha.nombre_nino}, {ficha.edad} años, {ficha.grado}° grado.",
+    ]
+    if ficha.intereses:
+        partes.append(f"Le gusta {', '.join(ficha.intereses[:3])}.")
+    if ficha.dificultades:
+        partes.append(f"Y me contaste que le cuesta {ficha.dificultades[0]}.")
+    partes.append(
+        f"Con eso arrancamos. El reporte te llega a {ficha.email_papa} cada semana, "
+        "y ahí mismo te aviso si algo necesita tu atención."
+    )
+    return " ".join(partes)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

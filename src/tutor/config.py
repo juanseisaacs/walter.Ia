@@ -138,11 +138,32 @@ VENTANA_VIGILANTE = 4
 """Turnos por ventana. Ventana y no turno suelto: un turno sin contexto es
 ambiguo; los patrones preocupantes viven ENTRE turnos."""
 
-SILENCIO_FIN_TURNO_MS = 1200
+SILENCIO_FIN_TURNO_MS: dict[str, int] = {
+    "hasta_6": 1200,
+    "de_7_a_8": 900,
+    "desde_9": 700,
+}
 """Cuánto silencio esperar para decidir que el niño terminó de hablar.
 
-Los niños hacen pausas largas mientras piensan. Cortarlos ahí es lo peor que
-puede pasar en método socrático. A calibrar por edad."""
+**Es el impuesto plano de cada turno.** El niño deja de hablar y no pasa nada
+durante este tiempo: recién ahí el modelo empieza a pensar. Se paga igual
+después de "hola" que después de una división larga.
+
+Bajado el 20/08 (2000/1500/1200 → 1200/900/700) por dos razones medidas:
+
+1. **La paciencia real la da `END_SENSITIVITY_LOW`, no este número.** Los dos
+   estaban al máximo y se sumaban. La sensibilidad baja es la que tolera la
+   pausa a mitad de frase —es lo que evita cortar al que está pensando—; este
+   temporizador solo pone un piso, y el piso lo pagan todos los turnos.
+2. **Si nos adelantamos, no se rompe nada.** El navegador maneja `interrupted`:
+   si el niño sigue hablando encima, el tutor corta la reproducción al instante
+   (`useTutor.ts`). Equivocarse por rápido cuesta una interrupción; equivocarse
+   por lento le costó al niño preguntar *"¿por qué te demoraste tanto?"* en su
+   primer turno (sesión `ses_764305b3c3ed`, 20/08).
+
+Sigue siendo más generoso que un default de adulto (500-800 ms) en las tres
+bandas. Si el niño se siente cortado mientras piensa, **este es el número que se
+sube, y solo este** — no hace falta tocar código."""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

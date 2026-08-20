@@ -251,6 +251,47 @@ darse cuenta.
 
 ---
 
+### Medición del 20/08: dónde estaba de verdad la espera
+
+Tres sesiones reales (entrevista del papá, tarea, estudio). El niño preguntó
+*"¿por qué te demoraste tanto en responder?"* **en su primer turno**. Lo medido,
+y lo que se hizo con cada cosa:
+
+| Qué | Antes | Ahora | Cómo |
+|---|---|---|---|
+| Onboarding · primera pantalla | 3.590 ms | **5 ms** | Con la conversación vacía el modelo devolvía siempre el mismo saludo. Ahora es un `.md`. |
+| Onboarding · cada turno | 7.170 ms | ~3.600 ms | Eran dos llamadas **secuenciales**. Van en paralelo. |
+| Onboarding · cierre | +3.500 ms | 0 ms | Una tercera llamada para despedirse. Se arma con los datos de la ficha. |
+| Abrir sesión de voz | 1.010 ms | ~380 ms | El cliente de Google se construía en **cada** apertura: TLS y pool desde cero. |
+| Abrir sesión · la primera del día | 2.031 ms | 866 ms | El cliente se calienta en el `lifespan`, antes de que llegue nadie. |
+| Silencio de fin de turno (7-8 años) | 1.500 ms | 900 ms | Ver `config.SILENCIO_FIN_TURNO_MS`. |
+
+**Lo que hay que entender del silencio de fin de turno**, porque es la perilla
+que más se va a mover: es un **impuesto plano sobre cada turno**. El niño deja de
+hablar y no pasa nada hasta que se cumple. Se paga igual después de "hola" que
+después de una división. Estaba en 1.500 ms *además* de
+`END_SENSITIVITY_LOW` — las dos paciencias sumadas. La sensibilidad baja es la
+que de verdad tolera la pausa a mitad de frase; el temporizador solo pone un
+piso. Y equivocarse por rápido es barato: el navegador maneja `interrupted` y
+corta al instante si el niño sigue hablando.
+
+Sumado: **~1,2 s menos antes de la primera palabra**, y ~600 ms menos en cada
+turno de ahí en adelante.
+
+> Lo que esto deja como método, y es la segunda vez en dos días: **la latencia
+> que se siente casi nunca está donde uno la busca.** El primer día el
+> sospechoso era el backend y resultó ser el build del navegador. El segundo, el
+> sospechoso era el modelo y resultaron ser tres esperas nuestras que nadie
+> había cronometrado: un saludo generado, dos llamadas en fila y un cliente HTTP
+> que se rearmaba. Ninguna se ve leyendo el código; las tres aparecen midiendo.
+
+**Lo que sigue, ya medido y sin hacer:** el turno del onboarding sigue costando
+~3,5 s de modelo con la pantalla quieta. Servirlo por streaming pondría las
+primeras palabras a ~600 ms sin cambiar el total. Es la mejora más grande que
+queda de este lado.
+
+---
+
 ## 10. Arquitectura de voz: el niño habla directo con el modelo
 
 **El audio va del navegador a Gemini Live sin pasar por nuestro backend.**

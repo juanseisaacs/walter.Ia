@@ -55,8 +55,28 @@ def test_los_mas_chicos_reciben_mas_paciencia():
 
 
 def test_espera_mas_que_un_default_de_adulto():
-    """Cortarle la frase mientras piensa es lo peor que puede pasar acá."""
-    assert deteccion_para_edad(7).silencio_ms >= 1200
+    """Cortarle la frase mientras piensa es lo peor que puede pasar acá.
+
+    Bajado de 1200 a 800 el 20/08, y es una decisión medida, no un aflojar:
+
+    · La paciencia real la da `END_SENSITIVITY_LOW`, que sigue puesta. Ese es el
+      ajuste que tolera la pausa a mitad de frase. Este número es solo un piso, y
+      el piso lo paga TODO turno — también "hola" y "sí".
+    · Adelantarse no rompe nada: el navegador maneja `interrupted` y corta la
+      reproducción al instante si el niño sigue hablando. Llegar tarde sí costó:
+      en `ses_764305b3c3ed` el niño preguntó "¿por qué te demoraste tanto?" en su
+      primer turno.
+
+    El piso se mantiene por encima de un default de adulto (500-800 ms). Si un
+    niño se siente cortado mientras piensa, se sube
+    `config.SILENCIO_FIN_TURNO_MS` — y este test es el que obliga a que eso sea
+    una decisión y no un descuido.
+    """
+    assert deteccion_para_edad(7).silencio_ms >= 800
+    assert deteccion_para_edad(7).sensibilidad_fin == "END_SENSITIVITY_LOW", (
+        "si se saca la sensibilidad baja, el temporizador corto sí corta al niño"
+    )
+    assert deteccion_para_edad(5).silencio_ms > deteccion_para_edad(10).silencio_ms
 
 
 def test_la_deteccion_se_serializa_para_gemini():
