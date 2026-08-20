@@ -49,6 +49,16 @@
 
   --sombra: 0 2px 12px rgba(0, 0, 0, 0.06);
   --transicion: 180ms ease;
+
+  /* ── Pizarra ─────────────────────────────────────────────────────────────
+     Papel, no pizarrón verde: el niño escribe en cuaderno, no en tablero, y
+     lo que ve acá tiene que parecerse a lo que él hace en su hoja. */
+  --pizarra-fondo: #fffdf7;
+  --pizarra-renglon: #e3ded0;   /* la cuadrícula, apenas insinuada           */
+  --pizarra-tinta: #33312c;     /* lápiz, no negro puro                      */
+  --pizarra-marca: #c9682f;     /* el marcador del profe: llevadas, círculos */
+  --pizarra-trazo: 3;           /* grosor de los trazos en el SVG            */
+  --pizarra-ms-trazo: 260ms;    /* lo que tarda en "escribirse" cada parte   */
 }
 
 /* ── Reset mínimo ──────────────────────────────────────────────────────── */

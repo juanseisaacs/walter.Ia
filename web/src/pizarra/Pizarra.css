@@ -1,0 +1,153 @@
+/* El tablero. Todos los valores salen de estilos/tokens.css. */
+
+.pizarra {
+  background: var(--pizarra-fondo);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+  width: 100%;
+}
+
+.pizarra-lienzo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ── Aparecer trazo a trazo ──────────────────────────────────────────────
+   El efecto de "se está escribiendo" es esto y nada más: cada grupo entra en
+   su turno, con su propio retraso. Sin bucle de dibujo ni canvas. */
+
+.trazo {
+  opacity: 0;
+  animation: entra-trazo 220ms ease-out forwards;
+}
+
+@keyframes entra-trazo {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Quien pidió menos movimiento lo ve todo, quieto. NO se oculta: sin la
+   animación, `opacity: 0` dejaría el tablero en blanco para siempre. */
+@media (prefers-reduced-motion: reduce) {
+  .trazo {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ── Tinta ───────────────────────────────────────────────────────────────── */
+
+.pz-digito,
+.pz-signo {
+  fill: var(--pizarra-tinta);
+  font-family: var(--fuente);
+  font-size: 54px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+.pz-llevada {
+  fill: var(--pizarra-marca);
+  font-family: var(--fuente);
+  font-size: 26px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pz-grande {
+  fill: var(--pizarra-tinta);
+  font-family: var(--fuente);
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pz-rotulo {
+  fill: var(--pizarra-tinta);
+  font-family: var(--fuente);
+  font-size: 24px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pz-rotulo-chico,
+.pz-numerito {
+  fill: var(--texto-tenue);
+  font-family: var(--fuente);
+  font-size: 17px;
+  text-anchor: middle;
+}
+
+.pz-linea,
+.pz-tick {
+  stroke: var(--pizarra-tinta);
+  stroke-width: var(--pizarra-trazo);
+  stroke-linecap: round;
+}
+
+.pz-tick {
+  stroke-width: 2;
+}
+
+/* ── Grupos ──────────────────────────────────────────────────────────────── */
+
+.pz-caja {
+  fill: none;
+  stroke: var(--pizarra-tinta);
+  stroke-width: 2;
+}
+
+.pz-punto {
+  fill: var(--acento);
+}
+
+/* ── Recta ───────────────────────────────────────────────────────────────── */
+
+.pz-marca {
+  fill: var(--acento);
+}
+
+.pz-salto {
+  fill: none;
+  stroke: var(--pizarra-marca);
+  stroke-width: var(--pizarra-trazo);
+  stroke-linecap: round;
+}
+
+/* ── Fracción ────────────────────────────────────────────────────────────── */
+
+.pz-porcion {
+  fill: var(--pizarra-fondo);
+  stroke: var(--pizarra-tinta);
+  stroke-width: 2;
+}
+
+.pz-porcion-llena {
+  fill: var(--acento-suave);
+  stroke: var(--pizarra-tinta);
+  stroke-width: 2;
+}
+
+/* ── El marcador del profe ───────────────────────────────────────────────── */
+
+.pz-anot {
+  stroke: var(--pizarra-marca);
+  stroke-width: var(--pizarra-trazo);
+  stroke-linecap: round;
+  fill: none;
+}
+
+.pz-anot-alerta {
+  stroke: var(--alerta);
+}
+
+.pz-anot-exito {
+  stroke: var(--exito);
+}

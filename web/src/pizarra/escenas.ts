@@ -1,0 +1,101 @@
+/**
+ * El vocabulario de la pizarra.
+ *
+ * Una escena dice QUÉ mostrar, nunca DÓNDE. El tablero se encarga del layout.
+ *
+ * Por qué no coordenadas: la alternativa era que el tutor mandara `x, y` de cada
+ * elemento. Eso obliga al modelo a hacer cálculo de maquetación —es malo en
+ * eso—, produce cosas superpuestas o fuera de pantalla, y no se adapta entre un
+ * celular y un portátil. Con escenas, el tutor apunta a SIGNIFICADO ("la suma
+ * 56 + 38", "resaltá las unidades") y el tablero resuelve el resto. Siempre se
+ * ve bien porque no hay forma de que se vea mal.
+ *
+ * Son cinco a propósito. Cubren casi todo lo que un profesor de primaria
+ * escribe en un tablero, y una lista corta es una lista que se puede probar.
+ */
+
+/** Los anclajes a los que se puede apuntar sin saber dónde quedaron en pantalla. */
+export type Ancla =
+  | "unidades"
+  | "decenas"
+  | "centenas"
+  | "llevada"
+  | "resultado"
+  | "primero"
+  | "segundo"
+  | "todo";
+
+/** Una marca encima de la escena, como cuando el profe rodea algo con el marcador. */
+export interface Anotacion {
+  /** Qué parte de la escena se está señalando. */
+  ancla: Ancla;
+  /** Círculo alrededor · tachado encima · flecha que apunta. */
+  gesto: "circulo" | "tachado" | "flecha";
+  /** Sin color, usa el del tutor. `alerta` para el error, `exito` para el acierto. */
+  tono?: "neutro" | "alerta" | "exito";
+}
+
+/** Cuenta en columna, como se escribe en el cuaderno. El pan de cada día. */
+export interface Operacion {
+  tipo: "operacion";
+  a: number;
+  b: number;
+  op: "+" | "−" | "×" | "÷";
+  /** El resultado. Si falta, la cuenta queda abierta esperando al niño. */
+  resultado?: number;
+  /** La que se lleva, arriba de la columna. Solo cuando se está explicando. */
+  llevada?: number;
+}
+
+/** N grupos de M cosas. Es cómo se entiende la multiplicación antes del algoritmo. */
+export interface Grupos {
+  tipo: "grupos";
+  grupos: number;
+  porGrupo: number;
+  /** "cajas", "bolsas", "platos". Solo para el rótulo. */
+  nombre?: string;
+}
+
+/** Recta numérica, con un salto opcional para mostrar el movimiento. */
+export interface Recta {
+  tipo: "recta";
+  desde: number;
+  hasta: number;
+  /** Dónde poner el punto gordo. */
+  marca?: number;
+  /** Salta de `marca` a este otro número, con arco y todo. */
+  saltaA?: number;
+}
+
+/** Una fracción vista, no escrita: la barra partida y coloreada. */
+export interface Fraccion {
+  tipo: "fraccion";
+  numerador: number;
+  denominador: number;
+  /** Barra partida o torta partida. La torta ayuda con medios y cuartos. */
+  forma?: "barra" | "torta";
+}
+
+/** Letra, palabra o número, grande y solo. Para lectura y escritura. */
+export interface Texto {
+  tipo: "texto";
+  contenido: string;
+  /** Un renglón chico debajo, para dar contexto sin robarle protagonismo. */
+  pie?: string;
+}
+
+export type Escena = Operacion | Grupos | Recta | Fraccion | Texto;
+
+/** Lo que el tablero muestra en un momento dado. */
+export interface Cuadro {
+  escena: Escena;
+  anotaciones?: Anotacion[];
+}
+
+/**
+ * Cuánto tarda en aparecer cada trazo, en ms.
+ *
+ * La gracia es que se vea ESCRIBIR, no que aparezca de golpe. Muy rápido y no
+ * se nota; muy lento y el niño se adelanta y deja de mirar.
+ */
+export const MS_ENTRE_TRAZOS = 260;

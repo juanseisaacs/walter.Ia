@@ -652,4 +652,40 @@ _WEB = cfg.RAIZ / "web" / "dist"
 if _WEB.is_dir():
     from fastapi.staticfiles import StaticFiles
 
-    app.mount("/", StaticFiles(directory=_WEB, html=True), name="web")
+    # La de Starlette, NO la de FastAPI: `StaticFiles` lanza la suya, y la de
+    # FastAPI es una subclase — atrapar la hija no atrapa a la madre.
+    from starlette.exceptions import HTTPException as ErrorEstatico
+
+    class _SPA(StaticFiles):
+        """Sirve el bundle, y para una ruta que no es archivo devuelve el index.
+
+        La interfaz decide qué pantalla mostrar mirando la URL, así que rutas
+        como `/pizarra` no existen en el disco. Sin esto, `StaticFiles` devuelve
+        404 y la pantalla no abre nunca.
+
+        Solo cae acá lo que no matcheó ninguna ruta de la API, porque este
+        montaje va al final de todo.
+
+        `StaticFiles` **lanza** el 404, no lo devuelve: por eso se atrapa la
+        excepción en vez de mirar `status_code`.
+        """
+
+        async def get_response(self, path: str, scope):
+            try:
+                return await super().get_response(path, scope)
+            except ErrorEstatico as e:
+                # `/api/…` que no existe sigue siendo 404. Devolverle el index a
+                # un cliente que pidió JSON esconde el error: el navegador dice
+                # 200, el JSON no parsea, y se pierde la tarde buscando en el
+                # lugar equivocado.
+                #
+                # Se mira `scope["path"]` y no `path`: este último ya viene
+                # convertido a ruta del sistema, y en Windows llega como
+                # `api\no_existe` — con contrabarra. El `startswith("api/")`
+                # nunca daba y el 404 se escapaba.
+                url = scope.get("path", "")
+                if e.status_code != 404 or url.startswith("/api/"):
+                    raise
+                return await super().get_response("index.html", scope)
+
+    app.mount("/", _SPA(directory=_WEB, html=True), name="web")

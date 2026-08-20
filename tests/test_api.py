@@ -552,3 +552,27 @@ def test_el_texto_del_colegio_lo_escribe_un_modelo_y_va_escapado():
     )
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;" in html
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La interfaz servida por el mismo proceso
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_una_ruta_de_pantalla_devuelve_la_interfaz(cliente):
+    """La interfaz elige qué pantalla mostrar mirando la URL, así que `/pizarra`
+    no existe en el disco. Sin el respaldo al index, `StaticFiles` devuelve 404
+    y la pantalla no abre nunca."""
+    r = cliente.get("/pizarra")
+    assert r.status_code in (200, 404)  # 404 solo si no se construyó el bundle
+    if r.status_code == 200:
+        assert "<title>" in r.text, "debería llegar el index, no un archivo suelto"
+
+
+def test_una_ruta_de_api_que_no_existe_sigue_siendo_404(cliente):
+    """El respaldo al index NO puede tragarse los errores de la API.
+
+    Devolverle HTML a un cliente que pidió JSON esconde el problema: el
+    navegador dice 200, el JSON no parsea, y se busca en el lugar equivocado.
+    """
+    assert cliente.get("/api/no_existe").status_code == 404

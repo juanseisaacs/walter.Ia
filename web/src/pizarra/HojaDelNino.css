@@ -1,0 +1,63 @@
+/* La hoja del niño. Todo sale de estilos/tokens.css. */
+
+.hoja {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-s);
+  width: 100%;
+}
+
+.hoja-consigna {
+  color: var(--texto);
+  font-size: var(--tam-grande);
+  font-weight: 600;
+  text-align: center;
+}
+
+.hoja-lienzo {
+  background: var(--pizarra-fondo);
+  border: 2px solid var(--pizarra-renglon);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  cursor: crosshair;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hoja-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-xs);
+  justify-content: center;
+}
+
+.hoja-boton {
+  background: var(--fondo-suave);
+  border-radius: var(--radio-chico);
+  color: var(--texto);
+  min-height: 48px;
+  padding: 0 var(--espacio-m);
+  transition: var(--transicion);
+}
+
+.hoja-boton:hover:not(:disabled) {
+  background: var(--acento-suave);
+}
+
+.hoja-boton:disabled {
+  color: var(--texto-tenue);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.hoja-boton-listo {
+  background: var(--acento);
+  color: #fff;
+  font-weight: 600;
+}
+
+.hoja-boton-listo:hover:not(:disabled) {
+  background: var(--acento);
+  filter: brightness(1.08);
+}

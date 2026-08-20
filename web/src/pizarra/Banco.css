@@ -1,0 +1,109 @@
+/* Banco de pruebas. Todo sale de estilos/tokens.css. */
+
+.banco {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: var(--espacio-l) var(--espacio-m) var(--espacio-xl);
+}
+
+.banco-cabecera h1 {
+  font-size: var(--tam-titulo);
+}
+
+.banco-cabecera p {
+  color: var(--texto-tenue);
+  margin-top: var(--espacio-xs);
+}
+
+.banco-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-xs);
+  margin: var(--espacio-m) 0;
+}
+
+.banco-boton {
+  background: var(--fondo-suave);
+  border-radius: var(--radio-chico);
+  min-height: 44px;
+  padding: 0 var(--espacio-s);
+  transition: var(--transicion);
+}
+
+.banco-boton:hover {
+  background: var(--acento-suave);
+}
+
+.banco-boton-activo {
+  background: var(--acento);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* El tutor a la izquierda, el tablero a la derecha: comparten pantalla. */
+.banco-escena {
+  align-items: start;
+  display: grid;
+  gap: var(--espacio-m);
+  grid-template-columns: 260px 1fr;
+}
+
+/* En angosto el tablero se va abajo, que es lo que corresponde en celular. */
+@media (max-width: 720px) {
+  .banco-escena {
+    grid-template-columns: 1fr;
+  }
+}
+
+.banco-tutor {
+  background: var(--fondo-suave);
+  border-radius: var(--radio);
+  padding: var(--espacio-m);
+}
+
+.banco-avatar {
+  align-items: center;
+  background: var(--acento);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  font-size: var(--tam-grande);
+  font-weight: 600;
+  height: 56px;
+  justify-content: center;
+  width: 56px;
+}
+
+.banco-dice {
+  font-size: var(--tam-base);
+  margin-top: var(--espacio-s);
+}
+
+.banco-nota {
+  border-top: 1px solid var(--pizarra-renglon);
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+  margin-top: var(--espacio-m);
+  padding-top: var(--espacio-s);
+}
+
+.banco-enviado {
+  margin-top: var(--espacio-l);
+}
+
+.banco-enviado h2 {
+  font-size: var(--tam-grande);
+}
+
+.banco-enviado p {
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+  margin: var(--espacio-xs) 0 var(--espacio-s);
+}
+
+.banco-enviado img {
+  border: 2px solid var(--pizarra-renglon);
+  border-radius: var(--radio);
+  max-width: 420px;
+  width: 100%;
+}
