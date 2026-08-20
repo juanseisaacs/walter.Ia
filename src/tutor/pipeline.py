@@ -22,6 +22,7 @@ from .curriculum import GrafoHabilidades
 from .models import (
     AnalisisSesion,
     AuditoriaCumplimiento,
+    Calendario,
     EvaluacionSeguridad,
     MetricasReporte,
     Nino,
@@ -235,14 +236,42 @@ def _contexto_habilidades(sesion: Sesion, grafo: GrafoHabilidades | None) -> str
     La transcripción no contiene ids de nodo; sin esta lista el modelo devuelve
     `habilidad_id=None` y `aplicar_analisis` descarta la observación en silencio.
     Es DATO (cambia por sesión), por eso va en el mensaje y no en el prompt.
+
+    **Cuando la sesión no pasó por el banco** —el niño llegó con su tarea y el
+    tutor la trabajó sin pedir ejercicios— esto devolvía cadena vacía, y el
+    modelo se quedaba sin una sola opción real. No devolvía `None`: **se
+    inventaba un id plausible**. Verificado el 19/08 con la sesión
+    `ses_60f5ee744aca`: el niño resolvió 56+38 llevando una decena y quedó
+    grabado como `mat.suma.sin_reagrupacion`, que es justo lo que NO hizo. El id
+    existía en el grafo, así que `aplicar_analisis` lo aceptó sin chistar y entró
+    a la ficha del niño — camino directo al reporte del papá.
+
+    Por eso, sin banco se ofrece el grafo entero como candidatos. No es lo mismo
+    que adivinar: elegir de trece opciones con nombre es una lectura de la
+    transcripción; inventar un id de la nada, no. Y sigue estando permitido
+    dejarlo en `None` cuando la transcripción no alcanza.
     """
-    if grafo is None or not sesion.habilidades_trabajadas:
+    if grafo is None:
         return ""
-    lineas = [
-        f"- {hid}: {grafo.habilidad(hid).nombre.es}"
-        for hid in sesion.habilidades_trabajadas
-        if grafo.existe(hid)
-    ]
+
+    if sesion.habilidades_trabajadas:
+        lineas = [
+            f"- {hid}: {grafo.habilidad(hid).nombre.es}"
+            for hid in sesion.habilidades_trabajadas
+            if grafo.existe(hid)
+        ]
+    else:
+        return (
+            "\n\n--- ESTA SESIÓN NO USÓ EL BANCO DE EJERCICIOS ---\n"
+            "El tutor trabajó algo que trajo el niño: su tarea, una duda. Mira qué\n"
+            "practicó de verdad —qué operación hizo, con qué números— y usa el id\n"
+            "que le corresponde de esta lista. Es una lectura de la transcripción,\n"
+            "no una adivinanza: 56+38 llevando una decena es suma con reagrupación.\n"
+            "Deja `habilidad_id` en null solo si la transcripción no alcanza para\n"
+            "decidir entre dos.\n"
+            + "\n".join(f"- {h.id}: {h.nombre.es}" for h in grafo)
+        )
+
     if not lineas:
         return ""
 
@@ -403,6 +432,8 @@ def aplicar_analisis(
             p.estilo_comunicacion = sugerido.estilo_comunicacion
         if sugerido.notas:
             p.notas = sugerido.notas
+        if sugerido.contexto_escolar:
+            p.contexto_escolar = sugerido.contexto_escolar
 
     # Cada sesión el tutor lo conoce un poco más.
     actualizado.perfil.madurez_vinculo += 1
@@ -752,6 +783,7 @@ class FichaInicial(BaseModel):
     nombre_nino: str | None = None
     edad: int | None = None
     grado: int | None = None
+    calendario: Calendario | None = None
 
     intereses: list[str] = []
     dificultades: list[str] = []
@@ -831,6 +863,10 @@ def crear_nino_desde_ficha(ficha: FichaInicial, nino_id: str) -> Nino:
         nombre=ficha.nombre_nino,
         edad=ficha.edad,
         grado=ficha.grado,
+        # Si el papá no lo dijo, el default del modelo es A — el de la mayoría
+        # de los colegios del país. No es obligatorio: bloquear el alta por un
+        # dato que muchos papás no saben de memoria cuesta más de lo que arregla.
+        calendario=ficha.calendario or Calendario.A,
         email_papa=ficha.email_papa,
         perfil=PerfilPersonal(
             intereses=ficha.intereses[:MAX_ITEMS_PERFIL],

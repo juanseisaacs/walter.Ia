@@ -223,6 +223,34 @@ pasar en método socrático. Es una perilla a calibrar por edad.
 
 ---
 
+### Medición del 19/08: cuando se siente lento, no es el backend
+
+Primera sesión de voz con un niño real reportando lentitud. Lo medido, contra el
+presupuesto de ~100 ms que fija la regla dura:
+
+| Camino | Mediana | Veredicto |
+|---|---|---|
+| `POST /api/tools/verify_arithmetic` | **4,2 ms** | 24× por debajo |
+| `POST /api/sesiones/{id}/turnos` (cada turno) | **5,4 ms** | 18× por debajo |
+| Salto extra del proxy de `vite dev` | +3,3 ms | irrelevante |
+
+**La causa era el runtime del navegador, no el nuestro.** La sesión lenta corrió
+sobre `vite dev` (React sin minificar, 44 módulos sueltos); la sesión rápida de
+la noche anterior corrió sobre `web/dist`. Esta app decodifica y emite PCM en
+tiempo real en el hilo principal: el build de desarrollo introduce jank
+justo ahí, y el niño lo lee como *"el tutor se fue a buscar la respuesta"*.
+
+Por eso `api.py` ahora **monta `web/dist` en `/`**: un origen, sin proxy, y no
+existe la posibilidad de hablarle al tutor por el servidor de desarrollo sin
+darse cuenta.
+
+> Lo que esto deja como método: **antes de tocar el código, medir los dos lados
+> de la frontera.** El backend estaba 20× por debajo del presupuesto mientras el
+> problema se sentía enorme — y toda hipótesis sobre tool calls, prompt gordo o
+> planificador habría sido una tarde perdida optimizando lo que ya sobraba.
+
+---
+
 ## 10. Arquitectura de voz: el niño habla directo con el modelo
 
 **El audio va del navegador a Gemini Live sin pasar por nuestro backend.**
@@ -600,3 +628,107 @@ No fue solo reorganizar. Seis huecos reales que no teníamos escritos:
    terminaba; ahora está el método.
 6. **Prohibición de diseño adictivo** (línea roja 11). Es justo lo que un papá
    revisa.
+
+---
+
+## 19. El marco del MEN: qué entró, qué se aplazó y por qué
+
+**Fuente:** `knowledge/curriculum/base_academica_men.md` (2026-08-19). Trae el
+marco que rodea al grafo: las cinco áreas de la Ley 115, los EBC por ciclo, los
+objetivos de primaria, las pruebas Saber, los calendarios A/B, la regla 80/20 y
+el desarrollo cognitivo por edad.
+
+El criterio para decidir qué entraba fue uno solo: **¿cambia lo que el tutor
+hace, sin agregar una pieza a la arquitectura?** Lo que solo se podía adoptar
+inflando el modelo de datos o el schema de un agente, se aplazó. No por
+desinterés — porque el costo se paga en cada sesión y el beneficio no.
+
+### Lo que entró
+
+1. **Tercer anclaje `ebc_colombia`.** Un campo opcional en `Alineacion` y su
+   gemelo en `schema.json`. No es redundante con el DBA: el Estándar nombra
+   par/impar, múltiplo y divisible (1°-3°) y porcentajes, potenciación y
+   radicación (4°-5°), que el DBA no nombra. Sin él, esos nodos se anclarían
+   inventando o no se anclarían.
+2. **`pedagogy.REGISTRO_POR_GRADO`.** Una línea por grado sobre cómo piensa el
+   niño (operaciones concretas de Piaget), inyectada en `resumen_para_prompt`.
+   Es el hueco más grande que tenía el prompt: el tutor sabía la edad del niño
+   y no sabía qué hacer con ella. Va la línea del grado, nunca la tabla.
+3. **El 20 % institucional.** `PerfilPersonal.contexto_escolar`: una línea
+   consolidada con lo que el niño cuenta de su clase. Campo propio y no dentro
+   de `notas` por tres razones concretas — el papá lo ve aparte en el panel, no
+   compite con lo personal cuando el Analista consolida, y se manda al prompt
+   sin arrastrar el resto de la ficha. **Sin migración**: `perfil` se persiste
+   como documento JSON, así que las fichas viejas lo toman en `None`.
+4. **El calendario escolar.** `Nino.calendario` (A o B) y
+   `pedagogy.momento_del_ano()`, una función pura que dice si el niño está
+   arrancando el año, en curso, en la recta final o de vacaciones. En agosto un
+   niño de calendario A lleva medio año y uno de B empieza: sin distinguirlos el
+   tutor le exige cierre de temas al que arrancó la semana pasada.
+
+   **El calendario NO entra al planificador.** `siguiente_habilidad` decide por
+   dominio y solo por dominio; si el almanaque moviera la selección, dos niños
+   con la misma ficha recibirían cosas distintas por el día en que entraron y el
+   reporte al papá dejaría de ser reproducible. El momento del año cambia el
+   TONO de la sesión, y eso vive en el prompt. Hay un test que lo fija.
+
+Y una corrección que el documento destapó sin proponérselo: las **13
+referencias DBA de `matematicas.yaml`** estaban auditadas en `FUENTES.md` §2.5
+desde el 18/08 y nunca se habían aplicado. Ahora citan el DBA por su número
+(`DBA Matemáticas 2° · #3`), que es lo que las hace verificables — una
+descripción libre no se contrasta con nada.
+
+### Lo que se aplazó, y qué lo destrabaría
+
+| Aplazado | Qué costaría | Qué lo justificaría |
+|---|---|---|
+| **Saber 3° y 5°** (§V.2) — *importante* | Peso del planificador en 3° y 5° + párrafo en el reporte al papá | Decisión de producto. El documento marca el límite: entrenar el formato de pregunta sin hacer simulacros ni generar ansiedad |
+| **Abrir las cinco áreas** (§I) — *importante* | Patrón `id` y enum `Materia` (hoy `mat`/`lec`/`esc`), `schema.json`, banco de ejercicios, planificador y las 4 suites de evals | Decisión de producto, no técnica. El MVP es lectura, escritura y aritmética |
+
+Los dos quedan anotados como **pendientes importantes** en `PENDIENTE.md`: no se
+descartaron, se pusieron en fila.
+
+El aplazamiento con nombre y costo escrito no es deuda: es alcance. Lo que sí
+sería deuda es adoptarlo a medias y que nadie recuerde por qué.
+
+### Lo que apareció al construirlo: el techo del prompt era ficticio
+
+El test que protege la regla de latencia medía el caso más flaco posible
+—resumen literal, sin primer encuentro, sin temas, modo guiado— y daba 36,8 KB
+contra un techo de 38. La sesión real más pesada es otra, y es **la primera de
+todas**: un niño que estrena el tutor y llega con tarea.
+
+```
+base (persona 11,3 + playbook 11,2 + valores 6,9 + safety 6,7)   36.161
++ primer_encuentro (solo sesión 1)                                +2.231
++ bloque de temas del banco, modo pedido, resumen del niño        +~1.600
+                                                                  ───────
+                                                                  ~40.000
+```
+
+La base sola deja 1,8 KB libres y `primer_encuentro` pide 2,2 KB: **el techo se
+rompía desde el día en que ese bloque entró**, y el test pasaba porque medía una
+sesión que en producción no existe.
+
+Dos cosas se hicieron: el techo subió a **41 KB como decisión escrita**, y el
+test pasó a medir el peor caso alcanzable —tomando el máximo entre "primera
+sesión" y "ficha llena", que son excluyentes porque `primer_encuentro` se activa
+con `madurez_vinculo == 0`—. Además se acotó el texto libre del perfil
+(`MAX_TEXTO_LIBRE`): `notas` y `contexto_escolar` los escribe un modelo, y sin
+tope un Analista verborrágico empujaba ~1 KB sin que nadie lo pidiera.
+
+**Adelgazar el prompt es la deuda abierta #1.** Con el desglose de arriba es
+media hora decidir qué sale; lo que no se puede es seguir sin saberlo.
+
+### El hallazgo que vale más que el contenido
+
+Las tablas de DBA de esa fuente **estaban corridas un grado** (`FUENTES.md`
+§2.6). Se detectó porque existía `FUENTES.md` con sus marcas [V] contra los PDF
+primarios: sin ese cruce, las fracciones habrían quedado ancladas en 3° y el
+DBA que sostiene la multiplicación de 3° habría desaparecido, en silencio y con
+apariencia de rigor.
+
+Es el mismo patrón de la fase 6 —*tratar la ausencia de evidencia como
+evidencia*— movido un paso atrás: acá había evidencia, pero de segunda mano.
+**Una fuente que cubre más áreas y se ve más ordenada no gana; gana la que se
+cruzó contra el primario.**

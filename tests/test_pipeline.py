@@ -13,6 +13,8 @@ from tutor.curriculum import cargar_grafo
 from tutor.models import (
     AnalisisSesion,
     AuditoriaCumplimiento,
+    Calendario,
+    EstadoSesion,
     EvaluacionSeguridad,
     MetricasReporte,
     ModoSesion,
@@ -30,6 +32,7 @@ from tutor.pipeline import (
     ClienteFalso,
     ErrorReporteInventado,
     FichaInicial,
+    _contexto_habilidades,
     _SalidaAnalista,
     _SalidaReporte,
     analizar_sesion,
@@ -792,3 +795,123 @@ def test_el_entrevistador_no_pide_datos_medicos():
     guion = cargar_prompt("parent_interview")
     assert "Diagnósticos, terapias o condiciones médicas" in guion
     assert "Lo que NO preguntas" in guion
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El 20% institucional: del Analista a la ficha
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_lo_que_el_nino_cuenta_del_colegio_entra_a_la_ficha():
+    """La ley obliga al 80% nacional; el 20% lo define cada colegio en su PEI.
+
+    El grafo nace sabiendo el 80%. El 20% solo se aprende oyendo al niño, sesión
+    a sesión, y es lo que hace que el tutor acompañe la clase real en vez de
+    adivinar el temario.
+    """
+    nino = _nino()
+    analisis = AnalisisSesion(
+        sesion_id="s1",
+        perfil_sugerido=PerfilPersonal(
+            contexto_escolar="La profe Marcela está dando los mapas de Colombia."
+        ),
+        cumplimiento=_cumplio(),
+    )
+    resultado = aplicar_analisis(nino, analisis, GRAFO, AHORA)
+    assert resultado.perfil.contexto_escolar.startswith("La profe Marcela")
+
+
+def test_el_colegio_se_reemplaza_no_se_apila():
+    """Misma regla que el resto del perfil: consolidar, no acumular. Es UNA
+    línea con el estado de hoy, no el historial de lo que fue viendo."""
+    nino = _nino(perfil=PerfilPersonal(contexto_escolar="Estaban en sumas."))
+    analisis = AnalisisSesion(
+        sesion_id="s1",
+        perfil_sugerido=PerfilPersonal(contexto_escolar="Ahora van en fracciones."),
+        cumplimiento=_cumplio(),
+    )
+    resultado = aplicar_analisis(nino, analisis, GRAFO, AHORA)
+    assert resultado.perfil.contexto_escolar == "Ahora van en fracciones."
+
+
+def test_una_sesion_sin_colegio_no_borra_lo_que_ya_sabiamos():
+    """El niño no habla del colegio todos los días. Si el Analista devuelve
+    vacío, eso significa "no salió el tema", no "cambió de colegio"."""
+    nino = _nino(perfil=PerfilPersonal(contexto_escolar="Estaban en fracciones."))
+    analisis = AnalisisSesion(
+        sesion_id="s1", perfil_sugerido=PerfilPersonal(), cumplimiento=_cumplio()
+    )
+    resultado = aplicar_analisis(nino, analisis, GRAFO, AHORA)
+    assert resultado.perfil.contexto_escolar == "Estaban en fracciones."
+
+
+def test_el_calendario_del_colegio_llega_de_la_entrevista_a_la_ficha():
+    """En agosto un niño de calendario A lleva medio año y uno de B arranca.
+
+    El campo existe en `Nino` desde el 19/08, pero un campo que nada puede
+    escribir nunca sale de su default: el cableado tiene que llegar hasta acá,
+    o el calendario B no existe en la práctica.
+    """
+    ficha = FichaInicial(
+        email_papa="papa@ejemplo.com", nombre_nino="Sofía", edad=8, grado=3,
+        calendario=Calendario.B,
+    )
+    assert crear_nino_desde_ficha(ficha, "n9").calendario == Calendario.B
+
+
+def test_sin_calendario_en_la_entrevista_se_asume_el_de_la_mayoria():
+    """No es obligatorio a propósito: bloquear el alta por un dato que muchos
+    papás no saben de memoria cuesta más de lo que arregla. El default es A,
+    que es el de casi todos los colegios del país."""
+    ficha = FichaInicial(email_papa="papa@ejemplo.com", nombre_nino="Juan", edad=7, grado=2)
+    assert "calendario" not in ficha.falta(), "no puede bloquear el onboarding"
+    assert crear_nino_desde_ficha(ficha, "n8").calendario == Calendario.A
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cuando el niño trae su tarea: la sesión no pasa por el banco
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _sesion_sin_banco() -> Sesion:
+    return Sesion(
+        id="s_tarea", nino_id="n1", modo=ModoSesion.GUIADO,
+        estado=EstadoSesion.COMPLETADA, inicio=AHORA, habilidades_trabajadas=[],
+    )
+
+
+def test_sin_banco_el_analista_igual_recibe_candidatos_reales():
+    """EL BUG DEL 19/08, medido en `ses_60f5ee744aca`.
+
+    El niño llegó con su tarea, el tutor la trabajó sin pedir ejercicios y
+    `habilidades_trabajadas` quedó vacío. Esta función devolvía cadena vacía: el
+    modelo se quedaba sin una sola opción real y **no devolvía None — inventaba
+    un id plausible**. El niño resolvió 56+38 llevando una decena y quedó
+    grabado como `mat.suma.sin_reagrupacion`, justo lo que no hizo. Como el id
+    existe en el grafo, `aplicar_analisis` lo aceptó y entró a su ficha.
+
+    Elegir entre trece opciones con nombre es leer la transcripción. Inventar un
+    id de la nada es otra cosa, y el reporte al papá no distingue.
+    """
+    contexto = _contexto_habilidades(_sesion_sin_banco(), GRAFO)
+
+    assert contexto, "sin candidatos el modelo inventa el id en vez de dejarlo en null"
+    for habilidad in GRAFO:
+        assert habilidad.id in contexto, f"falta el candidato {habilidad.id}"
+    assert "null" in contexto, "tiene que quedar permitido no atribuir"
+
+
+def test_con_banco_solo_se_ofrecen_las_habilidades_de_la_sesion():
+    """La lista completa es el plan B. Cuando el banco sí entregó, ofrecer los
+    trece nodos volvería a abrir la puerta a atribuir lo que no se trabajó."""
+    sesion = _sesion_sin_banco()
+    sesion.habilidades_trabajadas = ["mat.suma.con_reagrupacion"]
+
+    contexto = _contexto_habilidades(sesion, GRAFO)
+    assert "mat.suma.con_reagrupacion" in contexto
+    assert "mat.fracciones.medios_tercios_cuartos" not in contexto
+
+
+def test_sin_grafo_no_hay_contexto():
+    """El Analista corre también sin grafo (tests, scripts sueltos)."""
+    assert _contexto_habilidades(_sesion_sin_banco(), None) == ""

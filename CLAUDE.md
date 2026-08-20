@@ -121,6 +121,8 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar dónde se guardan los datos | `src/tutor/storage.py` (solo ese archivo) |
 | Cambiar de modelo de voz | `src/tutor/voice.py` (solo ese archivo) |
 | Ajustar presupuestos o retención | `src/tutor/config.py` |
+| Cambiar cómo le habla el tutor según el grado | `pedagogy.REGISTRO_POR_GRADO` |
+| Cambiar el año escolar (fechas, calendarios) | `pedagogy._TRAMOS` y `GUIA_POR_MOMENTO` |
 | Agregar un caso de prueba del método | `evals/parent_trust/` |
 | Cambiar cómo se ve el panel del papá | `src/tutor/panel.py` (solo ese archivo) |
 | Cambiar qué dice el reporte semanal | `knowledge/prompts/parent_companion.es.md` |
@@ -167,9 +169,11 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 
 - `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
   colgados, IDs duplicados) y lo navega en ambas direcciones
-- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática y
+- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática,
   **presunción de grado** (un niño de 2° no arranca contando hasta 100, ni se
-  le reporta al papá un atraso que nadie midió)
+  le reporta al papá un atraso que nadie midió), **registro por grado** (cómo
+  piensa un niño de 1° y cómo uno de 5°) y **momento del año escolar** (los dos
+  calendarios colombianos — el almanaque cambia el tono, nunca qué nodo sigue)
 - `storage.py`: `RepositorioSQLite` completo — WAL, transacciones atómicas,
   migraciones por `user_version`, idempotencia, retención, auditorías y reportes
 - `tools.py`: `check_answer` (entiende números hablados en español, tolerante
@@ -186,9 +190,32 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 - `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
 - `web/`: la interfaz de voz del niño (React + Vite)
 - `evals/`: 41 casos en las 4 suites de YC — **41/41** en la última corrida
-- `matematicas.yaml`: 13 habilidades de 1° a 3° con doble anclaje
-  ⚠️ Referencias DBA **provisionales** — verificar contra el MEN
-- 289 tests en verde
+- `matematicas.yaml`: 13 habilidades de 1° a 3° con **triple anclaje** — DBA
+  citado por número, EBC por ciclo y Core Knowledge. Auditado nodo por nodo en
+  `FUENTES.md` §2.5. Lo que sigue sin verificar se dice en la cabecera del YAML
+  (la memoria de tablas 10×10 no la exige el MEN; los topes "hasta 100" y "hasta
+  999" tampoco)
+- `base_academica_men.md`: el marco del MEN alrededor del grafo (áreas, EBC,
+  Saber, calendarios, desarrollo cognitivo). Ver `ARCHITECTURE.md` §19
+- 341 tests en verde
+
+### Cómo se levanta para HABLAR con el tutor
+
+```bash
+cd web && npm run build && cd ..        # una vez, o tras tocar la interfaz
+python -m uvicorn tutor.api:app --port 8000
+```
+
+Y se abre **http://localhost:8000**. La app del niño y la API salen del mismo
+proceso: un origen, sin proxy.
+
+⚠️ **`npm run dev` NO se usa para hablar con el tutor.** Sirve para trabajar en
+la interfaz y nada más. El servidor de desarrollo entrega React sin minificar y
+los módulos sueltos; esta app procesa audio PCM en tiempo real en el hilo del
+navegador, y con el build de desarrollo el niño siente que el tutor "se va a
+buscar la respuesta y vuelve". Medido el 19/08: el backend responde en **4 ms**
+—veinte veces por debajo del presupuesto— así que cuando la sesión se siente
+lenta, **el sospechoso no es el backend**. Ver `ARCHITECTURE.md` §9.
 
 ```
 python -m scripts.demo_planificador     # el cerebro
@@ -209,6 +236,35 @@ confirme que la transcripción arreglada corrige el "dos" → "32", y la medici�
 de `check_answer` en la consola del navegador. Ver `PENDIENTE.md`.
 
 Ver `ARCHITECTURE.md` §17 para el plan de fases.
+
+---
+
+## Lección aprendida (fase 8)
+
+Entró una fuente académica nueva —el marco del MEN— y el trabajo real no fue
+incorporarla: fue **decidir qué no incorporar**.
+
+1. **Una fuente secundaria no gana por cubrir más.** Traía las cinco áreas con
+   los DBA de cada grado; `FUENTES.md` solo tenía dos áreas. Y sin embargo sus
+   tablas de DBA estaban **corridas un grado** (los primeros de cada grado eran
+   del grado siguiente). Se vio solo porque existía el cruce contra los PDF
+   primarios. → Ante dos fuentes que se contradicen, **gana la que se contrastó
+   con el primario**, aunque la otra se vea más completa y mejor ordenada.
+2. **El aplazamiento con costo escrito es alcance, no deuda.** Cuatro cosas
+   buenas del documento se dejaron afuera (calendario escolar, memoria
+   institucional estructurada, Saber, abrir las cinco áreas) con el precio
+   anotado y qué las destrabaría. `ARCHITECTURE.md` §19.
+3. **Antes de agregar un campo, mirar si ya hay dónde ponerlo.** La memoria del
+   colegio parecía pedir campos nuevos en `PerfilPersonal` y en la salida del
+   Analista. `notas` ya existía y es texto libre: se resolvió con un párrafo en
+   un `.md`, sin tocar Python ni el schema de un agente — que es la operación
+   que la fase 7 dejó marcada como la más cara.
+4. **Un test que mide lo que no es, pasa igual.** El test del techo del prompt
+   medía con el literal `"Juan, 7 años, 2° grado."` en vez del resumen real, y
+   se comía ~650 caracteres sin verlos. El anti-voseo revisaba un solo niño, y
+   "seguí subiendo" vivía tranquilo en la rama VA ADELANTADO. Los dos estaban en
+   verde. → Cuando una función tiene ramas, **el test tiene que recorrerlas**;
+   un caso de ejemplo no es cobertura. Es la fase 2 otra vez.
 
 ---
 

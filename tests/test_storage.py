@@ -4,12 +4,15 @@ Lo que importa acá no es que guarde y traiga —eso es lo fácil— sino los do
 candados que definimos en la arquitectura: idempotencia y retención.
 """
 
+import json
+import sqlite3
 from datetime import datetime, timedelta
 
 import pytest
 
 from tutor.models import (
     AuditoriaCumplimiento,
+    Calendario,
     Ejercicio,
     EstadoSesion,
     MetricasReporte,
@@ -20,7 +23,12 @@ from tutor.models import (
     Sesion,
     TextoLocalizado,
 )
-from tutor.storage import VERSION_ESQUEMA, RepositorioSQLite
+from tutor.storage import (
+    _ESQUEMA_V1,
+    _ESQUEMA_V2,
+    VERSION_ESQUEMA,
+    RepositorioSQLite,
+)
 
 AHORA = datetime(2026, 8, 17, 10, 0)
 
@@ -442,3 +450,63 @@ def test_un_enlace_vencido_no_abre_el_panel(tmp_path):
 def test_un_token_inventado_no_abre_nada(tmp_path):
     repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
     assert repo.canjear_enlace("no-existe") is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Migraciones sobre bases que YA tienen datos
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_migrar_de_v2_a_v3_no_pierde_la_ficha_de_nadie(tmp_path):
+    """LA PRUEBA QUE IMPORTA DE UNA MIGRACIÓN.
+
+    `test_reabrir_no_rompe_nada` corre sobre una base que el código actual creó
+    entero: nunca ejerce el salto de versión. Acá se fabrica una base tal como
+    quedaba en v2 —con un niño y su dominio adentro— y se abre con el código
+    nuevo, que es lo que va a pasar en la máquina donde ya hay datos.
+
+    Lo que se verifica no es que la columna exista: es que **el aprendizaje del
+    niño sobrevivió**. Perder la tabla `dominio` en una migración es perder
+    meses de sesiones, y no hay backup que lo devuelva con el niño esperando.
+    """
+    ruta = tmp_path / "vieja.db"
+    con = sqlite3.connect(ruta)
+    con.executescript(_ESQUEMA_V1)
+    con.executescript(_ESQUEMA_V2)
+    con.execute("PRAGMA user_version = 2")
+    con.execute(
+        "INSERT INTO ninos (id,nombre,edad,grado,idioma,perfil,creado_en)"
+        " VALUES (?,?,?,?,?,?,?)",
+        ("n1", "Juan", 7, 2, "es", json.dumps({"intereses": ["fútbol"], "madurez_vinculo": 3}),
+         "2026-08-01T10:00:00"),
+    )
+    con.execute(
+        "INSERT INTO dominio (nino_id,habilidad_id,nivel,intentos,aciertos,ultima_practica)"
+        " VALUES (?,?,?,?,?,?)",
+        ("n1", "mat.numeros.conteo_hasta_100", 0.91, 12, 11, "2026-08-15T10:00:00"),
+    )
+    con.commit()
+    con.close()
+
+    repo = RepositorioSQLite(ruta, tmp_path)
+    juan = repo.obtener_nino("n1")
+
+    assert juan is not None, "la migración se llevó la ficha por delante"
+    assert juan.perfil.intereses == ["fútbol"], "se perdió el perfil personal"
+    assert juan.perfil.madurez_vinculo == 3
+    assert juan.dominio["mat.numeros.conteo_hasta_100"].nivel == 0.91, "se perdió el aprendizaje"
+
+    # El campo nuevo toma su default sin que nadie lo escriba: las fichas viejas
+    # quedan en calendario A, que es el de la mayoría de colegios del país.
+    assert juan.calendario == Calendario.A
+    assert juan.perfil.contexto_escolar is None
+
+    # Y se puede escribir lo nuevo sin tocar lo viejo.
+    juan.calendario = Calendario.B
+    juan.perfil.contexto_escolar = "La profe está dando los mapas de Colombia."
+    repo.guardar_nino(juan)
+
+    releido = repo.obtener_nino("n1")
+    assert releido.calendario == Calendario.B
+    assert releido.perfil.contexto_escolar.startswith("La profe")
+    assert releido.dominio["mat.numeros.conteo_hasta_100"].nivel == 0.91

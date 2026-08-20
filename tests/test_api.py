@@ -498,3 +498,57 @@ def test_sin_modelo_el_onboarding_lo_dice_en_vez_de_fingirlo(cliente, monkeypatc
     """Un formulario de mentira que no guarda nada es peor que un error claro."""
     monkeypatch.setattr(api, "_HAY_ANALISTA", False)
     assert cliente.post("/api/onboarding").status_code == 503
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El 20% del colegio en el panel del papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_el_panel_muestra_lo_que_el_tutor_sabe_del_colegio():
+    """Va en recuadro aparte de los intereses porque responde otra pregunta del
+    papá: no "¿lo conoce?" sino "¿está alineado con lo que ve en clase?".
+
+    Es también lo que hace VERIFICABLE la memoria institucional: el papá puede
+    contrastarlo con el cuaderno de su hijo. Un tutor que dice conocer el
+    colegio y no lo muestra no se puede auditar.
+    """
+    from tutor.panel import render_panel
+
+    html = render_panel(
+        nombre="Juan", grado_escolar=2, grado_de_trabajo=3, adelanto_grados=1,
+        ya_domina=["Contar hasta 100"], esta_trabajando=["Centenas"], intereses=["fútbol"],
+        contexto_escolar="La profe Marcela está dando los mapas de Colombia.",
+        sesiones_total=8, sesiones_auditadas=6, metodo_sostenido=0.83, dias=7,
+    )
+    assert "Lo que sabe del colegio de Juan" in html
+    assert "profe Marcela" in html
+
+
+def test_sin_datos_del_colegio_el_panel_no_deja_un_recuadro_vacio():
+    """Ausencia de evidencia se dice callando. Un recuadro con título y nada
+    adentro le promete al papá algo que el tutor todavía no sabe."""
+    from tutor.panel import render_panel
+
+    html = render_panel(
+        nombre="Juan", grado_escolar=2, grado_de_trabajo=2, adelanto_grados=0,
+        ya_domina=[], esta_trabajando=["Centenas"], intereses=["fútbol"],
+        sesiones_total=8, sesiones_auditadas=6, metodo_sostenido=0.83, dias=7,
+    )
+    assert "Lo que sabe del colegio" not in html
+
+
+def test_el_texto_del_colegio_lo_escribe_un_modelo_y_va_escapado():
+    """`contexto_escolar` sale del Analista leyendo una transcripción: es la
+    ruta más corta que existe entre lo que alguien dijo en voz alta y el
+    navegador del papá. Escaparlo no es paranoia, es el camino real."""
+    from tutor.panel import render_panel
+
+    html = render_panel(
+        nombre="Juan", grado_escolar=2, grado_de_trabajo=2, adelanto_grados=0,
+        ya_domina=[], esta_trabajando=[], intereses=[],
+        contexto_escolar="<script>alert(1)</script>",
+        sesiones_total=1, sesiones_auditadas=0, metodo_sostenido=None, dias=7,
+    )
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html

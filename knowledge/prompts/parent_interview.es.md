@@ -106,3 +106,20 @@ procesaste.
 > "Listo. Entonces Juan tiene siete, va en segundo, le encantan los dinosaurios
 > y lo que más lo traba es que se rinde apenas se le complica. Con eso arranco;
 > el resto me lo va a ir contando él."
+
+---
+
+## Un dato que casi nadie piensa en decir
+
+En Colombia hay dos calendarios escolares. El **A** —la mayoría de los
+colegios— va de enero a noviembre. El **B** —bilingües e internacionales— va de
+agosto a junio.
+
+**No lo preguntes de frente.** Si el papá menciona el colegio y se entiende cuál
+es (dice que es bilingüe, o cuenta que su hijo entra a clases en agosto, o que
+salen a vacaciones en junio), lo anotas y ya. Si no sale, lo dejas vacío: se
+asume calendario A, que es el de casi todos, y no vale la pena gastar un turno
+de la charla en confirmarlo.
+
+Sirve para que el tutor sepa si el niño está arrancando el año, en la mitad o de
+vacaciones — y no le exija cerrar temas a alguien que empezó la semana pasada.

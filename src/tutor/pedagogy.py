@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 
 from .curriculum import GrafoHabilidades
-from .models import Habilidad, Nino, RegistroDominio, TipoObservacion
+from .models import Calendario, Habilidad, Nino, RegistroDominio, TipoObservacion
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parámetros del modelo de aprendizaje
@@ -365,6 +365,152 @@ def hay_frustracion(observaciones: list[TipoObservacion], pistas_seguidas: int) 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+class MomentoEscolar(StrEnum):
+    """En qué parte del año escolar está el niño hoy.
+
+    No se guarda: se calcula de `Nino.calendario` y la fecha. Un dato derivado
+    que se persiste es un dato que se puede quedar viejo.
+    """
+
+    INICIO = "inicio"
+    EN_CURSO = "en_curso"
+    RECTA_FINAL = "recta_final"
+    RECESO = "receso"
+
+
+# Frontera de cada tramo como (mes, día) — vale desde esa fecha hasta la
+# siguiente. Ordenadas, y la primera arranca el 1 de enero para que cualquier
+# fecha del año caiga en algún tramo sin casos especiales de fin de año.
+#
+# Las 40 semanas lectivas son las mismas en los dos calendarios (Decreto 1850
+# de 2002); lo que cambia es dónde empiezan. Ver `base_academica_men.md` §V.3.
+_TRAMOS: dict[Calendario, tuple[tuple[tuple[int, int], MomentoEscolar], ...]] = {
+    # Enero tardío a noviembre. Receso grande a mitad de año y en diciembre.
+    Calendario.A: (
+        ((1, 1), MomentoEscolar.RECESO),
+        ((1, 16), MomentoEscolar.INICIO),
+        ((3, 1), MomentoEscolar.EN_CURSO),
+        ((6, 1), MomentoEscolar.RECESO),
+        ((7, 16), MomentoEscolar.EN_CURSO),
+        ((10, 1), MomentoEscolar.RECTA_FINAL),
+        ((12, 1), MomentoEscolar.RECESO),
+    ),
+    # Agosto a junio. El año escolar cruza el año calendario.
+    Calendario.B: (
+        ((1, 1), MomentoEscolar.RECESO),
+        ((1, 16), MomentoEscolar.EN_CURSO),
+        ((5, 1), MomentoEscolar.RECTA_FINAL),
+        ((6, 16), MomentoEscolar.RECESO),
+        ((8, 16), MomentoEscolar.INICIO),
+        ((10, 1), MomentoEscolar.EN_CURSO),
+        ((12, 1), MomentoEscolar.RECESO),
+    ),
+}
+
+
+def momento_del_ano(calendario: Calendario, fecha: datetime) -> MomentoEscolar:
+    """En qué parte del año escolar cae esta fecha. Función pura.
+
+    Es una fórmula, no un juicio: el mismo par (calendario, fecha) da siempre lo
+    mismo, y eso se le puede explicar a un papá.
+
+    Deliberadamente NO entra al planificador. `siguiente_habilidad` decide por
+    dominio y solo por dominio — si el calendario cambiara qué nodo se ofrece,
+    dos niños con la misma ficha recibirían cosas distintas por el día en que
+    entraron, y el reporte al papá dejaría de ser reproducible. El momento del
+    año cambia el TONO de la sesión (qué se repasa, cuánto se exige), y eso vive
+    en el prompt.
+    """
+    hoy = (fecha.month, fecha.day)
+    momento = _TRAMOS[calendario][0][1]
+    for desde, tramo in _TRAMOS[calendario]:
+        if hoy >= desde:
+            momento = tramo
+    return momento
+
+
+GUIA_POR_MOMENTO: dict[MomentoEscolar, str] = {
+    MomentoEscolar.INICIO: (
+        "Arranca el año escolar: mucho de lo de este grado todavía no lo ha "
+        "visto en clase. Repasa lo del año pasado y acompaña lo que traiga."
+    ),
+    MomentoEscolar.RECTA_FINAL: (
+        "Recta final del año escolar. Es momento de cerrar lo que quedó flojo, "
+        "no de abrir temas nuevos que no alcanza a asentar."
+    ),
+    MomentoEscolar.RECESO: (
+        "Está en vacaciones. Repaso liviano y por gusto: nada de exigencia de "
+        "pensum ni de ponerse al día. Si quiere jugar con un tema, jueguen."
+    ),
+}
+"""Qué cambia en la sesión según el momento del año. `EN_CURSO` no lleva línea:
+es el caso normal y no hace falta decirle al tutor que trabaje normal."""
+
+
+REGISTRO_POR_GRADO: dict[int, str] = {
+    1: (
+        "Piensa en concreto y su atención es corta. Una idea por turno, frases "
+        "cortas, ejemplos con su cuerpo, sus juguetes o su familia. Preguntas de "
+        "elección ('¿son más o son menos?'), no abiertas. Nada de definiciones."
+    ),
+    2: (
+        "Ya clasifica y ordena, pero necesita objetos para pensar. Habla siempre "
+        "de cosas contables ('imagínate 8 mandarinas'). Pasos numerados. Pídele "
+        "que te lo cuente con sus palabras antes de seguir."
+    ),
+    3: (
+        "Su lógica concreta ya está firme: entiende que si 4+3=7 entonces 7-3=4. "
+        "Usa problemas de la calle —la tienda, la plata, una receta—. Hazlo "
+        "predecir antes de calcular, y pregúntale por qué cree eso."
+    ),
+    4: (
+        "Relaciona varias cosas a la vez. Tablas, esquemas y comparaciones le "
+        "sirven. Llévalo a la primera generalización: '¿eso pasa siempre?'. "
+        "Aguanta explicaciones más largas que un niño de 2°."
+    ),
+    5: (
+        "Razona sistemáticamente sobre lo concreto y ya ensaya reglas propias, "
+        "pero todavía no piensa en abstracto. Retos de varios pasos: que proponga "
+        "una conjetura y la compruebe. Sin álgebra formal ni lenguaje abstracto."
+    ),
+}
+"""Cómo piensa el niño en cada grado, y qué hace el tutor con eso.
+
+Etapa de operaciones concretas de Piaget (7-11 años), como la baja el MEN a
+primaria colombiana — ver `knowledge/curriculum/base_academica_men.md` §V.5.
+
+Entra UNA línea, la del grado del niño, no la tabla: el prompt se mantiene
+flaco (ARCHITECTURE.md §9). Es el complemento pedagógico de lo que
+`voice.deteccion_para_edad` ya hace del lado técnico — allá cuánto esperamos a
+que termine de hablar, acá cómo le hablamos.
+
+Deliberadamente NO se copió la recomendación de la fuente para 1° ("celebrar
+cada intento"): choca de frente con la prohibición de elogio inflado. La misma
+fuente lo dice bien tres líneas después —reconocer el proceso, no el acierto— y
+eso ya vive en `valores.es.md`. Acá va cómo PIENSA el niño, no cómo se lo trata:
+lo segundo no cambia por grado.
+"""
+
+
+MAX_TEXTO_LIBRE = 220
+"""Tope de cada campo de texto libre que entra al prompt (`notas`,
+`contexto_escolar`).
+
+Las listas del perfil ya venían acotadas por `[:4]` y `[:3]`; estos dos campos
+no, y los escribe un modelo. Un Analista que un día devuelve un párrafo de 600
+caracteres en cada uno empuja el prompt casi 1 KB, sin que nadie lo pida y sin
+que ningún test lo vea. El presupuesto del prompt se defiende en el borde donde
+importa, no confiando en que el modelo se porte bien."""
+
+
+def _recortar(texto: str, limite: int = MAX_TEXTO_LIBRE) -> str:
+    """Corta en el último espacio antes del límite, para no partir una palabra."""
+    if len(texto) <= limite:
+        return texto
+    corte = texto.rfind(" ", 0, limite)
+    return texto[: corte if corte > limite // 2 else limite].rstrip(" ,;.") + "…"
+
+
 def resumen_para_prompt(
     nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None
 ) -> str:
@@ -376,6 +522,13 @@ def resumen_para_prompt(
     """
     lineas = [f"{nino.nombre}, {nino.edad} años, {nino.grado}° grado."]
 
+    if (registro := REGISTRO_POR_GRADO.get(nino.grado)) is not None:
+        lineas.append(registro)
+
+    momento = momento_del_ano(nino.calendario, ahora or datetime.now())
+    if (guia := GUIA_POR_MOMENTO.get(momento)) is not None:
+        lineas.append(guia)
+
     dominadas = [hid for hid, reg in nino.dominio.items() if esta_dominada(reg, ahora)]
     if dominadas:
         lineas.append(f"Ya domina {len(dominadas)} habilidades.")
@@ -385,7 +538,7 @@ def resumen_para_prompt(
         lineas.append(
             f"VA ADELANTADO: ya trabaja {delta} {grados} por encima del suyo "
             f"(está en {grado_de_trabajo(nino, grafo, ahora)}°). "
-            "No lo frenes ni bajes la exigencia — seguí subiendo mientras responda."
+            "No lo frenes ni bajes la exigencia — sigue subiendo mientras responda."
         )
 
     if (objetivo := siguiente_habilidad(nino, grafo, ahora)) is not None:
@@ -403,8 +556,12 @@ def resumen_para_prompt(
         lineas.append("Lo traba: " + ", ".join(p.frustraciones[:3]) + ".")
     if p.estilo_comunicacion:
         lineas.append(f"Estilo: {p.estilo_comunicacion}.")
+    if p.contexto_escolar:
+        # El 20% del PEI que no está en ningún estándar. Va después del perfil y
+        # antes de las notas porque es contexto de la clase, no del niño.
+        lineas.append(f"En el colegio: {_recortar(p.contexto_escolar)}")
     if p.notas:
-        lineas.append(p.notas)
+        lineas.append(_recortar(p.notas))
 
     # De dónde viene lo que sabe. El tutor tiene una regla dura sobre no decir
     # "me contaron", y en la primera sesión esa regla lo hace mentir: todavía no

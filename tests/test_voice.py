@@ -4,8 +4,13 @@ Sin API key: todo lo que importa acá es cómo se arma la configuración y que
 quede atada al token. La conexión real la hace el navegador.
 """
 
+from datetime import datetime
+
 import pytest
 
+from tutor.curriculum import cargar_grafo
+from tutor.models import Nino
+from tutor.pedagogy import resumen_para_prompt
 from tutor.voice import (
     DECLARACIONES_TOOLS,
     SAMPLE_RATE_ENTRADA,
@@ -206,10 +211,67 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
     Queda dicho que el prompt está gordo (~36,7 KB de un techo de 38) y que
     adelgazarlo es deuda abierta. NO es costo — entra una vez por sesión, ~$0,20
     al mes, medido el 18/08. Es latencia de la primera frase.
+
+    ═══ 19/08: el techo de 38 KB era inalcanzable, y el test no lo veía ═══
+
+    Medía el caso más flaco posible —resumen literal, sin primer encuentro, sin
+    temas, modo guiado— y daba 36,8 KB. La sesión REAL más pesada es otra, y es
+    la primera de todas: un niño que estrena el tutor y llega con tarea.
+
+        base (persona 11,3 + playbook 11,2 + valores 6,9 + safety 6,7)  36,161
+        + primer_encuentro (solo sesión 1)                              +2,231
+        + bloque de temas del banco                                       +~550
+        + modo pedido                                                     +~250
+        + resumen del niño                                                +~800
+        ────────────────────────────────────────────────────────────────────────
+                                                                        ~40,000
+
+    O sea: la base sola deja 1,8 KB libres, y `primer_encuentro` pide 2,2 KB. El
+    techo se rompía desde el día en que ese bloque entró — el test pasaba porque
+    medía una sesión que en producción no existe.
+
+    **La decisión (tomada, no descuidada): el techo sube a 41 KB y el test mide
+    el peor caso alcanzable.** Un número honesto que se rompe cuando algo crece
+    vale más que uno bonito que nunca se ejerce. No es costo (~$0,20 al mes,
+    medido el 18/08); es latencia de la primera frase, y adelgazar el prompt
+    queda como la deuda abierta #1 — con el desglose de arriba, es media hora de
+    trabajo decidir qué sale.
+
+    Nótese que la primera sesión y el perfil lleno son excluyentes:
+    `primer_encuentro` se activa con `madurez_vinculo == 0`, cuando el Analista
+    todavía no escribió nada. Por eso el peor caso se mide dos veces y se toma
+    el mayor, en vez de sumar cosas que no coexisten.
     """
-    texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.")
-    assert len(texto) < 38_000, (
-        f"el prompt de sesión llegó a {len(texto)} caracteres. "
+    grafo = cargar_grafo()
+    temas = [(h.id, h.nombre.es) for h in list(grafo)[:6]]
+    receso = datetime(2026, 6, 25, 10, 0)  # la guía de momento más larga
+
+    # (a) Primera sesión con tarea: perfil vacío, pero carga `primer_encuentro`.
+    estrena = Nino(id="a", nombre="Sofía", edad=10, grado=5)
+
+    # (b) Sesión 40 con tarea: sin `primer_encuentro`, pero con la ficha llena.
+    veterano = Nino(id="b", nombre="Sofía", edad=10, grado=5)
+    veterano.perfil.intereses = ["fútbol", "dinosaurios", "minecraft", "patinaje"]
+    veterano.perfil.motivadores = ["competir contra el reloj", "explicarle a su hermano", "retos"]
+    veterano.perfil.frustraciones = ["que le digan que va lento", "los problemas largos", "ruido"]
+    veterano.perfil.estilo_comunicacion = "directo, sin vueltas, con humor"
+    veterano.perfil.notas = "N" * 400  # el Analista desbordado: lo recorta `pedagogy`
+    veterano.perfil.contexto_escolar = "C" * 400
+    veterano.perfil.madurez_vinculo = 12
+
+    peor = 0
+    for nino, primer in ((estrena, True), (veterano, False)):
+        texto = construir_instruccion_sistema(
+            resumen_para_prompt(nino, grafo, receso),
+            modo="pedido",
+            temas=temas,
+            tema_principal=temas[0][0],
+            primer_encuentro=primer,
+        )
+        peor = max(peor, len(texto))
+
+    assert peor < 41_000, (
+        f"el peor caso del prompt de sesión llegó a {peor} caracteres. "
         "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
         "Lo que solo explica el porqué va en knowledge/product/."
     )

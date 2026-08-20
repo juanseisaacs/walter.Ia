@@ -54,7 +54,8 @@ def render_panel(
     ya_domina: list[str],
     esta_trabajando: list[str],
     intereses: list[str],
-    sesiones_total: int,
+    contexto_escolar: str | None = None,
+    sesiones_total: int = 0,
     sesiones_auditadas: int,
     metodo_sostenido: float | None,
     dias: int,
@@ -117,6 +118,19 @@ def render_panel(
           <h2>Lo que su tutor ya sabe de {escape(nombre)}</h2>
           <p class="sub">El tutor lo conoce y usa esto para engancharlo. Crece sesión a sesión.</p>
           <div class="chips">{_chips(intereses)}</div>
+        </section>"""
+
+    # El 20% del colegio. Se muestra aparte de los intereses porque responde otra
+    # pregunta del papá: no "¿lo conoce?" sino "¿está alineado con la clase?".
+    # Solo aparece cuando hay algo — un recuadro vacío promete lo que no hay.
+    colegio_html = ""
+    if contexto_escolar:
+        colegio_html = f"""
+        <section class="card">
+          <h2>Lo que sabe del colegio de {escape(nombre)}</h2>
+          <p class="sub">Sale de lo que {escape(nombre)} le ha contado en las sesiones.
+          Le sirve al tutor para acompañar lo que está viendo en clase.</p>
+          <p>{escape(contexto_escolar)}</p>
         </section>"""
 
     return f"""<!doctype html>
@@ -222,6 +236,7 @@ def render_panel(
       </section>
     </div>
     {intereses_html}
+    {colegio_html}
 
     <section class="card">
       <h2>Actividad</h2>

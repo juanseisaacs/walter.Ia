@@ -7,9 +7,11 @@ falla, algo cambió en la pedagogía — no en el código.
 from datetime import datetime, timedelta
 
 from tutor.curriculum import cargar_grafo
-from tutor.models import Nino, RegistroDominio
+from tutor.models import Calendario, Nino, RegistroDominio
 from tutor.pedagogy import (
+    REGISTRO_POR_GRADO,
     UMBRAL_DOMINIO,
+    MomentoEscolar,
     NivelPista,
     actualizar_dominio,
     adelanto,
@@ -17,6 +19,7 @@ from tutor.pedagogy import (
     grado_de_trabajo,
     habilidades_disponibles,
     habilidades_para_repasar,
+    momento_del_ano,
     necesita_repaso,
     nivel_efectivo,
     resumen_para_prompt,
@@ -506,11 +509,190 @@ def test_cuando_ya_se_conocen_no_le_avisa_de_la_primera_vez():
 
 def test_el_resumen_del_nino_no_vosea():
     """Va al prompt del tutor, que tiene prohibido el voseo. Ya se coló dos
-    veces por acá: es texto en Python, no en el .md que todos revisan."""
-    grafo = cargar_grafo()
-    nino = Nino(id="n1", nombre="Juan", edad=7, grado=2)
-    nino.perfil.madurez_vinculo = 1
+    veces por acá: es texto en Python, no en el .md que todos revisan.
 
-    texto = resumen_para_prompt(nino, grafo, AHORA).lower()
-    for forma in ["conocés", "preguntá", "explorá", "seguí", "tenés", "usá"]:
-        assert forma not in texto, f"voseo en el resumen del niño: {forma!r}"
+    El 19/08 se coló una tercera, y el test no la vio: "seguí subiendo" vivía en
+    la rama VA ADELANTADO, que este caso nunca activaba. Un niño solo no alcanza
+    a recorrer el texto entero — hay que barrer las ramas. Por eso ahora se
+    revisan los cinco grados y también el chico veloz.
+    """
+    grafo = cargar_grafo()
+    formas = ["conocés", "preguntá", "explorá", "seguí", "tenés", "usá", "pedile", "hacelo"]
+
+    candidatos = [_juan_veloz()]
+    for grado in REGISTRO_POR_GRADO:
+        n = Nino(id=f"n{grado}", nombre="Juan", edad=grado + 5, grado=grado)
+        n.perfil.madurez_vinculo = 1
+        candidatos.append(n)
+
+    for nino in candidatos:
+        texto = resumen_para_prompt(nino, grafo, AHORA).lower()
+        for forma in formas:
+            assert forma not in texto, f"voseo en el resumen ({nino.grado}°): {forma!r}"
+
+
+def test_el_resumen_dice_como_piensa_un_nino_de_ese_grado():
+    """El tutor recibía "Juan, 7 años, 2° grado" y nada más: la edad le decía a
+    quién le habla, pero no CÓMO piensa. Un niño de 1° no razona como uno de 5°,
+    y esa diferencia cambia cada turno.
+
+    Calibración absoluta, no relativa (lección de la fase 2): se verifica que la
+    línea de 1° pida concreción y la de 5° la prohíba explícitamente, no que
+    "una sea más simple que la otra".
+    """
+    grafo = cargar_grafo()
+
+    primero = resumen_para_prompt(Nino(id="a", nombre="Ana", edad=6, grado=1), grafo, AHORA)
+    assert "Una idea por turno" in primero
+    assert "Nada de definiciones" in primero
+
+    quinto = resumen_para_prompt(Nino(id="b", nombre="Sofía", edad=10, grado=5), grafo, AHORA)
+    assert "conjetura" in quinto
+    assert "Sin álgebra formal" in quinto
+
+    # Los cinco grados tienen línea: un hueco deja al tutor sin registro justo
+    # con el niño de ese grado, y en silencio.
+    assert set(REGISTRO_POR_GRADO) == {1, 2, 3, 4, 5}
+
+
+def test_el_registro_por_grado_no_felicita_por_felicitar():
+    """La fuente (MEN/Piaget) recomienda para 1° "celebrar cada intento". Copiado
+    tal cual produce exactamente el tutor que la regla dura prohíbe: el elogio
+    inflado le enseña al niño que su valor depende de rendir.
+
+    Lo que va acá es cómo PIENSA el niño. Cómo se lo trata no cambia por grado y
+    ya vive en `valores.es.md`.
+    """
+    for grado, linea in REGISTRO_POR_GRADO.items():
+        bajo = linea.lower()
+        for palabra in ["celebra", "felicita", "elogia", "genio", "increíble"]:
+            assert palabra not in bajo, f"elogio en el registro de {grado}°: {palabra!r}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Calendario escolar: en qué momento del año está el niño
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_los_dos_calendarios_no_estan_en_el_mismo_momento_del_ano():
+    """LA RAZÓN DE QUE EXISTA EL CAMPO.
+
+    En Colombia conviven dos calendarios. En agosto un niño de calendario A
+    lleva medio año de clases y uno de B está arrancando. Sin distinguirlos, el
+    tutor le repasa el grado anterior al que está en la mitad del año, o le
+    exige cierre de temas al que empezó la semana pasada.
+    """
+    agosto = datetime(2026, 8, 20, 10, 0)
+    assert momento_del_ano(Calendario.A, agosto) == MomentoEscolar.EN_CURSO
+    assert momento_del_ano(Calendario.B, agosto) == MomentoEscolar.INICIO
+
+
+def test_calibracion_del_calendario_a_contra_el_ano_escolar_real():
+    """Calibración absoluta, no relativa (lección de la fase 2): se verifica
+    contra fechas reales del año escolar colombiano, no que "unos meses van
+    antes que otros".
+
+    Calendario A (mayoría de colegios): clases de enero tardío a noviembre,
+    receso grande en junio-julio y en diciembre.
+    """
+    casos = {
+        (1, 5): MomentoEscolar.RECESO,  # todavía vacaciones de fin de año
+        (2, 10): MomentoEscolar.INICIO,  # arrancó hace poco
+        (4, 20): MomentoEscolar.EN_CURSO,
+        (6, 25): MomentoEscolar.RECESO,  # receso de mitad de año
+        (9, 1): MomentoEscolar.EN_CURSO,
+        (11, 5): MomentoEscolar.RECTA_FINAL,  # cierre del año
+        (12, 20): MomentoEscolar.RECESO,
+    }
+    for (mes, dia), esperado in casos.items():
+        real = momento_del_ano(Calendario.A, datetime(2026, mes, dia, 10, 0))
+        assert real == esperado, f"calendario A, {dia}/{mes}: {real} en vez de {esperado}"
+
+
+def test_calibracion_del_calendario_b_contra_el_ano_escolar_real():
+    """Calendario B (bilingües e internacionales): agosto a junio. El año
+    escolar cruza el año calendario, que es donde se rompen estas cuentas."""
+    casos = {
+        (9, 10): MomentoEscolar.INICIO,
+        (11, 5): MomentoEscolar.EN_CURSO,
+        (12, 28): MomentoEscolar.RECESO,  # receso de mitad de año
+        (3, 15): MomentoEscolar.EN_CURSO,
+        (5, 20): MomentoEscolar.RECTA_FINAL,
+        (7, 15): MomentoEscolar.RECESO,  # vacaciones largas
+    }
+    for (mes, dia), esperado in casos.items():
+        real = momento_del_ano(Calendario.B, datetime(2026, mes, dia, 10, 0))
+        assert real == esperado, f"calendario B, {dia}/{mes}: {real} en vez de {esperado}"
+
+
+def test_todo_dia_del_ano_cae_en_algun_momento():
+    """Los tramos se definen por frontera, y una frontera mal puesta deja un
+    hueco silencioso: un día sin momento sería un `KeyError` en plena sesión."""
+    for calendario in Calendario:
+        for dia in range(366):
+            fecha = datetime(2026, 1, 1) + timedelta(days=dia)
+            assert isinstance(momento_del_ano(calendario, fecha), MomentoEscolar)
+
+
+def test_el_planificador_no_cambia_con_el_calendario():
+    """REGLA: el momento del año cambia el TONO, no QUÉ nodo se ofrece.
+
+    Si el calendario moviera la selección, dos niños con la misma ficha
+    recibirían cosas distintas por el día en que entraron, y el reporte al papá
+    dejaría de ser reproducible. El planificador decide por dominio y solo por
+    dominio.
+    """
+    grafo = cargar_grafo()
+    dominio = {"mat.numeros.conteo_hasta_100": _dominado("mat.numeros.conteo_hasta_100")}
+    en_clases = Nino(id="a", nombre="Ana", edad=7, grado=2, dominio=dominio,
+                     calendario=Calendario.A)
+    en_vacaciones = Nino(id="b", nombre="Ana", edad=7, grado=2, dominio=dominio,
+                         calendario=Calendario.B)
+
+    agosto = datetime(2026, 8, 20, 10, 0)
+    assert momento_del_ano(Calendario.A, agosto) != momento_del_ano(Calendario.B, agosto)
+    assert (
+        siguiente_habilidad(en_clases, grafo, agosto).id
+        == siguiente_habilidad(en_vacaciones, grafo, agosto).id
+    )
+
+
+def test_en_vacaciones_el_tutor_no_exige_pensum():
+    """Lo que el momento del año SÍ cambia: cómo se conduce la sesión."""
+    grafo = cargar_grafo()
+    nino = Nino(id="a", nombre="Ana", edad=7, grado=2, calendario=Calendario.A)
+
+    vacaciones = resumen_para_prompt(nino, grafo, datetime(2026, 6, 25, 10, 0))
+    assert "vacaciones" in vacaciones and "nada de exigencia de pensum" in vacaciones
+
+    cierre = resumen_para_prompt(nino, grafo, datetime(2026, 11, 5, 10, 0))
+    assert "Recta final" in cierre
+
+    # En curso es el caso normal y no lleva línea: decirle al tutor "trabaja
+    # normal" gasta prompt y no cambia nada.
+    normal = resumen_para_prompt(nino, grafo, datetime(2026, 4, 20, 10, 0))
+    assert "vacaciones" not in normal and "Recta final" not in normal
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El 20% institucional
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_lo_que_el_nino_cuenta_del_colegio_llega_al_tutor():
+    """La ley obliga al 80% nacional; el 20% lo define cada colegio en su PEI.
+    El grafo nace sabiendo el 80% — el 20% solo se aprende oyendo al niño."""
+    grafo = cargar_grafo()
+    nino = Nino(id="a", nombre="Ana", edad=7, grado=2)
+    nino.perfil.contexto_escolar = "La profe Marcela está dando los mapas de Colombia."
+
+    texto = resumen_para_prompt(nino, grafo, AHORA)
+    assert "En el colegio: La profe Marcela" in texto
+
+
+def test_el_colegio_no_ocupa_espacio_cuando_no_se_sabe_nada():
+    """Ausencia de evidencia se dice callando, no con un renglón vacío que
+    igual paga prompt."""
+    grafo = cargar_grafo()
+    nino = Nino(id="a", nombre="Ana", edad=7, grado=2)
+    assert "En el colegio" not in resumen_para_prompt(nino, grafo, AHORA)

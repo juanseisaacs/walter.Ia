@@ -1,6 +1,67 @@
 # Pendiente — retomar acá
 
-_Última actualización: 2026-08-18, cierre del día. 40 commits._
+_Última actualización: 2026-08-19, cierre del día._
+
+## ⏭️ Para retomar mañana — en este orden
+
+**1. Probar la velocidad.** Es lo único que quedó pendiente de sentir:
+
+```bash
+python -m uvicorn tutor.api:app --port 8000     # y abrir http://localhost:8000
+```
+
+Debería ir como la noche del 18. Si vuelve a sentirse lento, el backend NO es el
+sospechoso: está medido en 4 ms (`ARCHITECTURE.md` §9). Lo primero a revisar es
+que estés en `http://localhost:8000` y no en el `5173` de `vite dev`.
+
+**2. Recargar créditos de Anthropic.** Se agotaron el 19/08 a mitad de la
+verificación. Bloquea al Analista, al Vigilante y a las evals — **no** al tutor
+de voz, que corre sobre Gemini.
+
+**3. Verificar dos cosas que quedaron escritas y sin comprobar** (las dos
+necesitan la llave):
+
+```bash
+python -m scripts.procesar_pendientes   # ¿el Analista ya atribuye bien la habilidad?
+python -m evals.runner                  # ¿41/41 sigue en pie?
+```
+
+- Del **Analista** se confirmó que ya no inventa el `habilidad_id` y que detecta
+  las señales (8 en una sesión de 9 min). Lo que falta comprobar es el último
+  ajuste: que cuando la sesión no pasó por el banco, **sí** atribuya en vez de
+  dejar todo en `null`.
+- Las **evals** no corren desde que cambió `session_analyst.es.md` y desde que
+  `contexto_escolar` entró a `PerfilPersonal`, que es parte de la salida
+  estructurada del Analista — la operación que la fase 7 marcó como la más cara.
+  Si bajan, el primer experimento es el de esa lección: volver `models.py` a HEAD
+  dejando el prompt nuevo, para separar las dos causas en una corrida.
+
+**4. Limpiar la ficha de Juan.** Tiene `mat.suma.sin_reagrupacion` en 0.21
+inventado por el Analista viejo (ver abajo). Son datos falsos en la ficha de un
+niño: conviene borrar ese registro antes de que llegue a un reporte.
+
+---
+
+## 🐛 Lo que se encontró probando en vivo el 19/08
+
+Primera sesión de voz larga con un niño real (9 min, 22 turnos). Tres cosas, y
+ninguna era la que parecía:
+
+1. **"Se siente lento".** No era el backend —4,2 ms el tool, 5,4 ms el turno—
+   sino que se estaba corriendo `vite dev` en vez del build. Arreglado montando
+   `web/dist` en la API. `ARCHITECTURE.md` §9.
+2. **El Analista inventaba la habilidad.** Sin banco recibía lista vacía de
+   candidatos y devolvía un id plausible en vez de `null`: 56+38 llevando una
+   decena quedó grabado como `sin_reagrupacion`. Arreglado.
+3. **El tope de señales del Analista no existía.** El código lo daba por hecho;
+   el prompt no lo decía. La primera sesión larga reventó `max_tokens`, el JSON
+   llegó cortado y la sesión entera se descartaba. Arreglado (12 señales).
+
+Y una que sigue abierta: **el tutor nunca llamó a `get_next_problem`** (0 veces
+en 22 turnos) teniendo 10 ejercicios validados de `mat.suma.con_reagrupacion`,
+que era exactamente lo que el niño necesitaba. Improvisó todo. `modo: guiado`
+aunque el niño dijo "tengo una tarea" — no hay forma de que la sesión se abra en
+`pedido`. Es el próximo hueco de producto.
 
 ## 🔴 LO ÚNICO QUE IMPORTA AHORA — cinco niños que no sean nuestros
 
@@ -24,9 +85,62 @@ Tres cosas se miden en esa semana, y ninguna se puede simular:
 hipótesis sin validar. Lo de abajo sigue siendo cierto y sigue pendiente — pero
 se ordena solo cuando exista ese dato.
 
+## 🟡 Pendientes IMPORTANTES — decididos, en fila, no descartados
+
+Los dos salen de la base académica del MEN (`ARCHITECTURE.md` §19). No se
+hicieron porque son **decisiones de producto**, no huecos técnicos: nadie debería
+tomarlas por el fundador.
+
+### 1. Pruebas Saber 3° y 5° (ICFES)
+
+El Estado evalúa al final de cada ciclo: **Saber 3°** (lenguaje y matemáticas) y
+**Saber 5°** (suma ciencias naturales y competencias ciudadanas). El estilo es de
+competencias —interpretar, argumentar, proponer—, no de memoria.
+
+- **Qué costaría:** peso extra del planificador en 3° y 5° (comprensión lectora y
+  problemas con datos en tablas), más un párrafo en `parent_companion.es.md`.
+- **El límite lo pone la propia fuente:** integrar el formato de pregunta con
+  naturalidad, **sin simulacros y sin generar ansiedad**. Un tutor que prepara
+  para un examen deja de ser el tutor que describe la Constitución.
+- **Por qué importa:** es el argumento más fuerte que existe frente a un papá
+  colombiano, y llega justo cuando el niño está en el grado que se evalúa.
+
+### 2. Abrir las cinco áreas
+
+Hoy somos lectura, escritura y aritmética. La Ley 115 art. 23 define nueve áreas
+obligatorias, y el documento identifica **cinco** que un tutor conversacional
+puede enseñar y evaluar: matemáticas, lengua castellana, inglés, ciencias
+naturales y ciencias sociales (más tecnología como apoyo transversal).
+
+- **Qué costaría, en concreto:** el patrón de `id` en `schema.json` (hoy
+  `^(mat|lec|esc)\.`), el enum `models.Materia`, un YAML por área, el banco de
+  ejercicios, el planificador y las 4 suites de evals.
+- **Ojo con el anclaje:** solo hay DBA oficiales para lenguaje, matemáticas,
+  ciencias naturales, ciencias sociales e inglés. **Tecnología no tiene DBA ni
+  EBC** — su progresión saldría de la Guía 30, y eso se declara, no se disimula.
+- **Y la trampa conocida:** los DBA de las tres áreas nuevas **no están
+  verificados**. La única fuente que los tiene es la que resultó estar corrida un
+  grado (`FUENTES.md` §2.6). Abrir un área empieza por descargar su PDF del MEN.
+
+---
+
+## 🟠 Deuda abierta #1 — adelgazar el prompt de sesión
+
+Apareció el 19/08 y está medida: la base del prompt (persona 11,3 KB + playbook
+11,2 + valores 6,9 + safety 6,7) son **36,2 KB**, y el peor caso real —primera
+sesión de un niño que llega con tarea— llega a **40,0 KB**. El techo del test
+subió a 41 KB como decisión escrita, pero el número real que importa es la
+**latencia de la primera frase**, no el costo (~$0,20/mes).
+
+Con ese desglose, decidir qué sale es media hora. Los dos candidatos obvios son
+`tutor_persona` y `socratic_playbook`, que juntos son 22,5 KB — el 62 % del total.
+
+---
+
 ## Estado: el circuito completo cierra, y está verificado salvo la voz
 
-**289 tests en verde. Evals 41/41**, en la última corrida.
+**341 tests en verde. Evals 41/41**, en la última corrida (⚠️ las evals no se
+han vuelto a correr desde que cambió `session_analyst.es.md` el 19/08).
 
 > Los números decían 267 y 30/30 hasta el 2026-08-18: quedaron viejos cuando
 > dos sesiones de Claude Code trabajaron en paralelo y una pisó el `CLAUDE.md`

@@ -3,10 +3,16 @@
 # Cada nodo es una habilidad atómica. Las flechas (prerequisitos) dicen qué va
 # antes de qué. El planificador navega esto; no hay orden fijo de temario.
 #
-# ⚠️ PENDIENTE DE VERIFICACIÓN: las referencias a DBA son provisionales.
-#    Deben contrastarse con el documento oficial del MEN antes de producción:
-#    https://www.colombiaaprende.edu.co/contenidos/coleccion/derechos-basicos-de-aprendizaje
-#    Lo mismo con Core Knowledge (falta además confirmar licencia de uso).
+# Los tres anclajes están verificados contra los documentos primarios y auditados
+# uno por uno en `FUENTES.md` §2.5 (13 nodos: 3 confirmados, 10 corregidos).
+# El formato `DBA Matemáticas 2° · #3` cita el DBA por su número, que es lo que
+# lo hace verificable: una descripción libre no se puede contrastar con nada.
+#
+# ⚠️ Lo que sigue SIN verificar, y por eso se dice acá en vez de completarse:
+#    · La memoria de tablas hasta 10×10 (`mat.multiplicacion.tablas`) NO la exige
+#      el MEN. Viene de Core Knowledge G3 y de Singapur P2/P3. Es decisión nuestra.
+#    · Los topes numéricos ("hasta 100", "hasta 999") tampoco son del MEN.
+#    · Falta confirmar la licencia de uso de Core Knowledge.
 #
 # El campo `en` queda vacío hasta la fase de inglés — ver ARCHITECTURE.md §7.
 
@@ -23,8 +29,9 @@
   grado_sugerido: 1
   prerequisitos: []
   alineacion:
-    dba_colombia: "DBA Matemáticas 1° · conteo y secuencia numérica"
-    core_knowledge: "Grade 1 Mathematics — Numbers and number sense"
+    dba_colombia: "DBA Matemáticas 1° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco significados del número en diferentes contextos»"
+    core_knowledge: "Grade 1 Mathematics — Numbers and Number Sense"
   verificable_en_codigo: true
 
 - id: mat.numeros.valor_posicional_decenas
@@ -37,8 +44,9 @@
   prerequisitos:
     - mat.numeros.conteo_hasta_100
   alineacion:
-    dba_colombia: "DBA Matemáticas 1° · valor posicional"
-    core_knowledge: "Grade 1 Mathematics — Place value: tens and ones"
+    dba_colombia: "DBA Matemáticas 1° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso representaciones —principalmente concretas y pictóricas— para explicar el valor de posición en el sistema de numeración decimal»"
+    core_knowledge: "Grade 1 Mathematics — Place value: ones, tens, hundreds"
   verificable_en_codigo: true
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -55,8 +63,9 @@
   prerequisitos:
     - mat.numeros.valor_posicional_decenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · valor posicional hasta 999"
-    core_knowledge: "Grade 2 Mathematics — Place value: hundreds"
+    dba_colombia: "DBA Matemáticas 2° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «…realizar equivalencias de un número en las diferentes unidades del sistema decimal»"
+    core_knowledge: "Grade 2 Mathematics — Place value: ones, tens, hundreds, thousands"
   verificable_en_codigo: true
 
 - id: mat.numeros.comparar_ordenar
@@ -69,7 +78,8 @@
   prerequisitos:
     - mat.numeros.valor_posicional_centenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · comparación y orden"
+    dba_colombia: "DBA Matemáticas 2° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Describo, comparo y cuantifico situaciones con números, en diferentes contextos y con diversas representaciones»"
     core_knowledge: "Grade 2 Mathematics — Comparing and ordering numbers"
   verificable_en_codigo: true
 
@@ -87,7 +97,8 @@
   prerequisitos:
     - mat.numeros.valor_posicional_decenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · adición"
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
     core_knowledge: "Grade 2 Mathematics — Addition without regrouping"
   verificable_en_codigo: true
 
@@ -102,7 +113,8 @@
     - mat.suma.sin_reagrupacion
     - mat.numeros.valor_posicional_decenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · adición con reagrupación"
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
     core_knowledge: "Grade 2 Mathematics — Addition with regrouping"
   verificable_en_codigo: true
 
@@ -120,7 +132,8 @@
   prerequisitos:
     - mat.numeros.valor_posicional_decenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · sustracción"
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
     core_knowledge: "Grade 2 Mathematics — Subtraction without regrouping"
   verificable_en_codigo: true
 
@@ -135,7 +148,8 @@
     - mat.resta.sin_desagrupacion
     - mat.numeros.valor_posicional_decenas
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · sustracción con desagrupación"
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
     core_knowledge: "Grade 2 Mathematics — Subtraction with regrouping"
   verificable_en_codigo: true
 
@@ -154,7 +168,8 @@
     - mat.suma.con_reagrupacion
     - mat.resta.con_desagrupacion
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · problemas de composición y transformación"
+    dba_colombia: "DBA Matemáticas 2° · #1"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Resuelvo y formulo problemas en situaciones aditivas de composición y de transformación»"
     core_knowledge: "Grade 2 Mathematics — Word problems"
   verificable_en_codigo: true
 
@@ -168,8 +183,9 @@
   prerequisitos:
     - mat.suma.con_reagrupacion
   alineacion:
-    dba_colombia: "DBA Matemáticas 2° · multiplicación como adición repetida"
-    core_knowledge: "Grade 2 Mathematics — Multiplication as repeated addition"
+    dba_colombia: "DBA Matemáticas 2° · #1 y #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
+    core_knowledge: "Grade 2 Mathematics — Introduction to Multiplication"
   verificable_en_codigo: true
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -190,8 +206,9 @@
   prerequisitos:
     - mat.multiplicacion.grupos_iguales
   alineacion:
-    dba_colombia: "DBA Matemáticas 3° · multiplicación"
-    core_knowledge: "Grade 3 Mathematics — Multiplication facts"
+    dba_colombia: "DBA Matemáticas 3° · #1"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
+    core_knowledge: "Grade 3 Mathematics — Master basic multiplication facts to 10 × 10"
   verificable_en_codigo: true
 
 - id: mat.division.reparto_equitativo
@@ -204,8 +221,9 @@
   prerequisitos:
     - mat.multiplicacion.tablas
   alineacion:
-    dba_colombia: "DBA Matemáticas 3° · división"
-    core_knowledge: "Grade 3 Mathematics — Division as equal sharing"
+    dba_colombia: "DBA Matemáticas 3° · #1"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
+    core_knowledge: "Grade 3 Mathematics — Division"
   verificable_en_codigo: true
 
 - id: mat.fracciones.medios_tercios_cuartos
@@ -218,6 +236,7 @@
   prerequisitos:
     - mat.division.reparto_equitativo
   alineacion:
-    dba_colombia: "DBA Matemáticas 3° · fracciones"
-    core_knowledge: "Grade 3 Mathematics — Simple fractions"
+    dba_colombia: "DBA Matemáticas 3° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Describo situaciones de medición utilizando fracciones comunes»"
+    core_knowledge: "Grade 1-2 Mathematics — Fractions as part of a whole: 1/2, 1/3, 1/4"
   verificable_en_codigo: true

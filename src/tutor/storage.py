@@ -26,6 +26,7 @@ from pathlib import Path
 
 from .models import (
     AuditoriaCumplimiento,
+    Calendario,
     Ejercicio,
     EstadoSesion,
     ModoSesion,
@@ -156,7 +157,7 @@ class Repositorio(ABC):
 # Esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERSION_ESQUEMA = 2
+VERSION_ESQUEMA = 3
 
 _ESQUEMA_V1 = """
 CREATE TABLE ninos (
@@ -241,6 +242,21 @@ CREATE TABLE enlaces (
 );
 CREATE INDEX idx_enlaces_vence ON enlaces(vence);
 """
+
+_ESQUEMA_V3 = """
+ALTER TABLE ninos ADD COLUMN calendario TEXT NOT NULL DEFAULT 'A';
+"""
+"""El calendario escolar del colegio (A o B).
+
+Migración puramente aditiva: `ADD COLUMN` con default no reescribe filas ni
+puede perder datos, y las fichas que ya existían quedan en 'A', que es el
+calendario de la mayoría de los colegios del país. Un niño de calendario B se
+corrige editando su ficha, no migrando nada.
+
+Va como columna y no dentro del JSON de `perfil` porque es un dato
+administrativo del mismo orden que `grado`, no algo que el Analista deduzca de
+oír al niño.
+"""
 """Los enlaces mágicos del papá.
 
 Vivían en un dict del proceso de la API. Dos cosas se rompían con eso: al
@@ -309,6 +325,8 @@ class RepositorioSQLite(Repositorio):
                 con.executescript(_ESQUEMA_V1)
             if version < 2:
                 con.executescript(_ESQUEMA_V2)
+            if version < 3:
+                con.executescript(_ESQUEMA_V3)
             if version < VERSION_ESQUEMA:
                 con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
 
@@ -366,6 +384,7 @@ class RepositorioSQLite(Repositorio):
             edad=fila["edad"],
             grado=fila["grado"],
             idioma=fila["idioma"],
+            calendario=Calendario(fila["calendario"]),
             dominio=dominio,
             perfil=PerfilPersonal.model_validate_json(fila["perfil"]),
             creado_en=_texto_a_fecha(fila["creado_en"]),
@@ -385,14 +404,15 @@ class RepositorioSQLite(Repositorio):
         with self._conectar() as con:
             con.execute(
                 """
-                INSERT INTO ninos (id, nombre, edad, grado, idioma, perfil, creado_en)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO ninos (id, nombre, edad, grado, idioma, calendario, perfil, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
-                    nombre = excluded.nombre,
-                    edad   = excluded.edad,
-                    grado  = excluded.grado,
-                    idioma = excluded.idioma,
-                    perfil = excluded.perfil
+                    nombre     = excluded.nombre,
+                    edad       = excluded.edad,
+                    grado      = excluded.grado,
+                    idioma     = excluded.idioma,
+                    calendario = excluded.calendario,
+                    perfil     = excluded.perfil
                 """,
                 (
                     nino.id,
@@ -400,6 +420,7 @@ class RepositorioSQLite(Repositorio):
                     nino.edad,
                     nino.grado,
                     nino.idioma,
+                    nino.calendario.value,
                     nino.perfil.model_dump_json(),
                     _fecha_a_texto(nino.creado_en or datetime.now()),
                 ),

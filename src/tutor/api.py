@@ -470,6 +470,7 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         ya_domina=sorted(domina),
         esta_trabajando=sorted(trabajando),
         intereses=nino.perfil.intereses,
+        contexto_escolar=nino.perfil.contexto_escolar,
         sesiones_total=len(sesiones),
         sesiones_auditadas=len(veredictos),
         metodo_sostenido=_metodo_sostenido(veredictos),
@@ -558,3 +559,28 @@ def salud():
         "habilidades": len(_grafo),
         "modelo_voz": cfg.MODELO_TUTOR_VOZ,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La interfaz del niño, servida por el mismo proceso
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Se monta AL FINAL, después de todas las rutas de la API: el `/` de StaticFiles
+# se traga lo que no esté declarado antes.
+#
+# Por qué acá y no en el `vite dev`: el servidor de desarrollo entrega React sin
+# minificar y los módulos sueltos, y esta app procesa audio PCM en tiempo real
+# en el hilo del navegador. Con el build de producción la sesión va fluida; con
+# el de desarrollo el niño siente que el tutor "se va a buscar la respuesta"
+# (medido el 19/08 — ver ARCHITECTURE.md §9). El proxy de dev además mete un
+# salto extra en cada tool call.
+#
+# `vite dev` sigue sirviendo para trabajar en la interfaz. Para HABLAR con el
+# tutor se usa esto.
+
+_WEB = cfg.RAIZ / "web" / "dist"
+
+if _WEB.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=_WEB, html=True), name="web")

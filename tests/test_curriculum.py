@@ -11,7 +11,7 @@ import pytest
 
 from tutor.config import CURRICULUM
 from tutor.curriculum import ErrorGrafo, GrafoHabilidades, cargar_grafo
-from tutor.models import Habilidad, Materia, TextoLocalizado
+from tutor.models import Alineacion, Habilidad, Materia, TextoLocalizado
 
 
 def _hab(hid: str, prereqs: list[str] | None = None, grado: int = 2) -> Habilidad:
@@ -158,6 +158,16 @@ def test_schema_json_y_el_modelo_pydantic_no_se_desincronizan():
 
     assert not (del_esquema - del_modelo), "campos en schema.json que el modelo ignora"
     assert not (del_modelo - del_esquema), "campos del modelo que el schema no valida"
+
+    # `alineacion` es un objeto anidado, y la comparación de arriba no lo mira:
+    # se podía agregar un anclaje al schema y que Pydantic lo tirara en silencio
+    # —exactamente el fallo de `verificable_en_codigo`, un nivel más abajo—.
+    # Se descubrió al agregar `ebc_colombia`: el test pasaba en verde igual.
+    anclajes_esquema = set(esquema["properties"]["alineacion"]["properties"])
+    anclajes_modelo = set(Alineacion.model_fields)
+    assert anclajes_esquema == anclajes_modelo, (
+        "los anclajes de `alineacion` se desincronizaron entre schema.json y models.Alineacion"
+    )
 
 
 def test_el_curriculum_declara_que_es_verificable_en_codigo():

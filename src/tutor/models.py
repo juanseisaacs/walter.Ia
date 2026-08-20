@@ -35,6 +35,21 @@ class Materia(StrEnum):
     ESCRITURA = "escritura"
 
 
+class Calendario(StrEnum):
+    """Los dos calendarios escolares que conviven en Colombia.
+
+    Cambian en qué mes empieza y termina el año, y por lo tanto cuándo el niño
+    está arrancando, en la recta final o de vacaciones. Las mismas 40 semanas
+    lectivas en los dos (Decreto 1850 de 2002).
+
+    `A` es el default porque es el de la mayoría de colegios oficiales y
+    privados; `B` es el de bilingües e internacionales.
+    """
+
+    A = "A"
+    B = "B"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Grafo de habilidades  (el mapa — igual para todos los niños)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +64,16 @@ class Alineacion(BaseModel):
 
     dba_colombia: str | None = None
     core_knowledge: str | None = None
+
+    ebc_colombia: str | None = None
+    """Estándar Básico de Competencias del MEN (2006), por banda 1°-3° o 4°-5°.
+
+    Es el tercer anclaje, y no es redundante con el DBA: el Estándar dice cosas
+    que el DBA no dice y que el grafo necesita — par/impar, múltiplo y divisible
+    en 1°-3°; porcentajes, potenciación y radicación en 4°-5°
+    (`FUENTES.md` §2.4). Cuando un nodo no tiene DBA que lo respalde pero sí un
+    Estándar, este campo es el que evita inventar el anclaje.
+    """
 
 
 class Habilidad(BaseModel):
@@ -128,6 +153,25 @@ class PerfilPersonal(BaseModel):
     )
     notas: str | None = Field(default=None, description="Texto consolidado, no un log")
 
+    contexto_escolar: str | None = Field(
+        default=None,
+        description=(
+            "Qué está viendo en el colegio, según lo que el niño contó: temas, "
+            "proyectos, cómo llaman a las materias, qué libro usan. Una línea "
+            "consolidada, no un log."
+        ),
+    )
+    """El 20% que ningún estándar nacional trae.
+
+    La ley exige que las áreas obligatorias ocupen mínimo el 80% del plan de
+    estudios; el 20% restante lo define cada colegio en su PEI. Nacemos sabiendo
+    el 80% —eso es el grafo— y el 20% solo se aprende oyendo al niño.
+
+    Campo propio y no dentro de `notas` por tres razones: el papá lo ve aparte en
+    el panel, no compite con lo personal cuando el Analista consolida, y se puede
+    mandar al prompt sin arrastrar el resto de la ficha.
+    """
+
     madurez_vinculo: int = Field(
         default=0,
         description="Cuánto conoce el tutor al niño. Bajo → explorador. Alto → va directo.",
@@ -145,6 +189,14 @@ class Nino(BaseModel):
     edad: int = Field(ge=4, le=12)
     grado: int = Field(ge=1, le=5)
     idioma: str = "es"
+
+    calendario: Calendario = Field(
+        default=Calendario.A,
+        description=(
+            "Calendario escolar del colegio. Define en qué momento del año está "
+            "el niño hoy — ver `pedagogy.momento_del_ano`."
+        ),
+    )
 
     email_papa: str | None = Field(
         default=None,

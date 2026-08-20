@@ -578,6 +578,40 @@ honesta es *"alineado a los DBA de pensamiento numérico del MEN"*.
 
 ---
 
+### 2.6 Contraste con `base_academica_men.md` — un corrimiento de grado
+
+**Hecho el 2026-08-19.** Llegó una consolidación secundaria del marco del MEN
+(`base_academica_men.md`) que traía sus propias tablas de DBA. Al cruzarlas
+contra §2.2 y §2.3 —que son [V] contra D1 y D2— apareció un patrón, no un error
+suelto: **los primeros DBA de cada grado están tomados del grado siguiente.**
+
+| Área | En esa fuente | Verificado acá |
+|---|---|---|
+| Matemáticas | "Interpreta las fracciones como razón…" en **3°** | DBA **4°** #1 |
+| Matemáticas | "Interpreta los números **enteros** y racionales…" en **5°** | 5° #1 es "naturales y racionales… potenciación"; los enteros son de 6° |
+| Matemáticas | — | El **DBA 3° #1** real ("multiplicativos, directos e inversos") **no figura en esa fuente** |
+| Lenguaje | "Identifica las características de los medios de comunicación masiva" en **1°** | DBA **2°** #1 |
+| Lenguaje | Mismo patrón en 2°, 3° y 4° | Los dos primeros de cada grado vienen del siguiente |
+
+Matemáticas 4° queda con 10 DBA en vez de 11 — el rastro aritmético del
+corrimiento.
+
+**Decisión: los DBA se toman de este documento, nunca de esa fuente.** Sus
+tablas de DBA se borraron al guardarla en el repo, para que nadie las use por
+error dentro de seis meses.
+
+> Lo que esto deja como método: **la fuente que se cruza contra el primario gana
+> siempre, aunque la otra se vea más completa y más ordenada.** Esa fuente traía
+> las cinco áreas y esta solo dos, y aun así esta es la que manda. Cubrir más no
+> es valer más.
+
+**Lo que sí se validó de esa fuente:** los **EBC** (§2.4) coinciden texto a texto
+donde se solapan, y allá están completos para las cuatro áreas y las cinco
+franjas de pensamiento, no solo la numérica. Es lo que hizo viable el tercer
+anclaje `ebc_colombia`.
+
+---
+
 ## 6. No verificado
 
 Lo que busqué y **no** pude confirmar. Esto es información, no un hueco.
