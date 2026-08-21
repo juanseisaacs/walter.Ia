@@ -400,9 +400,10 @@ def _bloque_temas(temas: list[tuple[str, str]], principal: str | None) -> str:
         lineas.append(f"- **{nombre}** · `{hid}`{marca}")
     lineas += [
         "",
-        "Pides uno y te llega revisado. Sin decir tema, viene del de hoy; "
-        "diciendo el tema, viene de ese. Si el niño quiere cambiar a otro de "
-        "esta lista, se lo pides por su `código`.",
+        "Pides uno y te llega revisado: sin tema viene el de hoy, con tema "
+        "viene de ese. **Si pide uno que no está en la lista, díselo** — es que "
+        "todavía le falta el paso previo. Cambiárselo sin avisar lo deja "
+        "frustrado creyendo que no entiende.",
     ]
     return "\n".join(lineas)
 

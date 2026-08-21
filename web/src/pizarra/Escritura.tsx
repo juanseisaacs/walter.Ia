@@ -28,7 +28,13 @@
  */
 
 import "./Escritura.css";
-import { ALTO_GLIFO, ANCHO_GLIFO, MS_POR_TRAZO, trazosDe } from "./trazos";
+import {
+  ALTO_GLIFO,
+  ANCHO_GLIFO,
+  MS_ANTES_DE_EMPEZAR,
+  MS_POR_TRAZO,
+  trazosDe,
+} from "./trazos";
 
 /** Cuánto avanza el lápiz de un glifo al siguiente. */
 const AVANCE = ANCHO_GLIFO * 0.86;
@@ -82,7 +88,9 @@ export function TrazosDeTexto({
                 d={d}
                 pathLength="1"
                 className="escritura-trazo"
-                style={{ animationDelay: `${trazo++ * MS_POR_TRAZO}ms` }}
+                style={{
+                  animationDelay: `${MS_ANTES_DE_EMPEZAR + trazo++ * MS_POR_TRAZO}ms`,
+                }}
               />
             ))}
           </g>

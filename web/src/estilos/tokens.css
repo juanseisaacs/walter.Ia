@@ -58,7 +58,11 @@
   --pizarra-tinta: #33312c;     /* lápiz, no negro puro                      */
   --pizarra-marca: #c9682f;     /* el marcador del profe: llevadas, círculos */
   --pizarra-trazo: 3;           /* grosor de los trazos en el SVG            */
-  --pizarra-ms-trazo: 260ms;    /* lo que tarda en "escribirse" cada parte   */
+  /* Cuánto dura el trazo del lápiz. Va casi pegado a `MS_POR_TRAZO` (750): el
+     lápiz escribe 620 ms y descansa 130 antes del siguiente. Si esto fuera
+     mucho más corto, cada trazo aparecería de golpe y esperaría — se vería a
+     tirones en vez de a pulso. */
+  --pizarra-ms-trazo: 620ms;
 
   /* El color en la pizarra no es adorno: separa lo que hay que distinguir.
      Los números quedan en tinta —son lo que el niño tiene que leer— y el

@@ -24,8 +24,25 @@ export type Glifo = string[];
 export const ANCHO_GLIFO = 50;
 export const ALTO_GLIFO = 100;
 
-/** Cuánto tarda cada trazo en dibujarse. Un poco lento: se está enseñando. */
-export const MS_POR_TRAZO = 420;
+/** Cuánto tarda cada trazo en dibujarse.
+
+Subido de 420 a 750 el 20/08, por el niño (`ses_227808f15f49`):
+
+  "me la mostraste muy rápido, me confundes y no sé si me estás hablando de lo
+   que dibujé o de lo que me estás mostrando... sería mejor que me vayas
+   explicando y a medida de eso la vas dibujando"
+
+La letra terminaba de escribirse antes de que el tutor terminara la frase que la
+explicaba, y quedaban las dos cosas sueltas en el aire. Escribir despacio no es
+un adorno: es lo que deja que la voz y el trazo vayan juntos. */
+export const MS_POR_TRAZO = 750;
+
+/** Un respiro antes del primer trazo.
+
+El tutor llama a la pizarra en el momento en que lo decide, que suele ser ANTES
+de decir "mira". Sin esta pausa la letra ya está a medio escribir cuando él
+recién la está anunciando. */
+export const MS_ANTES_DE_EMPEZAR = 900;
 
 const NUMEROS: Record<string, Glifo> = {
   "0": ["M25 12 C13 12 9 28 9 43 C9 58 13 74 25 74 C37 74 41 58 41 43 C41 28 37 12 25 12"],
