@@ -643,3 +643,27 @@ def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
 
     faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]
     assert not faltan, "el prompt adelgazó de más y perdió reglas: " + ", ".join(faltan)
+
+
+def test_los_prompts_del_tutor_tampoco_vosean():
+    """El modelo imita el registro de lo que lee.
+
+    Ya había test para las descripciones de los tools y para el resumen del
+    niño, pero no para los .md que forman el prompt — y ahí se coló "podés ser
+    juguetón" el 20/08. Una instrucción en voseo es una invitación a que el
+    tutor le hable así al niño, que es justo lo que `tutor_persona` prohíbe.
+    """
+    import re
+
+    voseo = re.compile(
+        r"\b(podés|tenés|querés|hacés|sabés|decís|comés|sumás|contás|mirá|fijate|"
+        r"pensá|andá|dale|sos)\b",
+        re.IGNORECASE,
+    )
+    for nombre in ("tutor_persona", "socratic_playbook", "valores", "safety_policy"):
+        texto = cargar_prompt(nombre)
+        # La línea que VETA el voseo nombra las formas: esa no cuenta.
+        lineas = [ln for ln in texto.splitlines() if "voseo" not in ln.lower()]
+        for ln in lineas:
+            if (m := voseo.search(ln)):
+                raise AssertionError(f"voseo en {nombre}.es.md: {m.group()!r} — {ln.strip()[:70]}")
