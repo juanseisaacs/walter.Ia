@@ -539,6 +539,7 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         ya_domina=sorted(domina),
         esta_trabajando=sorted(trabajando),
         intereses=nino.perfil.intereses,
+        datos_suyos=nino.perfil.datos_suyos,
         contexto_escolar=nino.perfil.contexto_escolar,
         sesiones_total=len(sesiones),
         sesiones_auditadas=len(veredictos),

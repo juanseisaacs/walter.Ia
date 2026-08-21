@@ -457,6 +457,7 @@ def aplicar_analisis(
     # ── Mitad personal ──
     if (sugerido := analisis.perfil_sugerido) is not None:
         p = actualizado.perfil
+        p.datos_suyos = _consolidar(p.datos_suyos, sugerido.datos_suyos)
         p.intereses = _consolidar(p.intereses, sugerido.intereses)
         p.motivadores = _consolidar(p.motivadores, sugerido.motivadores)
         p.frustraciones = _consolidar(p.frustraciones, sugerido.frustraciones)

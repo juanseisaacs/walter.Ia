@@ -966,3 +966,42 @@ def test_con_banco_solo_se_ofrecen_las_habilidades_de_la_sesion():
 def test_sin_grafo_no_hay_contexto():
     """El Analista corre también sin grafo (tests, scripts sueltos)."""
     assert _contexto_habilidades(_sesion_sin_banco(), None) == ""
+
+
+def test_lo_que_el_nino_cuenta_de_si_mismo_no_se_pierde():
+    """PASÓ DOS VECES: `ses_afce08f934ea` y `ses_8c8334cfc756`.
+
+        nino: "Walter, ¿cuál es mi color favorito?"
+        ...
+        nino: "Pero si te lo dije en la sesión pasada."
+
+    No había dónde ponerlo. `intereses` son temas que le gustan y la lista se
+    llena de observaciones pedagógicas; `notas` es un párrafo, y un párrafo se
+    resume — un dato concreto se pierde en el resumen.
+
+    Un dato no se sintetiza: o se recuerda o no se recuerda. Y es la memoria
+    longitudinal —criterio #3— fallando justo donde el niño la nota.
+    """
+    nino = _nino()
+    analisis = AnalisisSesion(
+        sesion_id="s1",
+        perfil_sugerido=PerfilPersonal(
+            datos_suyos=["color favorito: rojo", "tiene un perro que se llama Kira"]
+        ),
+        cumplimiento=_cumplio(),
+    )
+    resultado = aplicar_analisis(nino, analisis, GRAFO, AHORA)
+    assert "color favorito: rojo" in resultado.perfil.datos_suyos
+
+
+def test_los_datos_del_nino_se_consolidan_como_el_resto():
+    """Misma regla que los intereses: no se acumulan cien líneas."""
+    nino = _nino(perfil=PerfilPersonal(datos_suyos=["color favorito: rojo"]))
+    analisis = AnalisisSesion(
+        sesion_id="s1",
+        perfil_sugerido=PerfilPersonal(datos_suyos=["color favorito: rojo", "le dicen Pipe"]),
+        cumplimiento=_cumplio(),
+    )
+    datos = aplicar_analisis(nino, analisis, GRAFO, AHORA).perfil.datos_suyos
+    assert datos.count("color favorito: rojo") == 1
+    assert "le dicen Pipe" in datos

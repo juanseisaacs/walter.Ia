@@ -145,6 +145,22 @@ class PerfilPersonal(BaseModel):
     Si no, a los 6 meses esto es ilegible.
     """
 
+    datos_suyos: list[str] = Field(default_factory=list)
+    """Hechos concretos que el niño contó de sí mismo.
+
+    "color favorito: rojo", "tiene un perro que se llama Kira", "su hermana se
+    llama Sara", "juega en el equipo del colegio".
+
+    Existe porque no había dónde ponerlos y se perdían. Felipe preguntó dos
+    veces cuál era su color favorito y el tutor no lo sabía —"pero si te lo dije
+    en la sesión pasada"—, que es la memoria longitudinal fallando justo donde
+    el niño la nota.
+
+    No entran en `intereses` (eso son temas que le gustan, y la lista se llena
+    de observaciones pedagógicas) ni en `notas` (un párrafo se resume y un dato
+    concreto se pierde en el resumen). Un dato no se sintetiza: se recuerda o no
+    se recuerda."""
+
     intereses: list[str] = Field(default_factory=list)
     motivadores: list[str] = Field(default_factory=list, description="Qué lo impulsa")
     frustraciones: list[str] = Field(default_factory=list, description="Qué lo traba o lo apaga")

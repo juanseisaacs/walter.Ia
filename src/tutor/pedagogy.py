@@ -548,6 +548,10 @@ def resumen_para_prompt(
         lineas.append("Conviene repasar: " + ", ".join(h.nombre.es for h in repasos[:3]) + ".")
 
     p = nino.perfil
+    if p.datos_suyos:
+        # Primero lo que el niño contó DE ÉL. Es lo que hace que el tutor suene
+        # como alguien que lo conoce, y lo primero que el niño va a probar.
+        lineas.append("Te contó: " + "; ".join(p.datos_suyos[:5]) + ".")
     if p.intereses:
         lineas.append("Le gusta: " + ", ".join(p.intereses[:4]) + ".")
     if p.motivadores:

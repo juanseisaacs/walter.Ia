@@ -55,6 +55,18 @@ dudoso. Devolver cero señales por una palabra rara es peor que anotar lo cierto
 Actualizá lo que sepamos de él: intereses, qué lo motiva, qué lo traba, cómo le
 gusta que le hablen.
 
+**`datos_suyos` es distinto y es importante.** Ahí van los HECHOS concretos que
+el niño contó de sí mismo, tal cual, cortitos:
+
+> "color favorito: rojo" · "tiene un perro que se llama Kira" · "su hermana se
+> llama Sara" · "juega fútbol los sábados" · "le dicen Pipe"
+
+No son intereses ni observaciones tuyas: son datos. Un dato no se resume — o
+está o no está. Si el niño dijo su color favorito y no queda anotado, la próxima
+vez el tutor no lo sabe y él lo nota: *"pero si te lo dije la sesión pasada"*.
+
+Solo lo que **dijo**. Nada de deducir.
+
 **REGLA CRÍTICA: consolidás, no acumulás.**
 
 Si ya sabíamos que le gusta el fútbol y hoy lo confirmó, **no agregues una línea

@@ -696,3 +696,18 @@ def test_el_colegio_no_ocupa_espacio_cuando_no_se_sabe_nada():
     grafo = cargar_grafo()
     nino = Nino(id="a", nombre="Ana", edad=7, grado=2)
     assert "En el colegio" not in resumen_para_prompt(nino, grafo, AHORA)
+
+
+def test_el_tutor_llega_sabiendo_lo_que_el_nino_le_conto():
+    """De nada sirve guardarlo si no llega al prompt.
+
+    Va ANTES de los gustos: es quién ES, no qué le gusta — y es lo primero que
+    el niño va a probar ("¿te acuerdas de mi color favorito?").
+    """
+    grafo = cargar_grafo()
+    nino = Nino(id="a", nombre="Pipe", edad=8, grado=3)
+    nino.perfil.datos_suyos = ["color favorito: rojo", "tiene un perro que se llama Kira"]
+
+    texto = resumen_para_prompt(nino, grafo, AHORA)
+    assert "color favorito: rojo" in texto
+    assert "Kira" in texto

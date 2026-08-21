@@ -54,6 +54,7 @@ def render_panel(
     ya_domina: list[str],
     esta_trabajando: list[str],
     intereses: list[str],
+    datos_suyos: list[str] | None = None,
     contexto_escolar: str | None = None,
     sesiones_total: int = 0,
     sesiones_auditadas: int,
@@ -111,13 +112,18 @@ def render_panel(
           {sugerencia}
         </section>"""
 
+    # Lo que el niño contó de sí mismo. Es la prueba, para el papá, de que el
+    # tutor de verdad lo está conociendo — y no un resumen genérico.
+    _chips_datos = f'<div class="chips">{_chips(datos_suyos)}</div>' if datos_suyos else ""
+
     intereses_html = ""
-    if intereses:
+    if intereses or datos_suyos:
         intereses_html = f"""
         <section class="card">
           <h2>Lo que su tutor ya sabe de {escape(nombre)}</h2>
           <p class="sub">El tutor lo conoce y usa esto para engancharlo. Crece sesión a sesión.</p>
           <div class="chips">{_chips(intereses)}</div>
+          {_chips_datos}
         </section>"""
 
     # El 20% del colegio. Se muestra aparte de los intereses porque responde otra
