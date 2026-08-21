@@ -15,6 +15,7 @@ import Onboarding from "./Onboarding";
 import VisorCamara from "./VisorCamara";
 import HojaDelNino from "./pizarra/HojaDelNino";
 import Pizarra from "./pizarra/Pizarra";
+import SinTumbarLaSesion from "./pizarra/SinTumbarLaSesion";
 import { ninoActual } from "./nino";
 import { useTutor } from "./voz/useTutor";
 
@@ -138,11 +139,16 @@ function Tutor({ ninoId }: { ninoId: string }) {
 
       {hayTablero && (
         <section className="tablero">
-          {hoja !== null ? (
-            <HojaDelNino consigna={hoja} alEnviar={enviarDibujo} alCancelar={cancelarDibujo} />
-          ) : (
-            <Pizarra cuadro={cuadro} />
-          )}
+          {/* Si dibujar revienta, se apaga el tablero y NADA MÁS. La voz es el
+              producto; la pizarra es ayuda. Un glifo roto no puede dejar al
+              niño con la pantalla en blanco y sin tutor. */}
+          <SinTumbarLaSesion>
+            {hoja !== null ? (
+              <HojaDelNino consigna={hoja} alEnviar={enviarDibujo} alCancelar={cancelarDibujo} />
+            ) : (
+              <Pizarra cuadro={cuadro} />
+            )}
+          </SinTumbarLaSesion>
         </section>
       )}
 

@@ -16,8 +16,8 @@
 import { useEffect, useState } from "react";
 
 import "./Pizarra.css";
-import Escritura, { contarTrazos } from "./Escritura";
-import { seEscribeAMano } from "./trazos";
+import { TrazosDeTexto, anchoEscrito, contarTrazos } from "./Escritura";
+import { ALTO_GLIFO, seEscribeAMano } from "./trazos";
 import {
   MAX_PUNTOS_CONTABLES,
   MS_ENTRE_TRAZOS,
@@ -363,21 +363,22 @@ function VistaTexto({ e }: { e: import("./escenas").Texto }) {
   // aprender a escribirla. Si aparece uno que no tenemos, cae a la letra
   // impresa de siempre — mostrarla bien y quieta le gana a no mostrarla.
   if (seEscribeAMano(e.contenido)) {
-    const alto = e.pie ? 190 : 210;
-    const ancho = Math.min(ANCHO - 60, alto * 0.9 * Math.max(1, e.contenido.length * 0.62));
+    // Se escala para llenar el alto disponible sin pasarse del ancho, y se
+    // centra. Todo con un `transform` en el MISMO lienzo: sin envoltorios.
+    const alto = e.pie ? 170 : 200;
+    const anchoNatural = anchoEscrito(e.contenido);
+    const escala = Math.min(alto / ALTO_GLIFO, (ANCHO - 60) / anchoNatural);
+    const x = (ANCHO - anchoNatural * escala) / 2;
+    const y = e.pie ? 45 : 60;
+
     return (
       <>
-        <foreignObject
-          x={(ANCHO - ancho) / 2}
-          y={e.pie ? 40 : 55}
-          width={ancho}
-          height={alto}
-        >
-          <Escritura texto={e.contenido} />
-        </foreignObject>
+        <g transform={`translate(${x} ${y}) scale(${escala})`}>
+          <TrazosDeTexto texto={e.contenido} />
+        </g>
         {e.pie && (
           <Trazo paso={contarTrazos(e.contenido) + 1}>
-            <text x={ANCHO / 2} y={262} className="pz-rotulo-chico">
+            <text x={ANCHO / 2} y={268} className="pz-rotulo-chico">
               {e.pie}
             </text>
           </Trazo>
