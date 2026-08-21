@@ -373,17 +373,51 @@ export function useTutor(ninoId: string) {
      foto llega sin aviso y a veces el modelo se queda esperando, pero acá el
      tutor sabe que pidió un dibujo y que el niño lo está haciendo. */
 
-  const enviarDibujo = useCallback((jpegBase64: string) => {
-    setHoja(null);
-    try {
-      liveRef.current?.sendRealtimeInput({
-        video: { data: jpegBase64, mimeType: "image/jpeg" },
-      });
-      console.info("[pizarra] dibujo enviado al tutor");
-    } catch (e) {
-      console.warn("[pizarra] no se pudo enviar el dibujo:", e);
-    }
-  }, []);
+  const enviarDibujo = useCallback(
+    (jpegBase64: string) => {
+      setHoja(null);
+      try {
+        liveRef.current?.sendRealtimeInput({
+          video: { data: jpegBase64, mimeType: "image/jpeg" },
+        });
+        console.info(`[pizarra] dibujo enviado (${jpegBase64.length} bytes en base64)`);
+
+        // LA MARCA, y es lo que arregla el problema de raíz.
+        //
+        // La imagen entra por el canal de tiempo real, que NO está ordenado
+        // respecto de la conversación: es un cuadro que se deja ahí. La voz del
+        // niño —"ya la hice, ¿cómo la ves?"— abre turno de inmediato, y quién
+        // llega primero es una carrera. Cuando gana la voz, el tutor contesta
+        // sin haber mirado nada y describe lo que ESPERA ver.
+        //
+        // Así se le dijo a un niño que su V era una W; él contestó "pero hice
+        // una V" y el tutor le dio la razón al instante (ses_71720df22ebc). No
+        // vio mal: no vio, y después cedió.
+        //
+        // Esto pone un evento ORDENADO en la conversación, justo después de la
+        // imagen. Con `turnComplete: false` no dispara respuesta ni interrumpe:
+        // solo garantiza que cuando el modelo hable, el dibujo ya esté adentro.
+        //
+        // La cámara resuelve lo mismo por otro lado (el empujón condicional),
+        // y además el prompt le pide al niño que se calle mientras toma la
+        // foto. Acá el niño habla siempre: por eso hace falta el orden.
+        avisarAlTutor(
+          "[Sistema: acaba de llegarte el dibujo que hizo el niño. Míralo y " +
+            "describe lo que VES de verdad antes de decir si está bien: si le " +
+            "pediste una letra y dibujó otra, díselo. Si no te llegó ninguna " +
+            "imagen, dilo en vez de opinar. No menciones este aviso.]",
+        );
+
+        // Queda en la transcripción, que es lo único que se puede leer después
+        // de la sesión. Sin esto, "el tutor dijo que estaba bien" no se
+        // distingue de "el tutor nunca recibió nada".
+        encolar({ quien: "nino", texto: "[le muestra al tutor un dibujo que hizo]" });
+      } catch (e) {
+        console.warn("[pizarra] no se pudo enviar el dibujo:", e);
+      }
+    },
+    [avisarAlTutor, encolar],
+  );
 
   /* ── La foto ────────────────────────────────────────────────────────────
      La dispara el niño, no un temporizador. */
