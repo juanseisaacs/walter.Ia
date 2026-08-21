@@ -54,6 +54,13 @@
   text-anchor: middle;
 }
 
+/* El signo en color y los números en tinta: el ojo agarra de una qué operación
+   es, antes de leer los números. */
+.pz-signo {
+  fill: var(--pizarra-signo);
+  font-weight: 700;
+}
+
 .pz-llevada {
   fill: var(--pizarra-marca);
   font-family: var(--fuente);
@@ -104,9 +111,23 @@
   stroke-width: 2;
 }
 
+/* Cada grupo con su color. No es adorno: es lo que hace ver que son grupos
+   SEPARADOS e iguales, que es justo la idea que trae la multiplicación. */
 .pz-punto {
-  fill: var(--acento);
+  fill: var(--pizarra-vivo-2);
 }
+
+.pz-grupo-0 .pz-punto { fill: var(--pizarra-vivo-1); }
+.pz-grupo-1 .pz-punto { fill: var(--pizarra-vivo-2); }
+.pz-grupo-2 .pz-punto { fill: var(--pizarra-vivo-3); }
+.pz-grupo-3 .pz-punto { fill: var(--pizarra-vivo-4); }
+.pz-grupo-4 .pz-punto { fill: var(--pizarra-vivo-5); }
+
+.pz-grupo-0 .pz-en-caja { fill: var(--pizarra-vivo-1); }
+.pz-grupo-1 .pz-en-caja { fill: var(--pizarra-vivo-2); }
+.pz-grupo-2 .pz-en-caja { fill: var(--pizarra-vivo-3); }
+.pz-grupo-3 .pz-en-caja { fill: var(--pizarra-vivo-4); }
+.pz-grupo-4 .pz-en-caja { fill: var(--pizarra-vivo-5); }
 
 /* ── Recta ───────────────────────────────────────────────────────────────── */
 
@@ -129,10 +150,16 @@
   stroke-width: 2;
 }
 
+/* Las partes pintadas van vivas — es "el pedazo de pizza", tiene que dar ganas.
+   Todas del MISMO color: son la misma fracción, no partes distintas. */
 .pz-porcion-llena {
-  fill: var(--acento-suave);
+  fill: var(--pizarra-vivo-1);
   stroke: var(--pizarra-tinta);
   stroke-width: 2;
+}
+
+.pz-marca {
+  fill: var(--pizarra-vivo-3);
 }
 
 /* ── El marcador del profe ───────────────────────────────────────────────── */

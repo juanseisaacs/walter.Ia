@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import "./App.css";
 import Onboarding from "./Onboarding";
+import Cara from "./Cara";
 import VisorCamara from "./VisorCamara";
 import HojaDelNino from "./pizarra/HojaDelNino";
 import Pizarra from "./pizarra/Pizarra";
@@ -112,11 +113,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
 
         {enSesion && (
           <>
-            <div
-              className={`indicador ${estado === "hablando" ? "es-tutor" : "es-nino"}`}
-              style={{ transform: `scale(${1 + (estado === "escuchando" ? nivelMic * 0.3 : 0.15)})` }}
-              aria-hidden
-            />
+            <Cara hablando={estado === "hablando"} nivelMic={nivelMic} />
             <p className="tenue">
               {mirandoFoto
                 ? "Está mirando tu foto..."

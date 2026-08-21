@@ -215,6 +215,7 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
         const cy = y0 + Math.floor(g / cols) * (cajaAlto + 12);
         return (
           <Trazo key={g} paso={g + 1}>
+            <g className={`pz-grupo-${g % 5}`}>
             <rect x={cx} y={cy} width={cajaAncho} height={cajaAlto} rx="8" className="pz-caja" />
             {conPuntos ? (
               Array.from({ length: e.porGrupo }, (_, p) => (
@@ -231,6 +232,7 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
                 {e.porGrupo}
               </text>
             )}
+            </g>
           </Trazo>
         );
       })}

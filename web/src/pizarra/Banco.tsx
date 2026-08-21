@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 
+import Cara from "../Cara";
 import "./Banco.css";
 import HojaDelNino from "./HojaDelNino";
 import Pizarra from "./Pizarra";
@@ -91,6 +92,7 @@ export default function Banco() {
   const [i, setI] = useState(0);
   const [dibujando, setDibujando] = useState(false);
   const [abecedario, setAbecedario] = useState(false);
+  const [hablando, setHablando] = useState(true);
   const [ultimoPng, setUltimoPng] = useState<string | null>(null);
 
   const momento = MOMENTOS[i];
@@ -142,7 +144,12 @@ export default function Banco() {
       {!abecedario && (
       <div className="banco-escena">
         <aside className="banco-tutor">
-          <div className="banco-avatar">W</div>
+          {/* La cara de verdad, la misma que ve el niño. El botón la pone a
+              hablar para poder mirarla sin abrir una sesión. */}
+          <Cara hablando={hablando} />
+          <button className="banco-boton" onClick={() => setHablando((h) => !h)}>
+            {hablando ? "⏸ Que se calle" : "▶ Que hable"}
+          </button>
           <p className="banco-dice">{dibujando ? "Dibújame la letra ñ." : momento.dice}</p>
           <p className="banco-nota">
             Acá va el tutor de voz, tal como está hoy. La pizarra vive al lado y no lo interrumpe.

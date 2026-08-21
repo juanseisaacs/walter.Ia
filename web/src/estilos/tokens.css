@@ -59,6 +59,25 @@
   --pizarra-marca: #c9682f;     /* el marcador del profe: llevadas, círculos */
   --pizarra-trazo: 3;           /* grosor de los trazos en el SVG            */
   --pizarra-ms-trazo: 260ms;    /* lo que tarda en "escribirse" cada parte   */
+
+  /* El color en la pizarra no es adorno: separa lo que hay que distinguir.
+     Los números quedan en tinta —son lo que el niño tiene que leer— y el
+     COLOR marca la estructura: el signo de la cuenta, cada grupo, cada parte
+     de la fracción. Si todo fuera de colores, el color dejaría de decir algo. */
+  --pizarra-signo: #c2410c;     /* el + − × ÷, para que salte a la vista     */
+  --pizarra-vivo-1: #e0632c;
+  --pizarra-vivo-2: #2f8f6b;
+  --pizarra-vivo-3: #3f6fb5;
+  --pizarra-vivo-4: #d4a017;
+  --pizarra-vivo-5: #9b5aa8;
+
+  /* ── La cara del tutor ───────────────────────────────────────────────────
+     Deliberadamente mínima: dos ojos y una boca. Lo justo para que el niño
+     sienta que le habla alguien, sin prometer un personaje que todavía no
+     está diseñado. */
+  --cara-piel: var(--acento);
+  --cara-piel-nino: var(--acento-suave);
+  --cara-rasgos: #fdfcf8;
 }
 
 /* ── Reset mínimo ──────────────────────────────────────────────────────── */

@@ -54,22 +54,6 @@
 }
 
 /* Un círculo que respira: quién habla se ve por el color, no por un cartel. */
-.indicador {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  transition: transform var(--transicion), background var(--transicion);
-}
-
-.indicador.es-tutor {
-  background: var(--acento);
-}
-
-.indicador.es-nino {
-  background: var(--acento-suave);
-  border: 3px solid var(--nino);
-}
-
 .dialogo {
   width: min(60ch, 100%);
   display: flex;
