@@ -26,8 +26,13 @@ const MAX_GRUPOS = 10;
  * profesor. Acá solo queda el límite de lo que un niño de primaria multiplica. */
 const MAX_POR_GRUPO = 999;
 
-/** Partes de una fracción. Más de doce no se distinguen ni en barra. */
+/** Partes en que se corta CADA entero. Más de doce no se distinguen ni en barra. */
 const MAX_PARTES = 12;
+
+/** Cuántos enteros se pueden dibujar al lado, para las fracciones impropias.
+
+Cuatro pasteles ya llenan el tablero; más se vuelven ilegibles. */
+const MAX_ENTEROS = 4;
 /** Una recta con doscientas marcas es una línea negra. */
 const MAX_PUNTOS_RECTA = 40;
 
@@ -109,9 +114,17 @@ function aEscena(args: any): Escena | null {
 
     case "fraccion": {
       const denominador = entero(args.denominador, 2, MAX_PARTES);
-      const numerador = entero(args.numerador, 0, MAX_PARTES);
+      // El numerador PUEDE pasarse del denominador: 5/3 es una fracción
+      // impropia perfectamente válida, y es justo donde el dibujo más sirve —
+      // "más de un entero" es abstracto hasta que se ve.
+      //
+      // Estaba topado en `numerador <= denominador` y devolvía null: en
+      // `ses_4b6f870fcf5f` el niño pidió ver 5/3, el tutor se lo explicó bien
+      // de palabra ("dos pasteles, cinco pedazos") y después no pudo dibujar
+      // lo que acababa de decir. "No veo nada. No hay ningún dibujo."
+      const numerador = entero(args.numerador, 0, MAX_PARTES * MAX_ENTEROS);
       if (denominador === undefined || numerador === undefined) return null;
-      if (numerador > denominador) return null;
+      if (numerador > denominador * MAX_ENTEROS) return null;
       return {
         tipo: "fraccion",
         numerador,

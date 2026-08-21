@@ -67,6 +67,11 @@ const MOMENTOS: { rotulo: string; dice: string; cuadro: Cuadro }[] = [
     cuadro: { escena: { tipo: "fraccion", numerador: 3, denominador: 4 } },
   },
   {
+    rotulo: "Fracción impropia (5/3)",
+    dice: "Cinco tercios son más de un pastel: uno entero y dos pedazos del otro.",
+    cuadro: { escena: { tipo: "fraccion", numerador: 5, denominador: 3, forma: "torta" } },
+  },
+  {
     rotulo: "Fracción en torta",
     dice: "La mitad de la pizza.",
     cuadro: { escena: { tipo: "fraccion", numerador: 1, denominador: 2, forma: "torta" } },

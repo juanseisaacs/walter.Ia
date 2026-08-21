@@ -81,10 +81,6 @@ describe("lo que el tutor pide mal: no se dibuja nada", () => {
     expect(aCuadro({ tipo: "operacion", a: 2, b: 3, op: "elevado a" })).toBeNull();
   });
 
-  it("una fracción con más partes pintadas que partes", () => {
-    expect(aCuadro({ tipo: "fraccion", numerador: 7, denominador: 4 })).toBeNull();
-  });
-
   it("cien grupos, que no caben en el tablero", () => {
     expect(aCuadro({ tipo: "grupos", grupos: 100, por_grupo: 3 })).toBeNull();
   });
@@ -115,5 +111,27 @@ describe("lo que el tutor pide mal: no se dibuja nada", () => {
     // `senalar` solo tiene sentido sobre la cuenta en columna.
     const c = aCuadro({ tipo: "texto", contenido: "ñ", senalar: "decenas" });
     expect(c?.anotaciones).toBeUndefined();
+  });
+});
+
+describe("fracciones impropias: 5/3 se dibuja, no se rechaza", () => {
+  it("5/3 — EL CASO QUE FALLÓ (ses_4b6f870fcf5f)", () => {
+    // El validador topaba en `numerador <= denominador` y devolvía null. El
+    // niño pidió ver 5/3, el tutor se lo explicó bien de palabra —"dos
+    // pasteles, cinco pedazos"— y después no pudo dibujar lo que acababa de
+    // decir: "No veo nada. No hay ningún dibujo."
+    //
+    // Y es justo donde el dibujo más sirve: "más de un entero" es abstracto
+    // hasta que se ve.
+    const c = aCuadro({ tipo: "fraccion", numerador: 5, denominador: 3 });
+    expect(c?.escena).toMatchObject({ tipo: "fraccion", numerador: 5, denominador: 3 });
+  });
+
+  it("un entero exacto también: 6/3", () => {
+    expect(aCuadro({ tipo: "fraccion", numerador: 6, denominador: 3 })).not.toBeNull();
+  });
+
+  it("pero no veinte pasteles al lado", () => {
+    expect(aCuadro({ tipo: "fraccion", numerador: 60, denominador: 3 })).toBeNull();
   });
 });

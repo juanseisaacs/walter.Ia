@@ -75,3 +75,18 @@ describe("las demás escenas siguen saliendo", () => {
     expect(pintar(null)).toBe("");
   });
 });
+
+describe("la fracción impropia se dibuja con varios enteros", () => {
+  it("5/3 son dos pasteles: uno lleno y dos tercios del otro", () => {
+    const svg = pintar({ escena: { tipo: "fraccion", numerador: 5, denominador: 3, forma: "torta" } });
+    // 2 enteros × 3 porciones = 6 trozos; 5 pintados y 1 vacío.
+    expect(svg.match(/pz-porcion-llena/g)?.length).toBe(5);
+    expect(svg.match(/class="pz-porcion"/g)?.length).toBe(1);
+  });
+
+  it("3/4 sigue siendo un solo pastel", () => {
+    const svg = pintar({ escena: { tipo: "fraccion", numerador: 3, denominador: 4, forma: "torta" } });
+    expect(svg.match(/pz-porcion-llena/g)?.length).toBe(3);
+    expect(svg.match(/class="pz-porcion"/g)?.length).toBe(1);
+  });
+});

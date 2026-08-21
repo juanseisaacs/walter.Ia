@@ -299,58 +299,77 @@ function VistaRecta({ e }: { e: import("./escenas").Recta }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function VistaFraccion({ e }: { e: import("./escenas").Fraccion }) {
-  const llenas = Math.max(0, Math.min(e.numerador, e.denominador));
+  // Cuántos enteros hacen falta. Una fracción impropia como 5/3 son DOS
+  // pasteles: uno entero y dos tercios del otro. Dibujar uno solo es imposible
+  // —no caben cinco tercios en un pastel de tres— y era lo que hacía que el
+  // tablero quedara vacío cuando el niño pedía justo el caso donde más ayuda.
+  const enteros = Math.max(1, Math.ceil(e.numerador / e.denominador));
+
+  /** ¿La porción `i` del entero `n` está pintada? Se llenan en orden. */
+  const llena = (n: number, i: number) => n * e.denominador + i < e.numerador;
+
+  const rotulo = (
+    <Trazo paso={0}>
+      <text x={ANCHO / 2} y={40} className="pz-rotulo">
+        {e.numerador}/{e.denominador}
+        {enteros > 1 && e.numerador % e.denominador === 0 && ` = ${e.numerador / e.denominador}`}
+      </text>
+    </Trazo>
+  );
 
   if (e.forma === "torta") {
-    const cx = ANCHO / 2;
-    const cy = 160;
-    const r = 88;
-    const porción = (i: number) => {
+    // Los pasteles se achican para que entren todos, con su hueco entre uno y otro.
+    const r = Math.min(78, (ANCHO - 40) / (enteros * 2.3));
+    const separacion = r * 2.3;
+    const x0 = (ANCHO - separacion * (enteros - 1)) / 2;
+    const cy = 165;
+
+    const porcion = (cx: number, i: number) => {
       const a0 = (i / e.denominador) * 2 * Math.PI - Math.PI / 2;
       const a1 = ((i + 1) / e.denominador) * 2 * Math.PI - Math.PI / 2;
       const grande = a1 - a0 > Math.PI ? 1 : 0;
       return `M ${cx} ${cy} L ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A ${r} ${r} 0 ${grande} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)} Z`;
     };
+
     return (
       <>
-        <Trazo paso={0}>
-          <text x={ANCHO / 2} y={44} className="pz-rotulo">
-            {e.numerador}/{e.denominador}
-          </text>
-        </Trazo>
-        {Array.from({ length: e.denominador }, (_, i) => (
-          <Trazo key={i} paso={i + 1}>
-            <path d={porción(i)} className={i < llenas ? "pz-porcion-llena" : "pz-porcion"} />
-          </Trazo>
-        ))}
+        {rotulo}
+        {Array.from({ length: enteros }, (_, n) =>
+          Array.from({ length: e.denominador }, (_, i) => (
+            <Trazo key={`${n}-${i}`} paso={n * e.denominador + i + 1}>
+              <path
+                d={porcion(x0 + n * separacion, i)}
+                className={llena(n, i) ? "pz-porcion-llena" : "pz-porcion"}
+              />
+            </Trazo>
+          )),
+        )}
       </>
     );
   }
 
+  // Barra: los enteros van uno debajo del otro, como renglones.
   const ancho = ANCHO - 80;
-  const alto = 90;
+  const alto = Math.min(74, (ALTO - 120) / enteros - 10);
   const x0 = 40;
-  const y0 = 110;
   const paso = ancho / e.denominador;
 
   return (
     <>
-      <Trazo paso={0}>
-        <text x={ANCHO / 2} y={70} className="pz-rotulo">
-          {e.numerador}/{e.denominador}
-        </text>
-      </Trazo>
-      {Array.from({ length: e.denominador }, (_, i) => (
-        <Trazo key={i} paso={i + 1}>
-          <rect
-            x={x0 + i * paso}
-            y={y0}
-            width={paso}
-            height={alto}
-            className={i < llenas ? "pz-porcion-llena" : "pz-porcion"}
-          />
-        </Trazo>
-      ))}
+      {rotulo}
+      {Array.from({ length: enteros }, (_, n) =>
+        Array.from({ length: e.denominador }, (_, i) => (
+          <Trazo key={`${n}-${i}`} paso={n * e.denominador + i + 1}>
+            <rect
+              x={x0 + i * paso}
+              y={70 + n * (alto + 10)}
+              width={paso}
+              height={alto}
+              className={llena(n, i) ? "pz-porcion-llena" : "pz-porcion"}
+            />
+          </Trazo>
+        )),
+      )}
     </>
   );
 }
