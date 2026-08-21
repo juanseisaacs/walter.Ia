@@ -27,7 +27,11 @@
     es: "Cuenta, lee y escribe números hasta 100, y reconoce el orden de la secuencia numérica."
   materia: matematicas
   grado_sugerido: 1
-  prerequisitos: []
+  # Depende del 20 desde el 20/08. Antes era la raíz del grafo porque no había
+  # nada debajo: a un niño que empieza 1° se le ofrecía contar hasta 100 como
+  # primera cosa. El grafo vuelve a tener una sola raíz, y ahora es la de verdad.
+  prerequisitos:
+    - mat.numeros.conteo_hasta_20
   alineacion:
     dba_colombia: "DBA Matemáticas 1° · #2"
     ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco significados del número en diferentes contextos»"
@@ -217,11 +221,18 @@
   descripcion:
     es: "Entiende la división como repartir en grupos iguales y la reconoce como la operación inversa de multiplicar."
   materia: matematicas
-  grado_sugerido: 3
+  # Bajado de 3° a 2° el 20/08. El MEN nombra "reparto equitativo" LITERALMENTE
+  # en el DBA 2° #2, un grado antes de donde lo teníamos (FUENTES.md §2.2).
+  #
+  # Y el prerrequisito pasó de las diez tablas a las tres fáciles: exigir que se
+  # sepa la tabla del 7 para entender qué es repartir es pedir demasiado, y
+  # contradice el consenso de las cuatro fuentes — multiplicación y división se
+  # enseñan emparejadas, no separadas por un grado (FUENTES.md §3.5).
+  grado_sugerido: 2
   prerequisitos:
-    - mat.multiplicacion.tablas
+    - mat.multiplicacion.tablas_2_5_10
   alineacion:
-    dba_colombia: "DBA Matemáticas 3° · #1"
+    dba_colombia: "DBA Matemáticas 2° · #2 — «multiplicación o reparto equitativo», literal"
     ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental) y de estimación para resolver problemas en situaciones aditivas y multiplicativas»"
     core_knowledge: "Grade 3 Mathematics — Division"
   verificable_en_codigo: true
@@ -239,4 +250,617 @@
     dba_colombia: "DBA Matemáticas 3° · #3"
     ebc_colombia: "EBC Matemáticas 1°-3° · «Describo situaciones de medición utilizando fracciones comunes»"
     core_knowledge: "Grade 1-2 Mathematics — Fractions as part of a whole: 1/2, 1/3, 1/4"
+  verificable_en_codigo: true
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Los 41 nodos de FUENTES.md §7.1, transcritos el 2026-08-20.
+#
+# Cubren el pensamiento numérico del MEN de 1° a 5°. NO hay geometría, medición
+# ni estadística: están fuera del alcance declarado del producto (lectura,
+# escritura y aritmética), y el MEN sí los tiene — el hueco es deliberado.
+#
+# Los anclajes salen de la auditoría contra los PDF primarios. Donde no hay DBA
+# se dice: el campo queda ausente y se apoya en el Estándar o en Core Knowledge.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── 1° — los cimientos que faltaban ────────────────────────────────────────
+# Hoy el grafo arrancaba en "contar hasta 100", que para un niño de 1° es la
+# mitad del año. Sin estos nueve, un chico que recién empieza no tiene por dónde
+# entrar y el planificador le ofrece lo único que hay: algo que le queda grande.
+
+- id: mat.numeros.conteo_hasta_20
+  nombre:
+    es: "Contar hasta 20"
+  descripcion:
+    es: "Cuenta, lee y escribe los números hasta 20, y sabe cuál va antes y cuál después."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos: []
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco significados del número en diferentes contextos»"
+    core_knowledge: "Grade K Mathematics — Numbers and Number Sense"
+  verificable_en_codigo: true
+
+- id: mat.numeros.ordinales
+  nombre:
+    es: "Primero, segundo, tercero"
+  descripcion:
+    es: "Usa los ordinales para decir en qué lugar está algo: el tercero de la fila, el quinto piso."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.conteo_hasta_20
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #1"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco significados del número (medición, conteo, comparación, codificación, localización)»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.conteo_saltado
+  nombre:
+    es: "Contar de 2 en 2, de 5 en 5 y de 10 en 10"
+  descripcion:
+    es: "Cuenta saltando desde cualquier número: 2, 4, 6… o 30, 40, 50. Es el puente hacia multiplicar."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.conteo_hasta_100
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2 — evidencia literal: «de 1 en 1, de 2 en 2, de 5 en 5»"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco y describo regularidades y patrones en distintos contextos»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.recta_numerica
+  nombre:
+    es: "Ubicar números en la recta"
+  descripcion:
+    es: "Encuentra dónde va un número en la recta y usa eso para ver cuál es mayor y cuánto hay entre dos."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.conteo_hasta_100
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Describo, comparo y cuantifico situaciones con números»"
+  verificable_en_codigo: true
+
+- id: mat.suma.hechos_hasta_10
+  nombre:
+    es: "Sumas básicas hasta 10"
+  descripcion:
+    es: "Resuelve de memoria las sumas cuyo resultado no pasa de 10, sin contar con los dedos."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.conteo_hasta_20
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental)»"
+    core_knowledge: "Grade 1 Mathematics — Addition facts to 10"
+  verificable_en_codigo: true
+
+- id: mat.suma.hechos_hasta_20
+  nombre:
+    es: "Sumas básicas hasta 20"
+  descripcion:
+    es: "Suma hasta 20 usando el paso por el diez: 8 + 5 es 8 + 2 + 3."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.suma.hechos_hasta_10
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2 — evidencia literal: «el paso por el diez»"
+    core_knowledge: "Grade 1 Mathematics — Addition facts to 20"
+  verificable_en_codigo: true
+
+- id: mat.resta.hechos_basicos
+  nombre:
+    es: "Restas básicas hasta 20"
+  descripcion:
+    es: "Resta dentro del 20 apoyándose en las sumas que ya sabe: si 8 + 5 son 13, entonces 13 − 5 son 8."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.suma.hechos_hasta_20
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2"
+    core_knowledge: "Grade 1 Mathematics — Subtraction facts to 20"
+  verificable_en_codigo: true
+
+- id: mat.numeros.signo_igual
+  nombre:
+    es: "El signo igual quiere decir que vale lo mismo"
+  descripcion:
+    es: "Entiende que = no significa «acá va la respuesta» sino que los dos lados valen igual: reconoce que 4 + 3 = 5 + 2 es cierto."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.resta.hechos_basicos
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #9"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco y genero equivalencias entre expresiones numéricas»"
+  verificable_en_codigo: true
+
+- id: mat.problemas.incognita_en_cualquier_lugar
+  nombre:
+    es: "Cuando el número que falta no está al final"
+  descripcion:
+    es: "Resuelve problemas de la forma 4 + ? = 9 y ? + 3 = 8, no solo los de 4 + 5 = ?."
+  materia: matematicas
+  grado_sugerido: 1
+  prerequisitos:
+    - mat.numeros.signo_igual
+  alineacion:
+    dba_colombia: "DBA Matemáticas 1° · #2 — evidencia literal: «a + b = ?, a + ? = c, ? + b = c»"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Resuelvo y formulo problemas en situaciones aditivas de composición y de transformación»"
+  verificable_en_codigo: true
+
+# ── 2° ──────────────────────────────────────────────────────────────────────
+
+- id: mat.numeros.par_impar
+  nombre:
+    es: "Pares e impares"
+  descripcion:
+    es: "Reconoce si un número es par o impar, y sabe que los pares se pueden repartir en dos grupos iguales."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.conteo_saltado
+  alineacion:
+    # El DBA no nombra par/impar; el Estándar sí, literalmente. Se ancla donde está.
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Reconozco propiedades de los números (ser par, ser impar, etc.)»"
+    core_knowledge: "Grade 2 Mathematics — Even and odd numbers"
+  verificable_en_codigo: true
+
+- id: mat.numeros.redondeo_decena
+  nombre:
+    es: "Redondear a la decena"
+  descripcion:
+    es: "Dice a qué decena está más cerca un número: 47 se redondea a 50, 43 a 40."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.comparar_ordenar
+  alineacion:
+    # ⚠️ Sin DBA que lo respalde (FUENTES.md §7.1). Se apoya solo en Core
+    # Knowledge y se dice, en vez de inventarle un anclaje del MEN.
+    core_knowledge: "Grade 2 Mathematics — Rounding to the nearest ten"
+  verificable_en_codigo: true
+
+- id: mat.suma.tres_cifras
+  nombre:
+    es: "Suma de tres cifras"
+  descripcion:
+    es: "Suma números de tres cifras llevando, incluso cuando hay que llevar dos veces seguidas."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.suma.con_reagrupacion
+    - mat.numeros.valor_posicional_centenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo y de estimación»"
+    core_knowledge: "Grade 2 Mathematics — Three-digit addition with regrouping"
+  verificable_en_codigo: true
+
+- id: mat.resta.tres_cifras
+  nombre:
+    es: "Resta de tres cifras"
+  descripcion:
+    es: "Resta números de tres cifras prestando, incluido el caso difícil de prestarle a un cero."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.resta.con_desagrupacion
+    - mat.numeros.valor_posicional_centenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    core_knowledge: "Grade 2 Mathematics — Three-digit subtraction with regrouping"
+  verificable_en_codigo: true
+
+- id: mat.suma.calculo_mental
+  nombre:
+    es: "Cálculo mental de sumas y restas"
+  descripcion:
+    es: "Suma y resta de cabeza descomponiendo: para 38 + 25 hace 38 + 20 y después + 5."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.suma.con_reagrupacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo (especialmente cálculo mental)»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.valor_desconocido
+  nombre:
+    es: "Encontrar el número que falta"
+  descripcion:
+    es: "Halla el número escondido en expresiones como 27 + ? = 45, usando la operación contraria."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.numeros.signo_igual
+    - mat.suma.con_reagrupacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · #8 y #9"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Construyo igualdades y desigualdades numéricas»"
+  verificable_en_codigo: true
+
+- id: mat.multiplicacion.tablas_2_5_10
+  nombre:
+    es: "Tablas del 2, del 5 y del 10"
+  descripcion:
+    es: "Sabe de memoria las tablas del 2, del 5 y del 10, que son las que salen de contar saltado."
+  materia: matematicas
+  grado_sugerido: 2
+  prerequisitos:
+    - mat.multiplicacion.grupos_iguales
+  alineacion:
+    dba_colombia: "DBA Matemáticas 2° · #2"
+    core_knowledge: "Grade 2 Mathematics — Introduction to Multiplication"
+  verificable_en_codigo: true
+
+# ── 3° ──────────────────────────────────────────────────────────────────────
+
+- id: mat.numeros.valor_posicional_millares
+  nombre:
+    es: "Unidades de mil"
+  descripcion:
+    es: "Extiende el valor posicional a cuatro cifras: descompone 3.406 en 3 miles, 4 centenas, 0 decenas y 6 unidades."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.numeros.valor_posicional_centenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «…realizar equivalencias de un número en las diferentes unidades del sistema decimal»"
+    core_knowledge: "Grade 3 Mathematics — Place value to thousands"
+  verificable_en_codigo: true
+
+- id: mat.numeros.redondeo_centena
+  nombre:
+    es: "Redondear a la centena"
+  descripcion:
+    es: "Redondea a la centena más cercana y lo usa para estimar antes de calcular."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.numeros.redondeo_decena
+    - mat.numeros.valor_posicional_millares
+  alineacion:
+    # ⚠️ Sin DBA directo, igual que el redondeo a la decena.
+    core_knowledge: "Grade 3 Mathematics — Rounding to the nearest hundred"
+  verificable_en_codigo: true
+
+- id: mat.multiplicacion.por_una_cifra
+  nombre:
+    es: "Multiplicar por una cifra llevando"
+  descripcion:
+    es: "Multiplica un número de dos o tres cifras por uno de una sola, llevando lo que corresponde."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.multiplicacion.tablas
+    - mat.numeros.valor_posicional_centenas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #1 y #2"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Uso diversas estrategias de cálculo… en situaciones aditivas y multiplicativas»"
+  verificable_en_codigo: true
+
+- id: mat.division.exacta_por_una_cifra
+  nombre:
+    es: "Dividir por una cifra, sin que sobre nada"
+  descripcion:
+    es: "Divide entre un número de una cifra cuando el reparto da exacto, apoyándose en las tablas."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.division.reparto_equitativo
+    - mat.multiplicacion.tablas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #1 — «multiplicativos, directos e inversos»"
+  verificable_en_codigo: true
+
+- id: mat.division.con_residuo
+  nombre:
+    es: "Dividir cuando sobra algo"
+  descripcion:
+    es: "Divide y entiende qué es el residuo: si reparte 17 entre 5, a cada uno le tocan 3 y sobran 2."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.division.exacta_por_una_cifra
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #1"
+    core_knowledge: "Grade 3 Mathematics — Division with remainders"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.notacion
+  nombre:
+    es: "Numerador y denominador"
+  descripcion:
+    es: "Lee y escribe una fracción sabiendo qué dice cada número: abajo en cuántas partes se cortó, arriba cuántas se toman."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.fracciones.medios_tercios_cuartos
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #3"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Describo situaciones de medición utilizando fracciones comunes»"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.equivalentes
+  nombre:
+    es: "Fracciones que valen lo mismo"
+  descripcion:
+    es: "Reconoce que 1/2 y 2/4 son la misma cantidad partida distinto."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.fracciones.notacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #3"
+    core_knowledge: "Grade 3 Mathematics — Equivalent fractions"
+  verificable_en_codigo: true
+
+- id: mat.problemas.dos_pasos
+  nombre:
+    es: "Problemas de dos operaciones"
+  descripcion:
+    es: "Resuelve problemas que piden dos cuentas seguidas, y decide en qué orden van."
+  materia: matematicas
+  grado_sugerido: 3
+  prerequisitos:
+    - mat.problemas.suma_resta
+    - mat.multiplicacion.por_una_cifra
+  alineacion:
+    dba_colombia: "DBA Matemáticas 3° · #1 y #9"
+    ebc_colombia: "EBC Matemáticas 1°-3° · «Identifico, si a la luz de los datos de un problema, los resultados son o no razonables»"
+  verificable_en_codigo: true
+
+# ── 4° ──────────────────────────────────────────────────────────────────────
+
+- id: mat.numeros.hasta_cien_mil
+  nombre:
+    es: "Números hasta cien mil"
+  descripcion:
+    es: "Lee, escribe y compara números de cinco cifras, y sabe qué vale cada posición."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.numeros.valor_posicional_millares
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Justifico el valor de posición en el sistema de numeración decimal»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.multiplos
+  nombre:
+    es: "Múltiplos de un número"
+  descripcion:
+    es: "Encuentra los múltiplos de un número y reconoce si uno dado lo es."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.multiplicacion.tablas
+  alineacion:
+    # El Estándar lo dice literal; el DBA no lo nombra.
+    ebc_colombia: "EBC Matemáticas 1°-3° · «relaciones entre ellos (ser múltiplo de, ser divisible por)»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.factores
+  nombre:
+    es: "Factores y divisibilidad"
+  descripcion:
+    es: "Halla entre qué números se puede dividir uno dado sin que sobre nada."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.division.exacta_por_una_cifra
+    - mat.numeros.multiplos
+  alineacion:
+    ebc_colombia: "EBC Matemáticas 1°-3° · «ser divisible por»"
+    core_knowledge: "Grade 4 Mathematics — Factors and divisibility"
+  verificable_en_codigo: true
+
+- id: mat.multiplicacion.por_dos_cifras
+  nombre:
+    es: "Multiplicar por dos cifras"
+  descripcion:
+    es: "Multiplica por un número de dos cifras armando los productos parciales y sumándolos."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.multiplicacion.por_una_cifra
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2"
+    core_knowledge: "Grade 4 Mathematics — Two-digit multiplication"
+  verificable_en_codigo: true
+
+- id: mat.division.por_una_cifra_larga
+  nombre:
+    es: "División larga por una cifra"
+  descripcion:
+    es: "Hace la división larga cifra por cifra: divide, multiplica, resta y baja la siguiente."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.division.con_residuo
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2"
+    core_knowledge: "Grade 4 Mathematics — Long division"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.impropias_y_mixtas
+  nombre:
+    es: "Fracciones impropias y números mixtos"
+  descripcion:
+    es: "Entiende que 5/3 es más de un entero, y pasa de 5/3 a 1 y 2/3 y al revés."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.fracciones.equivalentes
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #1"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Interpreto las fracciones en diferentes contextos»"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.suma_resta_mismo_denominador
+  nombre:
+    es: "Sumar y restar fracciones con el mismo denominador"
+  descripcion:
+    es: "Suma y resta fracciones partidas en la misma cantidad de pedazos: 2/5 + 1/5 son 3/5."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.fracciones.equivalentes
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2"
+  verificable_en_codigo: true
+
+- id: mat.decimales.decimas_y_centesimas
+  nombre:
+    es: "Décimas y centésimas"
+  descripcion:
+    es: "Lee y escribe decimales entendiendo que son fracciones de diez y de cien: 0,7 es 7/10."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.fracciones.notacion
+    - mat.numeros.valor_posicional_millares
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2 — evidencia literal: «denominador 10, 100, etc.»"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Utilizo la notación decimal para expresar fracciones»"
+  verificable_en_codigo: true
+
+- id: mat.decimales.suma_resta
+  nombre:
+    es: "Sumar y restar decimales"
+  descripcion:
+    es: "Suma y resta decimales alineando la coma, que es lo que mantiene cada cifra en su lugar."
+  materia: matematicas
+  grado_sugerido: 4
+  prerequisitos:
+    - mat.decimales.decimas_y_centesimas
+    - mat.suma.tres_cifras
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #2"
+  verificable_en_codigo: true
+
+# ── 5° ──────────────────────────────────────────────────────────────────────
+
+- id: mat.fracciones.comparar_y_ordenar
+  nombre:
+    es: "Comparar y ordenar fracciones"
+  descripcion:
+    es: "Decide cuál fracción es mayor, incluso cuando están partidas distinto, y las pone en orden."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.fracciones.impropias_y_mixtas
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #3"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Interpreto las fracciones en diferentes contextos»"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.suma_resta_distinto_denominador
+  nombre:
+    es: "Sumar y restar fracciones con distinto denominador"
+  descripcion:
+    es: "Lleva las dos fracciones a un denominador común antes de sumarlas o restarlas."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.fracciones.suma_resta_mismo_denominador
+    - mat.numeros.multiplos
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #1"
+  verificable_en_codigo: true
+
+- id: mat.fracciones.multiplicacion
+  nombre:
+    es: "Multiplicar fracciones"
+  descripcion:
+    es: "Multiplica fracciones y entiende por qué el resultado puede ser más chico que los dos factores."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.fracciones.suma_resta_distinto_denominador
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #1"
+  verificable_en_codigo: true
+
+- id: mat.decimales.multiplicacion_division
+  nombre:
+    es: "Multiplicar y dividir decimales"
+  descripcion:
+    es: "Multiplica y divide decimales sabiendo dónde queda la coma en el resultado."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.decimales.suma_resta
+    - mat.multiplicacion.por_dos_cifras
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #1"
+  verificable_en_codigo: true
+
+- id: mat.porcentajes.concepto
+  nombre:
+    es: "Qué es un porcentaje"
+  descripcion:
+    es: "Entiende que un porcentaje es una fracción de cien: 25% es 25 de cada 100, o sea un cuarto."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.decimales.decimas_y_centesimas
+    - mat.fracciones.equivalentes
+  alineacion:
+    # ⚠️ El DBA 5° NO menciona porcentajes; el Estándar sí, literalmente
+    # (FUENTES.md §2.2). Se ancla donde de verdad está.
+    ebc_colombia: "EBC Matemáticas 4°-5° · «relaciono estas dos notaciones con la de los porcentajes»"
+  verificable_en_codigo: true
+
+- id: mat.numeros.potenciacion
+  nombre:
+    es: "Potencias y cuadrados"
+  descripcion:
+    es: "Entiende que 5² es 5 × 5, y calcula potencias chicas."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.multiplicacion.por_dos_cifras
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #1 y #2"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Identifico la potenciación y la radicación en contextos matemáticos y no matemáticos»"
+  verificable_en_codigo: true
+
+- id: mat.operaciones.orden_y_parentesis
+  nombre:
+    es: "El orden de las operaciones"
+  descripcion:
+    es: "Sabe que primero van los paréntesis, después multiplicar y dividir, y al final sumar y restar."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.multiplicacion.por_una_cifra
+    - mat.division.exacta_por_una_cifra
+  alineacion:
+    dba_colombia: "DBA Matemáticas 5° · #9"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Justifico regularidades y propiedades de los números, sus relaciones y operaciones»"
+  verificable_en_codigo: true
+
+- id: mat.proporcionalidad.directa
+  nombre:
+    es: "Proporcionalidad directa"
+  descripcion:
+    es: "Resuelve situaciones donde si una cantidad crece, la otra crece igual: si 3 panes cuestan 6, 6 panes cuestan 12."
+  materia: matematicas
+  grado_sugerido: 5
+  prerequisitos:
+    - mat.multiplicacion.por_dos_cifras
+    - mat.fracciones.notacion
+  alineacion:
+    dba_colombia: "DBA Matemáticas 4° · #1 — la fracción como razón"
+    ebc_colombia: "EBC Matemáticas 4°-5° · «Resuelvo y formulo problemas en situaciones de proporcionalidad directa, inversa y producto de medidas»"
   verificable_en_codigo: true

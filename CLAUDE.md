@@ -193,11 +193,12 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   DESPUÉS de agregar `datos_suyos` a la salida del Analista. Incluye
   `curriculum_fidelity` en 4/4, que es la suite que la fase 7 tumbó a 0/4 al
   agregar un campo: el riesgo era real y esta vez no se materializó
-- `matematicas.yaml`: 13 habilidades de 1° a 3° con **triple anclaje** — DBA
-  citado por número, EBC por ciclo y Core Knowledge. Auditado nodo por nodo en
-  `FUENTES.md` §2.5. Lo que sigue sin verificar se dice en la cabecera del YAML
-  (la memoria de tablas 10×10 no la exige el MEN; los topes "hasta 100" y "hasta
-  999" tampoco)
+- `matematicas.yaml`: **54 habilidades de 1° a 5°** con **triple anclaje** — DBA
+  citado por número, EBC por ciclo y Core Knowledge. Es el pensamiento numérico
+  del MEN completo; geometría, medición y estadística quedan fuera a propósito
+  (el alcance es lectura, escritura y aritmética). El grafo se recorre entero
+  desde una sola raíz, con test. Lo que sigue sin verificar se dice en la
+  cabecera del YAML
 - `base_academica_men.md`: el marco del MEN alrededor del grafo (áreas, EBC,
   Saber, calendarios, desarrollo cognitivo). Ver `ARCHITECTURE.md` §19
 - Banco: **417 ejercicios validados**, ~32 por habilidad. Ninguna habilidad

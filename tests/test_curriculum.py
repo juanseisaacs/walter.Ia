@@ -123,10 +123,23 @@ def test_curriculum_real_tiene_al_menos_una_raiz():
 
 
 def test_curriculum_real_cita_estandares():
-    """Criterio #1 de YC: hay que poder responder '¿contra qué está alineado?'."""
+    """Criterio #1 de YC: hay que poder responder '¿contra qué está alineado?'.
+
+    El EBC cuenta, y no es un relajo del criterio: hay habilidades que el DBA no
+    nombra y el Estándar sí, **literalmente** — múltiplos y divisibilidad
+    (1°-3°), porcentajes (4°-5°). Exigir un DBA ahí obligaría a inventarle uno,
+    que es exactamente lo que este test existe para impedir. Ver `FUENTES.md`
+    §2.4.
+    """
     g = cargar_grafo()
     sin_anclaje = [
-        h.id for h in g if not (h.alineacion.dba_colombia or h.alineacion.core_knowledge)
+        h.id
+        for h in g
+        if not (
+            h.alineacion.dba_colombia
+            or h.alineacion.ebc_colombia
+            or h.alineacion.core_knowledge
+        )
     ]
     assert not sin_anclaje, f"habilidades sin alineación curricular: {sin_anclaje}"
 
@@ -203,3 +216,38 @@ def test_el_schema_deja_escribir_cabeza_de_pista_por_encima_de_5():
     assert esquema["properties"]["grado_sugerido"]["maximum"] > 5, (
         "el schema volvió a impedir la cabeza de pista"
     )
+
+
+def test_el_grafo_entero_se_puede_recorrer_desde_cero():
+    """Un nodo inalcanzable es contenido que nadie va a ver nunca.
+
+    `cargar_grafo` ya rechaza ciclos y prerrequisitos colgados, pero ninguna de
+    las dos cosas atrapa a un nodo que quedó detrás de una combinación de
+    prerrequisitos que nunca se abre. Con 54 nodos escritos a mano eso deja de
+    ser hipotético.
+
+    Se camina el grafo como lo caminaría un niño que domina todo: se abre lo que
+    tenga TODOS sus prerrequisitos abiertos, y se repite.
+    """
+    g = cargar_grafo()
+    abiertos: set[str] = set()
+    while nuevos := [
+        h for h in g if h.id not in abiertos and all(p in abiertos for p in h.prerequisitos)
+    ]:
+        abiertos.update(h.id for h in nuevos)
+
+    inalcanzables = sorted({h.id for h in g} - abiertos)
+    assert not inalcanzables, f"nodos que ningún niño puede alcanzar: {inalcanzables}"
+
+
+def test_el_grafo_tiene_una_sola_raiz():
+    """Dos raíces significan dos puntos de entrada, y el planificador elige uno
+    por criterios de desempate — o sea, por azar desde el punto de vista del
+    niño. Con una sola, el primer día es siempre el mismo.
+
+    Pasó al agregar los nodos de 1° el 20/08: quedaron "contar hasta 20" y
+    "contar hasta 100" sueltas las dos.
+    """
+    g = cargar_grafo()
+    raices = [h.id for h in g if not h.prerequisitos]
+    assert raices == ["mat.numeros.conteo_hasta_20"], f"raíces: {raices}"

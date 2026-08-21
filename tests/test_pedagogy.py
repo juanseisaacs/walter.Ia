@@ -158,7 +158,10 @@ def test_sin_prerequisitos_solo_estan_las_raices():
     `prerrequisito_satisfecho`."""
     g = cargar_grafo()
     disponibles = habilidades_disponibles(_nino(grado=1), g, AHORA)
-    assert [h.id for h in disponibles] == ["mat.numeros.conteo_hasta_100"]
+    # La raíz es contar hasta 20 desde el 20/08. Antes lo era "hasta 100",
+    # porque no había nada debajo: a un niño que empieza 1° se le ofrecía contar
+    # hasta 100 como primera cosa del año.
+    assert [h.id for h in disponibles] == ["mat.numeros.conteo_hasta_20"]
 
 
 def test_dominar_algo_abre_lo_que_depende_de_ello():
@@ -338,7 +341,7 @@ def test_un_nino_nuevo_arranca_por_la_raiz():
     """
     g = cargar_grafo()
     h = siguiente_habilidad(_nino(grado=1), g, AHORA)
-    assert h.id == "mat.numeros.conteo_hasta_100"
+    assert h.id == "mat.numeros.conteo_hasta_20"
 
 
 def test_sin_nada_por_hacer_devuelve_none():
