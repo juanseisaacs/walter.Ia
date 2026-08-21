@@ -189,7 +189,10 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   que drenan las dos colas
 - `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
 - `web/`: la interfaz de voz del niño (React + Vite)
-- `evals/`: 41 casos en las 4 suites de YC — **41/41** en la última corrida
+- `evals/`: 45 casos en las 4 suites de YC — **45/45** el 2026-08-20, corridas
+  DESPUÉS de agregar `datos_suyos` a la salida del Analista. Incluye
+  `curriculum_fidelity` en 4/4, que es la suite que la fase 7 tumbó a 0/4 al
+  agregar un campo: el riesgo era real y esta vez no se materializó
 - `matematicas.yaml`: 13 habilidades de 1° a 3° con **triple anclaje** — DBA
   citado por número, EBC por ciclo y Core Knowledge. Auditado nodo por nodo en
   `FUENTES.md` §2.5. Lo que sigue sin verificar se dice en la cabecera del YAML

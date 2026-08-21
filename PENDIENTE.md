@@ -51,7 +51,7 @@ necesitan la llave):
 
 ```bash
 python -m scripts.procesar_pendientes   # ¿el Analista ya atribuye bien la habilidad?
-python -m evals.runner                  # ¿41/41 sigue en pie?
+python -m evals.runner                  # 45/45 el 20/08
 ```
 
 - Del **Analista** se confirmó que ya no inventa el `habilidad_id` y que detecta
@@ -167,8 +167,9 @@ Con ese desglose, decidir qué sale es media hora. Los dos candidatos obvios son
 
 ## Estado: el circuito completo cierra, y está verificado salvo la voz
 
-**341 tests en verde. Evals 41/41**, en la última corrida (⚠️ las evals no se
-han vuelto a correr desde que cambió `session_analyst.es.md` el 19/08).
+**359 tests en verde. Evals 45/45**, corridas el 20/08 al final del día — ya con
+tool use en la extracción, con el prompt adelgazado y con `datos_suyos` en la
+salida del Analista.
 
 > Los números decían 267 y 30/30 hasta el 2026-08-18: quedaron viejos cuando
 > dos sesiones de Claude Code trabajaron en paralelo y una pisó el `CLAUDE.md`
