@@ -212,6 +212,16 @@ export function useTutor(ninoId: string) {
         );
       }
       case "get_next_problem": {
+        // Ejercicio nuevo, tablero limpio. Lo que estaba dibujado era de lo
+        // ANTERIOR, y quedarse ahí confunde: un niño tuvo que preguntar
+        // "¿por qué sigue apareciendo lo de las siete macetas si ya no estamos
+        // hablando de eso?" (ses_6bccd98babcc).
+        //
+        // Se hace acá y no pidiéndoselo al tutor porque acá es GRATIS y no se
+        // olvida. Que él pueda limpiarla a mano sigue existiendo, para cuando
+        // cambia de tema conversando sin pedir ejercicio.
+        setCuadro(null);
+
         // Los ejercicios YA vinieron al abrir la sesión. Ir a buscarlos por red
         // es un viaje de ida y vuelta por nada: se sirven de acá, ~0ms.
         //
@@ -274,6 +284,11 @@ export function useTutor(ninoId: string) {
       // sigue hablando mientras esto pasa, que es lo que hace un profesor
       // cuando escribe en el tablero y explica al mismo tiempo.
       case "mostrar_en_pizarra": {
+        if (args?.tipo === "limpiar") {
+          setCuadro(null);
+          setHoja(null);
+          return { limpiada: true };
+        }
         const cuadro = aCuadro(args);
         if (!cuadro) {
           // Que el tutor SEPA que no se dibujó, y qué hacer. Antes devolvía un

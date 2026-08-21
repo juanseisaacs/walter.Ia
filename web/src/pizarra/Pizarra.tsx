@@ -16,6 +16,8 @@
 import { useEffect, useState } from "react";
 
 import "./Pizarra.css";
+import Escritura, { contarTrazos } from "./Escritura";
+import { seEscribeAMano } from "./trazos";
 import {
   MAX_PUNTOS_CONTABLES,
   MS_ENTRE_TRAZOS,
@@ -356,6 +358,37 @@ function VistaFraccion({ e }: { e: import("./escenas").Fraccion }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function VistaTexto({ e }: { e: import("./escenas").Texto }) {
+  // Si sabemos trazar TODOS sus caracteres, se escribe a mano: el niño ve por
+  // dónde empieza el lápiz y hacia dónde va, que es justo lo que necesita para
+  // aprender a escribirla. Si aparece uno que no tenemos, cae a la letra
+  // impresa de siempre — mostrarla bien y quieta le gana a no mostrarla.
+  if (seEscribeAMano(e.contenido)) {
+    const alto = e.pie ? 190 : 210;
+    const ancho = Math.min(ANCHO - 60, alto * 0.9 * Math.max(1, e.contenido.length * 0.62));
+    return (
+      <>
+        <foreignObject
+          x={(ANCHO - ancho) / 2}
+          y={e.pie ? 40 : 55}
+          width={ancho}
+          height={alto}
+        >
+          <Escritura texto={e.contenido} />
+        </foreignObject>
+        {e.pie && (
+          <Trazo paso={contarTrazos(e.contenido) + 1}>
+            <text x={ANCHO / 2} y={262} className="pz-rotulo-chico">
+              {e.pie}
+            </text>
+          </Trazo>
+        )}
+      </>
+    );
+  }
+  return <TextoImpreso e={e} />;
+}
+
+function TextoImpreso({ e }: { e: import("./escenas").Texto }) {
   // Cuanto más largo, más chico — pero nunca por debajo de lo que un chico de
   // 7 lee cómodo a un brazo de distancia.
   const tam = Math.max(40, Math.min(140, 420 / Math.max(1, e.contenido.length)));

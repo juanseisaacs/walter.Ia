@@ -17,7 +17,9 @@ import { useState } from "react";
 import "./Banco.css";
 import HojaDelNino from "./HojaDelNino";
 import Pizarra from "./Pizarra";
+import Escritura from "./Escritura";
 import type { Cuadro } from "./escenas";
+import { CARACTERES_CONOCIDOS } from "./trazos";
 
 /** Cada botón es un momento real de una sesión, no una demo de features. */
 const MOMENTOS: { rotulo: string; dice: string; cuadro: Cuadro }[] = [
@@ -69,20 +71,26 @@ const MOMENTOS: { rotulo: string; dice: string; cuadro: Cuadro }[] = [
     cuadro: { escena: { tipo: "fraccion", numerador: 1, denominador: 2, forma: "torta" } },
   },
   {
-    rotulo: "Una letra",
-    dice: "Esta es la eñe. Fíjate en el sombrerito de arriba.",
+    rotulo: "✍️ La letra ñ",
+    dice: "Mira cómo se escribe la eñe. Fíjate por dónde empieza el lápiz.",
     cuadro: { escena: { tipo: "texto", contenido: "ñ", pie: "la eñe" } },
   },
   {
-    rotulo: "Una palabra",
+    rotulo: "✍️ Una palabra",
     dice: "Léela conmigo, despacio.",
-    cuadro: { escena: { tipo: "texto", contenido: "mariposa" } },
+    cuadro: { escena: { tipo: "texto", contenido: "casa" } },
+  },
+  {
+    rotulo: "✍️ Un número",
+    dice: "Así se escribe el ocho: sin levantar el lápiz.",
+    cuadro: { escena: { tipo: "texto", contenido: "8" } },
   },
 ];
 
 export default function Banco() {
   const [i, setI] = useState(0);
   const [dibujando, setDibujando] = useState(false);
+  const [abecedario, setAbecedario] = useState(false);
   const [ultimoPng, setUltimoPng] = useState<string | null>(null);
 
   const momento = MOMENTOS[i];
@@ -112,13 +120,26 @@ export default function Banco() {
         ))}
         <button
           className={`banco-boton ${dibujando ? "banco-boton-activo" : ""}`}
-          onClick={() => setDibujando(true)}
+          onClick={() => {
+            setAbecedario(false);
+            setDibujando(true);
+          }}
         >
           ✏️ Que dibuje el niño
+        </button>
+        <button
+          className={`banco-boton ${abecedario ? "banco-boton-activo" : ""}`}
+          onClick={() => {
+            setDibujando(false);
+            setAbecedario(true);
+          }}
+        >
+          🔤 Ver todos los trazos
         </button>
       </div>
 
       {/* Así se vería de verdad: el tutor y el tablero compartiendo pantalla. */}
+      {!abecedario && (
       <div className="banco-escena">
         <aside className="banco-tutor">
           <div className="banco-avatar">W</div>
@@ -143,6 +164,26 @@ export default function Banco() {
           )}
         </main>
       </div>
+      )}
+
+      {abecedario && (
+        <section className="banco-abecedario">
+          <h2>Todos los trazos, escribiéndose</h2>
+          <p>
+            Cada uno se dibuja como lo trazaría una mano. Decime cuáles quedaron
+            feos y los corrijo — son datos en <code>trazos.ts</code>, una línea
+            por carácter.
+          </p>
+          <div className="banco-grilla">
+            {CARACTERES_CONOCIDOS.map((c) => (
+              <figure key={c} className="banco-glifo">
+                <Escritura texto={c} />
+                <figcaption>{c}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
 
       {ultimoPng && (
         <section className="banco-enviado">

@@ -276,18 +276,23 @@ DECLARACIONES_TOOLS: list[dict] = [
             "'ahí en la pizarra te lo estoy mostrando' — tú no ves su pantalla, y "
             "afirmarlo te deja mintiendo si algo falló. Si el niño dice que no ve "
             "nada, manda la pizarra otra vez con números más chicos en vez de "
-            "pedirle que espere."
+            "pedirle que espere. "
+            "Cuando cambien de tema, límpiala: lo de antes se queda ahí y confunde. "
+            "Ya pasó — un niño preguntó por qué seguían las macetas en pantalla "
+            "cuando hacía rato cantaban una canción."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "tipo": {
                     "type": "string",
-                    "enum": ["operacion", "grupos", "recta", "fraccion", "texto"],
+                    "enum": ["operacion", "grupos", "recta", "fraccion", "texto", "limpiar"],
                     "description": (
                         "operacion: una cuenta en columna · grupos: N grupos de M "
                         "cosas · recta: recta numérica · fraccion: una fracción "
-                        "partida · texto: una letra o palabra grande"
+                        "partida · texto: una letra o palabra grande · limpiar: "
+                        "borra el tablero, para cuando cambian de tema y lo de "
+                        "antes ya no viene al caso"
                     ),
                 },
                 "a": {"type": "number", "description": "operacion: primer número"},

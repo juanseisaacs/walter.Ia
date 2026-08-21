@@ -1,0 +1,38 @@
+/* La escritura a mano. Todo sale de estilos/tokens.css. */
+
+.escritura {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.escritura-trazo {
+  fill: none;
+  stroke: var(--pizarra-tinta);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  /* `pathLength="1"` en el path normaliza el largo, así que este 1 es "todo el
+     trazo" sin importar la forma. La raya arranca corrida y se va acomodando:
+     eso es la línea dibujándose. */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: escribir var(--pizarra-ms-trazo, 420ms) linear forwards;
+}
+
+@keyframes escribir {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Quien pidió menos movimiento ve la letra entera, quieta. NO se oculta: sin la
+   animación, `stroke-dashoffset: 1` la dejaría invisible para siempre. */
+@media (prefers-reduced-motion: reduce) {
+  .escritura-trazo {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}

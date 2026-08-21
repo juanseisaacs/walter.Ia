@@ -107,3 +107,34 @@
   max-width: 420px;
   width: 100%;
 }
+
+/* El abecedario: todos los trazos juntos, para poder corregirlos de un vistazo. */
+.banco-abecedario h2 {
+  font-size: var(--tam-grande);
+}
+
+.banco-abecedario > p {
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+  margin: var(--espacio-xs) 0 var(--espacio-m);
+}
+
+.banco-grilla {
+  display: grid;
+  gap: var(--espacio-xs);
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+
+.banco-glifo {
+  background: var(--pizarra-fondo);
+  border: 1px solid var(--pizarra-renglon);
+  border-radius: var(--radio-chico);
+  padding: var(--espacio-xs);
+  text-align: center;
+}
+
+.banco-glifo figcaption {
+  color: var(--texto-tenue);
+  font-size: var(--tam-chico);
+  margin-top: var(--espacio-xs);
+}
