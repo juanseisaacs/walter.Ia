@@ -4,10 +4,10 @@
  * El tutor dice "dibujá la N" y acá el niño traza, con el dedo o con el mouse.
  *
  * Lo importante para el resto del sistema: cuando toca "listo", esto entrega un
- * PNG. Es exactamente lo que ya produce la cámara, así que viaja por el MISMO
- * camino que ya está peleado y funcionando (`sendRealtimeInput` con la imagen,
- * directo a Gemini). No hay que construir nada nuevo para que el tutor lo vea:
- * es la cámara con otra fuente.
+ * JPEG — el MISMO formato y el MISMO camino que la foto de la cámara
+ * (`sendRealtimeInput`, directo a Gemini), que es lo único verificado con
+ * imágenes reales. El dibujo es la cámara con otra fuente, y conviene que se
+ * parezca a la cámara hasta en el formato.
  *
  * `pointer` y no `mouse`/`touch` por separado: un solo juego de eventos cubre
  * dedo, lápiz y ratón. Menos código y no se olvida ningún dispositivo.
@@ -17,7 +17,7 @@ import { useRef, useState } from "react";
 
 import "./HojaDelNino.css";
 
-/** Lienzo interno. Fijo, para que el PNG salga siempre del mismo tamaño. */
+/** Lienzo interno. Fijo, para que la imagen salga siempre del mismo tamaño. */
 const ANCHO = 640;
 const ALTO = 420;
 const GROSOR = 7;
@@ -30,8 +30,8 @@ export default function HojaDelNino({
   alCancelar,
 }: {
   consigna: string;
-  /** Recibe el PNG en base64, sin el prefijo `data:` — igual que la cámara. */
-  alEnviar: (pngBase64: string) => void;
+  /** Recibe el JPEG en base64, sin el prefijo `data:` — igual que la cámara. */
+  alEnviar: (jpegBase64: string) => void;
   alCancelar?: () => void;
 }) {
   const lienzoRef = useRef<HTMLCanvasElement | null>(null);
@@ -141,8 +141,19 @@ export default function HojaDelNino({
           className="hoja-boton hoja-boton-listo"
           disabled={!hayAlgo}
           onClick={() => {
-            const png = lienzoRef.current!.toDataURL("image/png");
-            alEnviar(png.split(",")[1]);
+            // JPEG y no PNG, aunque un dibujo de líneas pida PNG a gritos.
+            //
+            // La foto de la cámara viaja como `image/jpeg` y ESO está
+            // verificado con imágenes reales: el tutor leyó las letras de una
+            // gorra y contó cinco dedos. El dibujo salía en PNG por el mismo
+            // canal, y el tutor decía "te quedó genial" sobre trazos que nunca
+            // vio (ses_d333d1fc37ce).
+            //
+            // Es la lección que ya está escrita en `tomarFoto`: lo verificado
+            // le gana a lo que parece correcto. Un dibujo es negro sobre
+            // blanco; a calidad 0,9 el JPEG lo entrega perfectamente legible.
+            const jpeg = lienzoRef.current!.toDataURL("image/jpeg", 0.9);
+            alEnviar(jpeg.split(",")[1]);
           }}
         >
           Listo, mira

@@ -373,11 +373,11 @@ export function useTutor(ninoId: string) {
      foto llega sin aviso y a veces el modelo se queda esperando, pero acá el
      tutor sabe que pidió un dibujo y que el niño lo está haciendo. */
 
-  const enviarDibujo = useCallback((pngBase64: string) => {
+  const enviarDibujo = useCallback((jpegBase64: string) => {
     setHoja(null);
     try {
       liveRef.current?.sendRealtimeInput({
-        video: { data: pngBase64, mimeType: "image/png" },
+        video: { data: jpegBase64, mimeType: "image/jpeg" },
       });
       console.info("[pizarra] dibujo enviado al tutor");
     } catch (e) {

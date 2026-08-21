@@ -93,7 +93,7 @@ export default function Banco() {
   const [dibujando, setDibujando] = useState(false);
   const [abecedario, setAbecedario] = useState(false);
   const [hablando, setHablando] = useState(true);
-  const [ultimoPng, setUltimoPng] = useState<string | null>(null);
+  const [ultimoDibujo, setUltimoDibujo] = useState<string | null>(null);
 
   const momento = MOMENTOS[i];
 
@@ -162,7 +162,7 @@ export default function Banco() {
               consigna="Dibújame la letra ñ"
               alCancelar={() => setDibujando(false)}
               alEnviar={(png) => {
-                setUltimoPng(png);
+                setUltimoDibujo(png);
                 setDibujando(false);
               }}
             />
@@ -192,14 +192,14 @@ export default function Banco() {
         </section>
       )}
 
-      {ultimoPng && (
+      {ultimoDibujo && (
         <section className="banco-enviado">
           <h2>Lo que le llegaría al tutor</h2>
           <p>
-            Es un PNG, igual que una foto de la cámara — y viaja por el mismo camino que ya
-            funciona. Acá solo se muestra; no se manda a ningún lado.
+            Es un JPEG, el mismo formato y el mismo camino que la foto de la cámara — que es
+            lo único verificado con imágenes reales. Acá solo se muestra; no se manda a ningún lado.
           </p>
-          <img src={`data:image/png;base64,${ultimoPng}`} alt="lo que dibujó el niño" />
+          <img src={`data:image/jpeg;base64,${ultimoDibujo}`} alt="lo que dibujó el niño" />
         </section>
       )}
     </div>
