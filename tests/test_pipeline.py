@@ -5,6 +5,7 @@ cómo se arma la llamada y qué se hace con lo que devuelve — que es lo único
 que está bajo nuestro control.
 """
 
+import logging
 from datetime import datetime, timedelta
 
 import pytest
@@ -30,14 +31,18 @@ from tutor.models import (
 from tutor.pipeline import (
     MAX_ITEMS_PERFIL,
     ClienteFalso,
+    DestinoSenal,
     ErrorReporteInventado,
     FichaInicial,
+    _atar_habilidad_unica,
     _contexto_habilidades,
+    _destino,
     _SalidaAnalista,
     _SalidaReporte,
     analizar_sesion,
     aplicar_analisis,
     calcular_metricas,
+    clasificar_senales,
     crear_nino_desde_ficha,
     evaluar_seguridad,
     extraer_ficha,
@@ -54,6 +59,7 @@ from tutor.storage import RepositorioSQLite
 AHORA = datetime(2026, 8, 17, 16, 0)
 GRAFO = cargar_grafo()
 HAB = "mat.numeros.conteo_hasta_100"
+OTRA_HAB = "mat.numeros.valor_posicional_decenas"
 
 
 def _nino(**kw) -> Nino:
@@ -115,7 +121,7 @@ def test_el_nino_y_el_tutor_se_miran_en_llamadas_separadas():
     analizar_sesion(_sesion(), "nino: cuarenta y dos", cliente)
 
     assert len(cliente.llamadas) == 2, "el Analista dejó de ser dos llamadas"
-    extractor, auditor = (l["sistema"].lower() for l in cliente.llamadas)
+    extractor, auditor = (llamada["sistema"].lower() for llamada in cliente.llamadas)
 
     assert "señales" in extractor, "la primera llamada no es la extracción"
     assert "auditoría" not in extractor, "la auditoría se coló en la extracción"
@@ -826,9 +832,9 @@ def test_el_entrevistador_del_papa_no_vosea():
     # falso positivo justo sobre la regla que uno quiere proteger — ya pasó con
     # el test del modo pedido.
     lineas = [
-        l
-        for l in cargar_prompt("parent_interview").lower().splitlines()
-        if "voseo" not in l and not l.strip().startswith("> ✗")
+        linea
+        for linea in cargar_prompt("parent_interview").lower().splitlines()
+        if "voseo" not in linea and not linea.strip().startswith("> ✗")
     ]
     guion = chr(10).join(lineas)
     for forma in ["sos ", "tenés", "conversás", "escuchá", "preguntá", "decile", "cerrá"]:
@@ -1005,3 +1011,213 @@ def test_los_datos_del_nino_se_consolidan_como_el_resto():
     datos = aplicar_analisis(nino, analisis, GRAFO, AHORA).perfil.datos_suyos
     assert datos.count("color favorito: rojo") == 1
     assert "le dicen Pipe" in datos
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Que el descarte deje rastro
+# ─────────────────────────────────────────────────────────────────────────────
+# El fallo que motivó esto no era que se descartaran señales —a veces hay que
+# descartarlas— sino que se descartaran SIN QUE NADIE PUDIERA ENTERARSE. Estos
+# tests prueban dos cosas distintas: que el conteo es fiel a lo que el código
+# hace, y que la pérdida sale por algún lado.
+
+
+def _obs(tipo, habilidad_id=HAB) -> Observacion:
+    return Observacion(habilidad_id=habilidad_id, tipo=tipo, evidencia="x")
+
+
+def _analisis(*observaciones) -> AnalisisSesion:
+    return AnalisisSesion(
+        sesion_id="s1", observaciones=list(observaciones), cumplimiento=_cumplio()
+    )
+
+
+def test_una_senal_academica_sin_id_se_cuenta_como_perdida():
+    senales = clasificar_senales(_analisis(_obs(TipoObservacion.ACIERTO, None)), GRAFO)
+
+    assert senales.perdidas == 1
+    assert senales.sin_id == 1
+    assert senales.aplicadas == 0
+    assert "sin habilidad_id" in senales.diagnostico()
+
+
+def test_un_id_inventado_se_cuenta_y_ademas_se_nombra():
+    """Saber que se perdió una no alcanza: hay que ver QUÉ id devolvió el
+    modelo, o no hay cómo corregir el prompt que lo produjo."""
+    senales = clasificar_senales(_analisis(_obs(TipoObservacion.ERROR, "mat.inventada")), GRAFO)
+
+    assert senales.perdidas == 1
+    assert senales.ids_desconocidos == ("mat.inventada",)
+    assert "mat.inventada" in senales.diagnostico()
+
+
+def test_lo_que_va_al_perfil_no_es_una_perdida():
+    """Un interés no lleva habilidad_id por diseño. Contarlo como perdido sería
+    un falso positivo, y un aviso que grita siempre no lo mira nadie."""
+    senales = clasificar_senales(
+        _analisis(_obs(TipoObservacion.INTERES, None), _obs(TipoObservacion.FRUSTRACION, None)),
+        GRAFO,
+    )
+
+    assert senales.perdidas == 0
+    assert senales.perfil == 2
+
+
+def test_una_pista_con_id_valido_entro_no_se_perdio():
+    """`pista_necesaria` no mueve el nivel por sí sola, pero se cuenta dentro
+    del cálculo. Entró: marcarla como perdida sería mentir al revés."""
+    senales = clasificar_senales(_analisis(_obs(TipoObservacion.PISTA_NECESARIA)), GRAFO)
+
+    assert senales.perdidas == 0
+    assert senales.pistas == 1
+
+
+@pytest.mark.parametrize("tipo", list(TipoObservacion))
+def test_toda_observacion_tiene_un_destino_con_nombre(tipo):
+    """Recorrer las ramas, no un caso de ejemplo (lección de la fase 8).
+
+    Si mañana se agrega un `TipoObservacion`, este test obliga a decidir dónde
+    cae en vez de dejarlo caer en el `continue` mudo de siempre.
+    """
+    assert _destino(_obs(tipo), GRAFO) in set(DestinoSenal)
+    assert _destino(_obs(tipo, None), GRAFO) in set(DestinoSenal)
+
+
+def test_el_conteo_no_puede_contradecir_lo_que_el_codigo_hizo():
+    """EL test de esta tanda: `clasificar_senales` cuenta con el MISMO predicado
+    con el que `aplicar_analisis` decide. Si alguien duplica la regla en vez de
+    reusarla, las dos lecturas se separan sin avisar — que es exactamente cómo
+    `verificable_en_codigo` vivió mal dos fases (lección de la fase 4)."""
+    analisis = _analisis(
+        _obs(TipoObservacion.ACIERTO),  # entra
+        _obs(TipoObservacion.ERROR),  # entra (mismo nodo)
+        _obs(TipoObservacion.ACIERTO, None),  # se pierde
+        _obs(TipoObservacion.DOMINIO, "mat.inventada"),  # se pierde
+        _obs(TipoObservacion.INTERES, None),  # al perfil
+    )
+    senales = clasificar_senales(analisis, GRAFO)
+    resultado = aplicar_analisis(_nino(), analisis, GRAFO, AHORA)
+
+    assert senales.dominio == 2, "dos señales movieron dominio"
+    assert senales.perdidas == 2
+    assert resultado.dominio[HAB].intentos == senales.dominio, (
+        "el conteo tiene que coincidir con los intentos que de verdad se escribieron"
+    )
+
+
+def test_la_perdida_de_senales_sale_por_el_log(tmp_path, caplog):
+    """Antes era un `continue` mudo: el niño practicaba, el dominio no subía, y
+    no había ni excepción ni contador ni línea donde enterarse."""
+    repo = _repo_con_sesion(tmp_path)
+    cliente = ClienteFalso(
+        _SalidaAnalista(
+            observaciones=[Observacion(tipo=TipoObservacion.ACIERTO, evidencia="42")],
+            cumplimiento=_cumplio(),
+        )
+    )
+    sesion = repo.obtener_sesion("s1")
+    sesion.habilidades_trabajadas = [HAB, OTRA_HAB]  # dos: el atado no aplica
+    repo.actualizar_sesion(sesion)
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pipeline"):
+        procesar_sesion(repo, GRAFO, repo.obtener_sesion("s1"), cliente, AHORA)
+
+    assert "sin habilidad_id" in caplog.text
+    assert "s1" in caplog.text
+
+
+def test_la_sesion_que_cierra_sin_un_solo_nodo_avisa(tmp_path, caplog):
+    """El caso de `ses_cdb0b7fae50f`: nueve turnos escribiendo la w, cero filas
+    de dominio, 16.573 tokens que el papá no ve en ningún reporte."""
+    repo = _repo_con_sesion(tmp_path)
+    sesion = repo.obtener_sesion("s1")
+    sesion.tokens_consumidos = 16_573
+    sesion.habilidades_trabajadas = []
+    repo.actualizar_sesion(sesion)
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pipeline"):
+        procesar_sesion(repo, GRAFO, repo.obtener_sesion("s1"), _cliente_analista(), AHORA)
+
+    assert "sin habilidades trabajadas" in caplog.text
+    assert "16573" in caplog.text
+
+
+def test_la_sesion_sin_insumo_tampoco_se_va_callada(tmp_path, caplog):
+    """Sale de la cola —eso sigue estando bien— pero deja dicho por qué."""
+    repo = _repo_con_sesion(tmp_path, con_transcripcion=False)
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pipeline"):
+        procesar_sesion(repo, GRAFO, repo.obtener_sesion("s1"), _cliente_analista(), AHORA)
+
+    assert "sin insumo" in caplog.text
+    assert repo.sesiones_sin_analizar() == [], "igual sale de la cola"
+
+
+def test_una_sesion_limpia_no_dispara_ningun_aviso(tmp_path, caplog):
+    """Un aviso que salta siempre deja de ser un aviso."""
+    repo = _repo_con_sesion(tmp_path)
+    sesion = repo.obtener_sesion("s1")
+    sesion.habilidades_trabajadas = [HAB]
+    repo.actualizar_sesion(sesion)
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pipeline"):
+        procesar_sesion(repo, GRAFO, repo.obtener_sesion("s1"), _cliente_analista(), AHORA)
+
+    assert caplog.text == ""
+
+
+# ── Recuperar lo recuperable, sin adivinar ───────────────────────────────────
+
+
+def test_un_id_inventado_se_corrige_si_la_sesion_trabajo_un_solo_nodo():
+    """Mismo argumento que el del id ausente: si el banco entregó ejercicios de
+    UNA habilidad, toda señal académica es de esa. No se adivina — se usa el
+    dato que el código ya tenía y el modelo estaba pisando."""
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = [HAB]
+    observaciones = [
+        {"habilidad_id": "mat.sumas_dobles", "tipo": TipoObservacion.ACIERTO, "evidencia": "x"}
+    ]
+
+    atadas = _atar_habilidad_unica(observaciones, sesion, GRAFO)
+
+    assert atadas[0]["habilidad_id"] == HAB
+
+
+def test_con_dos_habilidades_el_id_inventado_no_se_toca():
+    """Ahí sí hay algo que decidir, y la decisión no es del código."""
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = [HAB, OTRA_HAB]
+    observaciones = [
+        {"habilidad_id": "mat.sumas_dobles", "tipo": TipoObservacion.ACIERTO, "evidencia": "x"}
+    ]
+
+    atadas = _atar_habilidad_unica(observaciones, sesion, GRAFO)
+
+    assert atadas[0]["habilidad_id"] == "mat.sumas_dobles", (
+        "prefiero perderla y contarla que reescribirla con un dato que no tengo"
+    )
+
+
+def test_no_se_reescribe_hacia_un_id_que_tampoco_existe():
+    """Si `habilidades_trabajadas` trae basura, corregir empeoraría el dato."""
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = ["mat.tampoco_existe"]
+    observaciones = [{"habilidad_id": None, "tipo": TipoObservacion.ACIERTO, "evidencia": "x"}]
+
+    assert _atar_habilidad_unica(observaciones, sesion, GRAFO)[0]["habilidad_id"] is None
+
+
+def test_sin_grafo_el_atado_se_comporta_como_antes():
+    """Compatibilidad: la firma vieja sigue rellenando el null y nada más."""
+    sesion = _sesion()
+    sesion.habilidades_trabajadas = [HAB]
+    observaciones = [
+        {"habilidad_id": None, "tipo": TipoObservacion.ACIERTO, "evidencia": "x"},
+        {"habilidad_id": "mat.inventada", "tipo": TipoObservacion.ACIERTO, "evidencia": "y"},
+    ]
+
+    atadas = _atar_habilidad_unica(observaciones, sesion)
+
+    assert atadas[0]["habilidad_id"] == HAB
+    assert atadas[1]["habilidad_id"] == "mat.inventada", "sin grafo no sabe que es falso"

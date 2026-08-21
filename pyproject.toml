@@ -38,3 +38,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Los scripts llaman `load_dotenv()` ANTES de importar `tutor`: el paquete lee
+# la configuración al importarse, así que mover esos imports arriba —que es lo
+# que pide E402— los rompe. El orden es la funcionalidad, no un descuido.
+"scripts/*.py" = ["E402", "I001"]

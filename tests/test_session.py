@@ -240,7 +240,9 @@ def test_candado_2_sin_reportar_no_hay_recarga(orq):
         orq.recargar_ejercicios(a.sesion_id)
 
     orq.registrar_turnos(a.sesion_id, _turnos("cuarenta y dos"))
-    assert orq.recargar_ejercicios(a.sesion_id), "reportando sí recarga"
+    # `ahora` explícito como en el resto del orquestador: la sesión se abrió con
+    # una fecha fija, y sin pasarlo el techo de duración la daría por vencida.
+    assert orq.recargar_ejercicios(a.sesion_id, AHORA), "reportando sí recarga"
 
 
 def test_el_banco_entrega_sin_tocar_la_base(orq):
@@ -404,3 +406,37 @@ def test_queda_margen_para_despedirse(orq):
     a = orq.abrir("n1", ahora=AHORA)
     margen = a.max_tokens - a.avisar_tokens
     assert margen >= 5_000, f"solo quedan {margen} tokens para cerrar la conversación"
+
+
+# ── El techo de duración: existía y no lo consultaba nadie ───────────────────
+
+
+def test_el_navegador_recibe_tambien_el_techo_de_duracion(orq):
+    """`excedio_duracion()` vivía desde la fase 5 con test propio y sin un solo
+    llamador: ni la API ni el navegador. Un tope que nadie consulta no es un
+    tope, es una constante."""
+    a = orq.abrir("n1", ahora=AHORA)
+
+    assert a.max_minutos == cfg.MAX_MINUTOS_SESION
+    assert a.avisar_minutos < a.max_minutos, "el aviso tiene que llegar antes del corte"
+
+
+def test_pasada_la_hora_no_se_recarga_mas_material(orq):
+    """No se le corta la frase al niño: se le deja de dar ejercicios nuevos, y
+    la sesión termina sola. Misma mecánica que el candado #2."""
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("hola", "cuarenta y dos"))
+
+    tarde = AHORA + timedelta(minutes=cfg.MAX_MINUTOS_SESION + 5)
+    with pytest.raises(ErrorSesion, match="minutos"):
+        orq.recargar_ejercicios(a.sesion_id, tarde)
+
+
+def test_dentro_de_la_hora_la_recarga_sigue_funcionando(orq):
+    """El control: si el corte nuevo tumbara la recarga normal, habríamos
+    cambiado un tope que no corta por uno que corta de más."""
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("hola", "cuarenta y dos"))
+
+    a_tiempo = AHORA + timedelta(minutes=5)
+    assert orq.recargar_ejercicios(a.sesion_id, a_tiempo), "una sesión en hora recarga normal"

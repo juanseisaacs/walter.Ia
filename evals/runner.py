@@ -177,7 +177,10 @@ def _eval_curriculum(caso: Caso, cliente: ClienteLLM) -> tuple[dict, list[str]]:
     if "contiene_positivo" in caso.espera:
         positivo = bool(tipos & {"acierto", "dominio"})
         if positivo != caso.espera["contiene_positivo"]:
-            fallas.append(f"contiene_positivo: esperaba {caso.espera['contiene_positivo']}, obtuvo {positivo}")
+            fallas.append(
+                f"contiene_positivo: esperaba {caso.espera['contiene_positivo']}, "
+                f"obtuvo {positivo}"
+            )
     return obtenido, fallas
 
 

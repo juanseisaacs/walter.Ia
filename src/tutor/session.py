@@ -151,6 +151,17 @@ class SesionAbierta(BaseModel):
     Cortar seco a un niño a mitad de una explicación es la peor forma de
     terminar. Con el 10% que queda alcanza para despedirse bien."""
 
+    max_minutos: int = cfg.MAX_MINUTOS_SESION
+    """El otro techo, que estaba en la misma situación que el de tokens.
+
+    `excedio_duracion()` existía desde la fase 5, con test propio, y no la
+    llamaba NADIE: ni la API, ni el navegador. Un tope que nadie consulta no es
+    un tope. Va acá por la misma razón que `max_tokens` — el navegador es el que
+    puede cerrar a tiempo, y no puede respetar un límite que no conoce."""
+
+    avisar_minutos: int = int(cfg.MAX_MINUTOS_SESION * 0.9)
+    """Mismo criterio que `avisar_tokens`: primero avisar, después cortar."""
+
 
 # Firma del Vigilante. Se inyecta para que session.py no dependa de pipeline.py
 # ni de la red. En tests se pasa uno falso.
@@ -380,7 +391,9 @@ class Orquestador:
         self._alertas[sesion_id].extend(alertas)
         return alertas
 
-    def recargar_ejercicios(self, sesion_id: str) -> list[Ejercicio]:
+    def recargar_ejercicios(
+        self, sesion_id: str, ahora: datetime | None = None
+    ) -> list[Ejercicio]:
         """Solo recarga si hubo reporte desde la última vez.
 
         Un cliente que deja de reportar se queda sin ejercicios. No es
@@ -390,6 +403,15 @@ class Orquestador:
             raise ErrorSesion(f"Sesión '{sesion_id}' no está abierta")
         if self._reportado_desde_recarga.get(sesion_id, 0) == 0:
             raise ErrorSesion("No hay turnos nuevos reportados desde la última recarga.")
+
+        # El techo de duración, aplicado donde el candado #2 ya obliga a pasar.
+        # No corta la charla a mitad de una frase —eso sería lo peor para el
+        # niño— pero deja de darle material: sin ejercicios nuevos, la sesión
+        # termina. Es la misma lógica del candado #2 con el reporte.
+        if self.excedio_duracion(sesion_id, ahora):
+            raise ErrorSesion(
+                f"La sesión pasó los {cfg.MAX_MINUTOS_SESION} minutos: no se recarga más."
+            )
 
         sesion = self.repo.obtener_sesion(sesion_id)
         nino = self.repo.obtener_nino(sesion.nino_id)

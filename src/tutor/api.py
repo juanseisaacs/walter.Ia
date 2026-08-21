@@ -614,12 +614,21 @@ def _avisar_al_papa(sesion_id: str) -> None:
 
 
 def _email_del_papa(nino: Nino) -> str:
-    """PENDIENTE: el mail del papá todavía no está en el modelo.
+    """El correo real del papá, que el onboarding exige y guarda.
 
-    Lo captura el Compañero del Papá durante el onboarding (fase pendiente).
-    Hasta entonces, marcador de posición.
+    Esta función devolvía SIEMPRE el marcador de posición, con un docstring que
+    decía que el campo "todavía no está en el modelo". Sí estaba: `email_papa`
+    es obligatorio en `FichaInicial` y `crear_nino_desde_ficha` lo persiste
+    desde entonces. O sea que la alerta de seguridad —el camino más urgente que
+    tiene el producto— se despachaba a una dirección inventada aunque el papá
+    tuviera la suya registrada. El reporte semanal ya leía el campo bien
+    (`scripts/generar_reportes.py`); solo este quedó atrás.
+
+    El marcador sobrevive para los niños creados antes del onboarding: sin él
+    esto reventaría al alertar, y quedarse sin alerta es peor que mandarla a una
+    casilla que no existe.
     """
-    return f"papa+{nino.id}@pendiente.local"
+    return nino.email_papa or f"papa+{nino.id}@pendiente.local"
 
 
 @app.get("/api/salud", tags=["sistema"])

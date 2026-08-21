@@ -63,7 +63,10 @@ async def main() -> None:
                 if sc and getattr(sc, "turn_complete", False):
                     break
             medidas.append(del_turno)
-            print(f"  turno {i}: total_token_count = {del_turno:>8,}   (suma acumulada {sum(medidas):>9,})")
+            print(
+                f"  turno {i}: total_token_count = {del_turno:>8,}   "
+                f"(suma acumulada {sum(medidas):>9,})"
+            )
 
     print()
     utiles = [m for m in medidas if m]
@@ -71,7 +74,9 @@ async def main() -> None:
         print("  No llegaron suficientes mediciones para concluir.")
         return
 
-    creciente = all(b > a for a, b in zip(utiles, utiles[1:]))
+    # strict=False a propósito: comparar pares consecutivos empareja n con n-1,
+    # así que la última sobra. Con strict=True esto lanzaría ValueError.
+    creciente = all(b > a for a, b in zip(utiles, utiles[1:], strict=False))
     print("=" * 62)
     if creciente:
         print("  ACUMULATIVO: el numero crece en cada turno.")

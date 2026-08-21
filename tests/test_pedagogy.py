@@ -282,10 +282,15 @@ def test_sin_evidencia_no_se_le_dice_al_papa_que_su_hijo_va_atrasado():
     assert adelanto(nuevo_de_segundo, g, AHORA) == 0, "ni adelantado ni atrasado: sin medir"
 
 
-def test_la_evidencia_le_gana_a_la_presuncion():
+def test_la_evidencia_le_gana_a_la_presuncion_en_el_grado_de_trabajo():
     """Si SI lo medimos y no le sale, el atraso es real y hay que reportarlo.
 
     Presumir no es medir: la presuncion solo cubre el silencio.
+
+    OJO con el nombre: hasta el 21/08 se llamaba igual que el de más abajo, que
+    prueba otra función. Python se queda con la última definición, así que este
+    test existía en el archivo y NO CORRÍA NUNCA. Un test pisado no avisa: se ve
+    en verde igual que uno que pasa.
     """
     g = cargar_grafo()
     flojo = _nino(
@@ -440,7 +445,7 @@ def test_la_presuncion_no_escribe_dominio_inventado():
     assert nino.dominio == {}
 
 
-def test_la_evidencia_le_gana_a_la_presuncion():
+def test_la_evidencia_le_gana_a_la_presuncion_al_ofrecer_habilidades():
     """Si lo medimos y no le sale, el grado no lo salva: eso es justo lo que
     el grafo tiene que atrapar."""
     g = cargar_grafo()

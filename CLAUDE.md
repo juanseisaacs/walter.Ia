@@ -204,7 +204,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 - Banco: **1.408 ejercicios validados**, ~26 por habilidad, **ninguna vacía**.
   Cero voseo y cero enunciados largos: los tres los impide el validador, no el
   prompt
-- 354 tests en verde
+- 386 tests en verde, 73 del front, y el lint en cero
 
 ### Cómo se levanta para HABLAR con el tutor
 
@@ -313,6 +313,51 @@ Y una de producto: el tutor afirmaba de la pizarra lo que no podía saber
 cuando los dos dibujos eran naranjas). El tool devolvía `{ mostrado: true }`.
 → **Un tool que cambia lo que el niño ve le devuelve al tutor QUÉ quedó en
 pantalla**, no un "ok". Lo que no se le dice, se lo inventa.
+
+---
+
+## Lección aprendida (el código sin llamador, 21/08)
+
+Se entró a arreglar una cosa —el dominio que se perdía en silencio— y aparecieron
+**cuatro fallas del mismo tipo, todas con la suite en verde**. Ninguna era un
+bug de lógica: en las cuatro el código estaba bien escrito, bien comentado y
+bien testeado. Lo que faltaba era **alguien que lo llamara**.
+
+- `excedio_duracion()` — test propio desde la fase 5, cero llamadores.
+  `MAX_MINUTOS_SESION = 45` no cortaba nunca.
+- `_avisar()` en `scripts/generar_reportes.py` — escrita entera, con su
+  docstring explicando por qué importaba, y `main()` no la invocaba.
+- `_email_del_papa()` — devolvía siempre el marcador de posición, con un
+  docstring que afirmaba que el campo "todavía no está en el modelo". Estaba: es
+  obligatorio en el onboarding desde hace fases. **La alerta de seguridad, que es
+  el camino más urgente del producto, se despachaba a un correo inventado.**
+- Dos tests con el **mismo nombre** en `test_pedagogy.py`. Python se queda con
+  el último: el primero no corrió nunca desde que se escribió.
+
+Cuatro cosas que quedaron:
+
+1. **Código muerto se ve idéntico a código que funciona.** Se lee bien, tiene
+   test, el test pasa. Lo que no tiene es un camino desde una petición real
+   hasta él. → El test de una función **no prueba que la función se use**; para
+   eso hace falta un test que entre por donde entra el usuario, o mirar los
+   llamadores a mano.
+2. **Un docstring es una afirmación sin verificar.** El de `_email_del_papa`
+   decía algo que había dejado de ser cierto, y por eso nadie volvió a mirar. Un
+   comentario que dice "PENDIENTE: X no existe todavía" **caduca**, y cuando
+   caduca miente con toda la autoridad de estar escrito al lado del código.
+3. **El lint no es cosmética.** De los 20 errores, uno (`F811`) escondía un test
+   que no corría. Se venían aplazando por "chicos". El que valía la pena estaba
+   mezclado con diecinueve que no.
+4. **El descarte silencioso es el patrón de fondo.** Un `continue` sin rastro,
+   una función sin llamador y un test pisado son la misma falla: algo dejó de
+   pasar y no había dónde enterarse. → Cuando el código decide **no** hacer algo,
+   esa rama necesita un nombre y una salida (log, contador, lo que sea). Ver
+   `pipeline.DestinoSenal`: nombrar las tres ramas del descarte fue todo el
+   arreglo.
+
+Y una de método: la señal que destapó todo fue **leer los datos de la base a
+mano**, no la suite. Es la misma de la fase 2 (lo detectó la demo) y la de la
+fase 6 (lo detectó leer el reporte de verdad). Van tres.
 
 ---
 

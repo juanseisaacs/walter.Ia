@@ -89,6 +89,11 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Genera los reportes semanales al papá.")
     p.add_argument("--seco", action="store_true", help="Solo listar, sin generar")
     p.add_argument("--dias", type=int, default=cfg.DIAS_PERIODO_REPORTE)
+    p.add_argument(
+        "--sin-avisar",
+        action="store_true",
+        help="Genera y guarda el reporte, pero no le avisa al papá",
+    )
     args = p.parse_args()
 
     repo = RepositorioSQLite(cfg.DB, cfg.DATOS)
@@ -128,6 +133,17 @@ def main() -> int:
     print(f"\n  Generados: {len(generados)}")
     for r in generados:
         print(f"    · {r.nino_id} · {r.metricas.sesiones} sesión(es) · {len(r.contenido)} car.")
+
+    # `_avisar` estaba escrita entera desde que los enlaces se movieron a la
+    # base — y `main` no la llamaba. El reporte se generaba, se verificaba, se
+    # guardaba, y esperaba a que el papá entrara al panel por su cuenta. Un
+    # reporte que hay que ir a buscar no construye confianza, que es para lo
+    # único que existe.
+    if generados and not args.sin_avisar:
+        enviados = _avisar(repo, generados)
+        print(f"\n  Avisados: {enviados} de {len(generados)}")
+    elif generados:
+        print("\n  (--sin-avisar: los reportes quedaron guardados, nadie recibió correo)")
 
     if fallidos:
         # No es un detalle: cada uno es un papá que esta semana no recibe nada.

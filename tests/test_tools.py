@@ -235,7 +235,8 @@ def test_los_tres_errores_reales_de_la_sesion_quedan_atrapados():
 
 def test_entiende_lo_que_el_nino_dice_en_palabras():
     assert verify_arithmetic("7 - 3", "cuatro").veredicto == Veredicto.CORRECTO
-    assert verify_arithmetic("135+241", "trescientos setenta y seis").veredicto == Veredicto.CORRECTO
+    dicho = "trescientos setenta y seis"
+    assert verify_arithmetic("135+241", dicho).veredicto == Veredicto.CORRECTO
 
 
 def test_cerca_es_una_medida_no_una_impresion():

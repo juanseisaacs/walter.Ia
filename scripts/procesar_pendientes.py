@@ -15,6 +15,7 @@ aplicar.
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 
 from dotenv import load_dotenv
@@ -43,6 +44,13 @@ def main() -> int:
     print("=" * 72)
     for s in pendientes:
         print(f"  {s.id}  niño={s.nino_id}  cerró={s.fin}  {s.habilidades_trabajadas}")
+        if not s.habilidades_trabajadas:
+            # Se ve ANTES de gastar una llamada al modelo: esta sesión no tiene
+            # a qué nodo atar nada, y va a salir de la cola sin mover dominio.
+            print(
+                f"     ⚠ cerró sin habilidades trabajadas — "
+                f"{s.tokens_consumidos} tokens sin registro de dominio"
+            )
 
     if not pendientes:
         print("\n  Nada que hacer: la cola está vacía.\n")
@@ -57,8 +65,15 @@ def main() -> int:
         print("\n  Falta ANTHROPIC_API_KEY en .env — el Analista no puede correr.\n")
         return 1
 
+    # El pipeline no decide dónde se imprime; el script sí. En INFO se ve el
+    # detalle de cada sesión, y las señales perdidas salen como WARNING.
+    logging.basicConfig(level=logging.INFO, format="  %(levelname)s %(message)s")
+
+    print("\n  " + "-" * 68)
     procesadas = procesar_pendientes(repo, cargar_grafo(), cliente)
-    print(f"\n  Procesadas: {procesadas}. La tabla `dominio` ya refleja lo trabajado.\n")
+    print("  " + "-" * 68)
+    print(f"\n  Procesadas: {procesadas}. La tabla `dominio` ya refleja lo trabajado.")
+    print("  Cada WARNING de arriba es trabajo del niño que NO quedó registrado.\n")
     return 0
 
 

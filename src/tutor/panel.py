@@ -178,8 +178,12 @@ def render_panel(
     display: inline-block; padding: 6px 12px; border-radius: 999px;
     font-size: 0.85rem; font-weight: 600; background: var(--linea); color: var(--tinta);
   }}
-  .badge.adelanto {{ background: color-mix(in srgb, var(--dorado) 20%, transparent); color: var(--dorado); }}
-  .badge.apoyo {{ background: color-mix(in srgb, var(--acento) 18%, transparent); color: var(--acento); }}
+  .badge.adelanto {{
+    background: color-mix(in srgb, var(--dorado) 20%, transparent); color: var(--dorado);
+  }}
+  .badge.apoyo {{
+    background: color-mix(in srgb, var(--acento) 18%, transparent); color: var(--acento);
+  }}
   .metodo {{ text-align: center; }}
   .metodo-num {{ font-size: 2.6rem; font-weight: 700; margin: 4px 0 2px; color: var(--verde); }}
   .metodo-txt {{ color: var(--tenue); font-size: 0.92rem; margin: 0 auto; max-width: 46ch; }}

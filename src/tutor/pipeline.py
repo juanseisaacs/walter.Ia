@@ -10,9 +10,12 @@ este archivo.
 
 from __future__ import annotations
 
+import logging
 import os
 from abc import ABC, abstractmethod
+from collections import Counter
 from datetime import datetime, timedelta
+from enum import StrEnum
 from typing import ClassVar, NamedTuple, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -43,6 +46,10 @@ from .storage import Repositorio
 from .voice import cargar_prompt
 
 T = TypeVar("T", bound=BaseModel)
+
+_log = logging.getLogger("tutor.pipeline")
+"""Sin handler propio: la librería no decide dónde se imprime. Los scripts que
+drenan la cola lo configuran; en los tests se captura con `caplog`."""
 
 TEMPERATURA_EXTRACCION = 0.0
 """Extraer no es escribir. El Analista y el Vigilante leen una transcripción y
@@ -355,7 +362,10 @@ def analizar_sesion(
     conoce ese estado — no la llames dos veces sobre la misma sesión.
     """
     cliente = cliente or cliente_por_defecto()
-    encabezado = f"Sesión {sesion.id} (modo {sesion.modo.value}).\n\n--- TRANSCRIPCIÓN ---\n{transcripcion}"
+    encabezado = (
+        f"Sesión {sesion.id} (modo {sesion.modo.value})."
+        f"\n\n--- TRANSCRIPCIÓN ---\n{transcripcion}"
+    )
 
     señales = cliente.extraer(
         cfg.MODELO_ANALISTA,
@@ -370,7 +380,7 @@ def analizar_sesion(
         AuditoriaCumplimiento,
     )
     datos = señales.model_dump()
-    datos["observaciones"] = _atar_habilidad_unica(datos["observaciones"], sesion)
+    datos["observaciones"] = _atar_habilidad_unica(datos["observaciones"], sesion, grafo)
     return AnalisisSesion(sesion_id=sesion.id, cumplimiento=cumplimiento, **datos)
 
 
@@ -384,7 +394,9 @@ _TIPOS_ACADEMICOS = frozenset(
 )
 
 
-def _atar_habilidad_unica(observaciones: list[dict], sesion: Sesion) -> list[dict]:
+def _atar_habilidad_unica(
+    observaciones: list[dict], sesion: Sesion, grafo: GrafoHabilidades | None = None
+) -> list[dict]:
     """Rellena el `habilidad_id` que el modelo omitió, cuando no hay ambigüedad.
 
     Si la sesión trabajó UNA sola habilidad, toda señal académica es de esa
@@ -400,14 +412,134 @@ def _atar_habilidad_unica(observaciones: list[dict], sesion: Sesion) -> list[dic
 
     Con dos o más habilidades no se toca nada: ahí sí hay algo que decidir, y
     esa decisión es del modelo, que leyó la transcripción.
+
+    Un id INVENTADO se corrige igual que un id ausente, y por la misma razón.
+    El modelo devuelve a veces un nodo que no está en el grafo (`mat.sumas_dobles`
+    en vez de `mat.suma.llevando`): `aplicar_analisis` lo descartaba igual que al
+    null, con la diferencia de que este ni siquiera parecía un hueco. Si la
+    sesión trabajó un solo nodo no hay nada que decidir — reescribirlo no es
+    adivinar, es usar el dato que el código ya tenía. Pide `grafo` para saber
+    qué id es falso; sin grafo se comporta como antes.
     """
     if len(sesion.habilidades_trabajadas) != 1:
         return observaciones
     unica = sesion.habilidades_trabajadas[0]
+    if grafo is not None and not grafo.existe(unica):
+        return observaciones  # el dato del código tampoco sirve: no se toca nada
     for o in observaciones:
-        if o.get("habilidad_id") is None and o.get("tipo") in _TIPOS_ACADEMICOS:
+        if o.get("tipo") not in _TIPOS_ACADEMICOS:
+            continue
+        hid = o.get("habilidad_id")
+        if hid is None or (grafo is not None and not grafo.existe(hid)):
             o["habilidad_id"] = unica
     return observaciones
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Que el descarte deje rastro
+# ─────────────────────────────────────────────────────────────────────────────
+# Hasta el 21/08 una señal académica sin `habilidad_id` —o con uno inventado—
+# se caía por un `continue` mudo dentro de `aplicar_analisis`. El niño
+# practicaba, su dominio no subía, y no había dónde enterarse: ni excepción, ni
+# contador, ni línea de log. Se descubrió leyendo la base a mano.
+#
+# La cura no es adivinar el id que falta (eso sería inventar dato, y el proyecto
+# tiene una regla dura en contra). Es que la pérdida SE VEA.
+
+
+class DestinoSenal(StrEnum):
+    """Qué se hizo con una observación del Analista.
+
+    Existe porque tres de estas ramas eran el mismo `continue` anónimo. Ponerle
+    nombre a cada salida es lo que convierte una pérdida muda en una contable.
+    """
+
+    DOMINIO = "dominio"
+    """Movió la tabla `dominio`: acierto, error o dominio con id válido."""
+
+    PISTA = "pista"
+    """`pista_necesaria` con id válido. No mueve el nivel por sí sola — se
+    cuenta como pistas dentro del cálculo. Entró: no es pérdida."""
+
+    PERFIL = "perfil"
+    """Interés o frustración. Va a la ficha personal por otra rama, no acá."""
+
+    SIN_ID = "sin_id"
+    """PERDIDA. Académica y el modelo no dijo de qué habilidad."""
+
+    ID_DESCONOCIDO = "id_desconocido"
+    """PERDIDA. El id que devolvió el modelo no está en el grafo."""
+
+
+_MUEVEN_DOMINIO = frozenset(
+    {TipoObservacion.ACIERTO, TipoObservacion.DOMINIO, TipoObservacion.ERROR}
+)
+
+
+def _destino(obs: Observacion, grafo: GrafoHabilidades) -> DestinoSenal:
+    """La única regla de qué entra a `dominio` y qué no.
+
+    `aplicar_analisis` decide con esto y `clasificar_senales` cuenta con esto:
+    una sola fuente, para que el informe no pueda contradecir a lo que el código
+    de verdad hizo. Es la lección de la fase 4 —dos definiciones del mismo
+    concepto se separan sin que nadie avise— aplicada por adelantado.
+    """
+    if obs.tipo not in _TIPOS_ACADEMICOS:
+        return DestinoSenal.PERFIL
+    if obs.habilidad_id is None:
+        return DestinoSenal.SIN_ID
+    if not grafo.existe(obs.habilidad_id):
+        return DestinoSenal.ID_DESCONOCIDO
+    return DestinoSenal.DOMINIO if obs.tipo in _MUEVEN_DOMINIO else DestinoSenal.PISTA
+
+
+class SenalesDeLaSesion(NamedTuple):
+    """Qué entró en la ficha y qué se cayó por el camino, en números."""
+
+    dominio: int = 0
+    pistas: int = 0
+    perfil: int = 0
+    sin_id: int = 0
+    ids_desconocidos: tuple[str, ...] = ()
+
+    @property
+    def aplicadas(self) -> int:
+        return self.dominio + self.pistas
+
+    @property
+    def perdidas(self) -> int:
+        return self.sin_id + len(self.ids_desconocidos)
+
+    def diagnostico(self) -> str:
+        """Una línea legible para la consola y el log, sin abrir el código."""
+        partes = [f"{self.aplicadas} aplicada(s)"]
+        if self.sin_id:
+            partes.append(f"{self.sin_id} sin habilidad_id")
+        if self.ids_desconocidos:
+            partes.append("id inexistente: " + ", ".join(self.ids_desconocidos))
+        if self.perfil:
+            partes.append(f"{self.perfil} al perfil")
+        return " · ".join(partes)
+
+
+def clasificar_senales(analisis: AnalisisSesion, grafo: GrafoHabilidades) -> SenalesDeLaSesion:
+    """Cuenta lo mismo que `aplicar_analisis` va a hacer, antes de hacerlo.
+
+    Función pura: no toca la ficha ni la base. Sirve para avisar en el momento
+    y para auditar sesiones viejas sin volver a llamar al modelo.
+    """
+    destinos = [(_destino(o, grafo), o) for o in analisis.observaciones]
+    conteo = Counter(d for d, _ in destinos)
+    desconocidos = sorted(
+        {o.habilidad_id for d, o in destinos if d is DestinoSenal.ID_DESCONOCIDO and o.habilidad_id}
+    )
+    return SenalesDeLaSesion(
+        dominio=conteo[DestinoSenal.DOMINIO],
+        pistas=conteo[DestinoSenal.PISTA],
+        perfil=conteo[DestinoSenal.PERFIL],
+        sin_id=conteo[DestinoSenal.SIN_ID],
+        ids_desconocidos=tuple(desconocidos),
+    )
 
 
 def _consolidar(previos: list[str], nuevos: list[str]) -> list[str]:
@@ -431,11 +563,11 @@ def aplicar_analisis(
     actualizado = nino.model_copy(deep=True)
 
     # ── Mitad académica ──
+    # El filtro vive en `_destino`, no acá: lo que se descarta hay que poder
+    # contarlo desde afuera (`clasificar_senales`) sin re-implementar la regla.
     exitos = {TipoObservacion.ACIERTO, TipoObservacion.DOMINIO}
     for obs in analisis.observaciones:
-        if obs.habilidad_id is None or not grafo.existe(obs.habilidad_id):
-            continue
-        if obs.tipo not in exitos and obs.tipo != TipoObservacion.ERROR:
+        if _destino(obs, grafo) is not DestinoSenal.DOMINIO:
             continue
 
         registro = actualizado.dominio.get(obs.habilidad_id)
@@ -482,6 +614,31 @@ def aplicar_analisis(
 # vuelve a arrancar a ciegas cada día. Es offline: la latencia da igual (§2).
 
 
+def _avisar_de_las_senales(sesion: Sesion, senales: SenalesDeLaSesion) -> None:
+    """Deja constancia de lo que entró y de lo que se perdió.
+
+    A nivel WARNING lo perdido, a nivel INFO lo normal: quien drena la cola ve
+    el detalle, y quien solo mira los avisos ve exactamente los casos en que el
+    niño trabajó y su dominio no se movió.
+
+    No lanza ni corta: una señal perdida no es motivo para descartar la sesión
+    entera, que es la mitad del análisis que sí sirve.
+    """
+    nivel = logging.WARNING if senales.perdidas else logging.INFO
+    _log.log(nivel, "sesión %s: %s", sesion.id, senales.diagnostico())
+
+    if not sesion.habilidades_trabajadas:
+        # El caso de `ses_cdb0b7fae50f`: el niño eligió escribir la w, trabajó
+        # nueve turnos y la sesión cerró sin un solo nodo del grafo. El Analista
+        # hizo bien en no inventar una habilidad; lo que faltaba era que alguien
+        # se enterara de que esos tokens no le llegan al papá en ningún reporte.
+        _log.warning(
+            "sesión %s: cerró sin habilidades trabajadas — %d tokens sin registro de dominio",
+            sesion.id,
+            sesion.tokens_consumidos,
+        )
+
+
 def procesar_sesion(
     repo: Repositorio,
     grafo: GrafoHabilidades,
@@ -506,11 +663,20 @@ def procesar_sesion(
 
     if nino is not None and transcripcion:
         analisis = analizar_sesion(sesion, transcripcion, cliente, grafo)
+        _avisar_de_las_senales(sesion, clasificar_senales(analisis, grafo))
         repo.guardar_nino(aplicar_analisis(nino, analisis, grafo, ahora))
         # El veredicto del método queda persistido para el panel del papá: es la
         # evidencia durable de "no le doy las respuestas", y sobrevive al borrado
         # de la transcripción (son booleanos, no la charla cruda).
         repo.guardar_auditoria(sesion.id, analisis.cumplimiento)
+    else:
+        # También era mudo: la sesión salía de la cola sin dejar constancia de
+        # que se fue sin analizar. Se distingue de "analizada y vacía".
+        _log.warning(
+            "sesión %s: sin insumo (niño borrado o transcripción vencida) — "
+            "sale de la cola sin analizar",
+            sesion.id,
+        )
 
     sesion.analizada = True
     repo.actualizar_sesion(sesion)

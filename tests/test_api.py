@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tutor import api
+from tutor.api import _email_del_papa
 from tutor.models import Ejercicio, Nino, TextoLocalizado
 from tutor.notificaciones import NotificadorFalso
 
@@ -576,3 +577,23 @@ def test_una_ruta_de_api_que_no_existe_sigue_siendo_404(cliente):
     navegador dice 200, el JSON no parsea, y se busca en el lugar equivocado.
     """
     assert cliente.get("/api/no_existe").status_code == 404
+
+
+# ── A qué correo sale la alerta de seguridad ─────────────────────────────────
+
+
+def test_la_alerta_va_al_correo_real_del_papa():
+    """Se despachaba a `papa+n1@pendiente.local` aunque el papá tuviera el suyo
+    registrado, porque esta función ignoraba el campo. El camino más urgente que
+    tiene el producto apuntaba a una casilla inventada."""
+    nino = Nino(id="n1", nombre="Juan", edad=7, grado=2, email_papa="mama@ejemplo.com")
+
+    assert _email_del_papa(nino) == "mama@ejemplo.com"
+
+
+def test_sin_correo_registrado_la_alerta_igual_sale():
+    """Los niños creados antes del onboarding no tienen el campo. Quedarse sin
+    alerta es peor que mandarla a una casilla que no existe."""
+    viejo = Nino(id="n_viejo", nombre="Ana", edad=7, grado=2)
+
+    assert _email_del_papa(viejo) == "papa+n_viejo@pendiente.local"

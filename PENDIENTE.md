@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **361 tests** de Python · **73** del front · **evals 45/45**
+- **386 tests** de Python · **73** del front · **evals 45/45** · lint en cero
 - **35 sesiones de voz reales**, la más larga de 9 minutos
 - **54 habilidades** de matemáticas (1° a 5°, el MEN numérico completo) con
   triple anclaje · **1.408 ejercicios validados**, ninguna habilidad vacía
@@ -157,13 +157,14 @@ va con evals detrás, no de paso.
 
 ### Lo demás, chico
 
-- **El techo de tokens no corta durante la sesión**, solo al abrir.
-- **Nadie manda el reporte por mail.** Se genera y se guarda;
-  `aviso_de_reporte()` existe y nadie lo dispara.
+- **El navegador no corta por duración.** El backend ya manda `max_minutos` y
+  `avisar_minutos` (21/08) y deja de recargar ejercicios pasada la hora, pero
+  falta el corte en `useTutor.ts` con el mismo patrón que ya usa el techo de
+  tokens: avisar al 90% para que el tutor cierre él, cortar al 100%. Son ~15
+  líneas, y necesitan una sesión real para probarse.
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa
   sin respaldo pasa. Verificarlo pediría un segundo modelo, y la regla del
   proyecto es que la verificación es código.
-- **7 errores de lint preexistentes** (líneas largas, un `l` ambiguo).
 - **La latencia percibida no estaba medida.** Desde el 21/08 la consola imprime
   `[latencia] N ms de silencio antes de contestar` — de la última sílaba del
   niño al primer audio del tutor. Adentro va el VAD (900 ms para un niño de 8,
@@ -199,3 +200,9 @@ si algún prompt offline crece mucho.
 | El tutor inventaba lo que veía (foto y dibujo) | La imagen va dentro del turno, no por el canal de video. `scripts/verificar_vision.py` lo mide con un control que no se puede adivinar |
 | El tablero afirmaba de más ("¿ya ves las dos?") | El tool devuelve QUÉ quedó en pantalla y con qué colores; dos fracciones se comparan con `comparar_con` en una sola llamada |
 | El tablero no podía mostrar una lista de palabras | Escena `lista`: hasta cuatro, una por renglón y cada una de un color |
+| El dominio se perdía en silencio | `clasificar_senales` cuenta lo que entra y lo que se cae, con el MISMO predicado que decide (`_destino`). Lo perdido sale como WARNING y `procesar_pendientes` lo imprime |
+| Un id inventado por el Analista se descartaba | Si la sesión trabajó un solo nodo se corrige, igual que el id ausente. Con dos o más no se toca: ahí sí hay algo que decidir |
+| La alerta de seguridad iba a un correo inventado | `_email_del_papa` ignoraba `nino.email_papa` con un docstring que decía que el campo no existía. Existía desde el onboarding |
+| `aviso_de_reporte()` no lo disparaba nadie | `_avisar()` ya estaba escrita entera en el script y `main()` no la llamaba. Se conectó (`--sin-avisar` la suprime) |
+| `MAX_MINUTOS_SESION` no lo consultaba nadie | `excedio_duracion()` tenía test propio y cero llamadores. Ahora corta la recarga y el techo viaja al navegador |
+| 7 errores de lint | Eran 20. En cero. Uno escondía un `F811`: dos tests con el mismo nombre, y el primero no corría desde que se escribió |
