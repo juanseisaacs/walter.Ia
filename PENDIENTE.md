@@ -16,10 +16,19 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **359 tests** de Python · **60** del front · **evals 45/45**
+- **361 tests** de Python · **60** del front · **evals 45/45**
 - **35 sesiones de voz reales**, la más larga de 9 minutos
-- **13 habilidades** de matemáticas con triple anclaje · **417 ejercicios**
+- **54 habilidades** de matemáticas (1° a 5°, el MEN numérico completo) con
+  triple anclaje · **1.408 ejercicios validados**, ninguna habilidad vacía
 - 4 niños en la base, todos de prueba
+
+### Cómo levantarlo
+
+```bash
+cd web && npm run build && cd ..      # solo si se tocó la interfaz
+python -m scripts.servidor_pruebas    # topes soltados, para probar
+```
+→ **http://localhost:8000** · la pizarra suelta en **/pizarra**
 
 ---
 
@@ -76,9 +85,9 @@ vayamos a enseñar a leer.
 
 ## 🟢 Lo que puedo hacer yo, sin esperar a nadie
 
-- **41 nodos de matemáticas para cubrir 1° a 5°** — ya investigados y propuestos
-  en `FUENTES.md` §7.1, con su anclaje. Es transcribirlos.
 - **Los nodos base de lectura**, en cuanto esté decidido el método (§7.2).
+- **Completar `proporcionalidad.directa`**: quedó con 10 ejercicios en vez de 26
+  porque el generador le sigue poniendo unidades a la respuesta ahí. Un minuto.
 - **Corregir los trazos feos.** Los 60 glifos de `trazos.ts` se escribieron sin
   ver el render. Con que RBH mire `/pizarra` → "Ver todos los trazos" y diga
   cuáles están torcidos, se arreglan: es una línea por carácter.
