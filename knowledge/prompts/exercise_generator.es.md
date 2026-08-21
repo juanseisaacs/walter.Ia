@@ -60,3 +60,14 @@ llega al niño — pero sí se pierde el trabajo de generarlo.
 
 Nombres y contextos colombianos: la tienda, el recreo, los mil pesos, el bus.
 Nada de *autitos*, *bolitas* ni *pochoclo*.
+
+## La respuesta es el número pelado
+
+En `respuesta` va **solo el número**, sin unidad: `16000`, no "16 mil pesos";
+`180`, no "180 kilómetros". La unidad ya está en el enunciado.
+
+Dos razones: el código verifica que la cuenta cierre y no puede leer "16 mil
+pesos", y `check_answer` ya entiende lo que el niño dice en voz alta —lo que
+tiene que comparar es el valor.
+
+Si es una fracción, va como fracción: `5/8`, no `0.625`.

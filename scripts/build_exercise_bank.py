@@ -46,6 +46,11 @@ _OPERADORES = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    # El residuo es aritmética de 3°: "reparto 17 entre 5 y sobran 2". Sin esto,
+    # las 25 tandas de `mat.division.con_residuo` se rechazaban enteras porque
+    # `17 % 5` "no se pudo evaluar" — el ejercicio estaba bien y el validador no
+    # sabía leerlo.
+    ast.Mod: operator.mod,
     ast.USub: operator.neg,
 }
 
@@ -104,10 +109,18 @@ def validar(enunciado: str, respuesta: str, operacion: str | None) -> str | None
     if calculado is None:
         return f"la cuenta '{operacion}' no se pudo evaluar"
 
-    try:
-        declarado = float(respuesta.replace(",", "."))
-    except ValueError:
-        return f"la respuesta '{respuesta}' no es un número pero hay cuenta"
+    # La respuesta puede ser una FRACCIÓN, y eso es correcto: a "2/8 + 3/8" se
+    # contesta "5/8", no "0,625". Se evalúa igual que la cuenta, con el mismo
+    # caminador de AST, y se comparan los dos como números.
+    #
+    # Antes solo se probaba `float()`: las seis habilidades de fracciones y
+    # decimales se rechazaban ENTERAS —25 de 25— con ejercicios impecables. Es
+    # la tercera vez que un tope mío descarta contenido bueno por no saber
+    # leerlo; el validador tiene que entender la aritmética que el niño usa, no
+    # al revés.
+    declarado = evaluar_cuenta(respuesta.replace(",", "."))
+    if declarado is None:
+        return f"la respuesta '{respuesta}' no es un número ni una fracción, pero hay cuenta"
 
     if abs(calculado - declarado) > 1e-9:
         return f"LA CUENTA NO CIERRA: {operacion} = {calculado:g}, pero dice {declarado:g}"

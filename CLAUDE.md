@@ -201,9 +201,9 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   cabecera del YAML
 - `base_academica_men.md`: el marco del MEN alrededor del grafo (áreas, EBC,
   Saber, calendarios, desarrollo cognitivo). Ver `ARCHITECTURE.md` §19
-- Banco: **417 ejercicios validados**, ~32 por habilidad. Ninguna habilidad
-  vacía (el 20/08 tres lo estaban, entre ellas *tablas de multiplicar* — que es
-  justo lo que un niño pidió y el tutor tuvo que improvisar)
+- Banco: **1.408 ejercicios validados**, ~26 por habilidad, **ninguna vacía**.
+  Cero voseo y cero enunciados largos: los tres los impide el validador, no el
+  prompt
 - 354 tests en verde
 
 ### Cómo se levanta para HABLAR con el tutor
