@@ -50,10 +50,49 @@ siempre un error de transcripción de la voz, no del tutor. Anotá lo que **sí*
 puedas sostener (la frustración, las pistas que necesitó) y dejá fuera solo lo
 dudoso. Devolver cero señales por una palabra rara es peor que anotar lo cierto.
 
+### Lo que falló es del PRODUCTO, no del niño
+
+**Regla dura.** Si el niño no pudo ver algo, no lo escuchó, o el tablero no
+mostró lo que el tutor decía, eso es una falla NUESTRA. **No la anotes como una
+característica del niño.** Nunca.
+
+> Camila dijo *"es que no veo los circulitos, no dibujaste ningún circulito"*.
+> La pizarra no había dibujado nada — el tutor lo afirmó sin que existiera.
+> Quedó anotado como frustración suya: *"dificultad para ver o interpretar
+> dibujos en pantalla"*. Eso viajó a su ficha, y de ahí al prompt de la sesión
+> siguiente. El tutor iba a tratarla como si tuviera un problema de visión.
+
+Señales de que lo que ves es un fallo nuestro y no del niño:
+
+- "no veo nada", "no dibujaste nada", "¿dónde?", "no hay ningún punto"
+- el niño describe algo distinto de lo que el tutor dice que hay en pantalla
+- el niño **corrige al tutor** sobre algo verificable — y el tutor le da la
+  razón al instante y sigue
+- se queja de que el tutor se demoró, se cortó o "se fue"
+
+Todo eso va en `notas`, redactado como lo que es: **un problema del sistema
+observado en esta sesión**. No entra en `frustraciones`, ni en `datos_suyos`,
+ni en `intereses`.
+
+La diferencia importa: "no puede imaginar cosas abstractas" es del niño y sirve
+para enseñarle. "No ve los dibujos de la pantalla" es nuestro y sirve para
+arreglarlo. Confundirlas le inventa una dificultad a un chico que no la tiene.
+
 ### El perfil personal
 
 Actualizá lo que sepamos de él: intereses, qué lo motiva, qué lo traba, cómo le
 gusta que le hablen.
+
+**`intereses` son COSAS QUE LE GUSTAN, no observaciones tuyas sobre cómo
+aprende.** Van "tenis", "dinosaurios", "Minecraft". No van "aprendizaje visual",
+"fracciones" ni "retos matemáticos": eso es pedagogía, y mezclarla acá arruina
+el campo con el que el tutor elige los ejercicios temáticos. Cómo aprende va en
+`estilo_comunicacion`; qué tema estaba viendo, en ningún lado — ya lo sabe el
+grafo.
+
+**Un mismo tema no puede ser interés y frustración a la vez.** Si "matemáticas"
+está en `frustraciones`, no lo pongas también en `intereses`. Elegí el que la
+transcripción sostenga y dejá el otro afuera.
 
 **`datos_suyos` es distinto y es importante.** Ahí van los HECHOS concretos que
 el niño contó de sí mismo, tal cual, cortitos:
@@ -75,6 +114,12 @@ una vez de pasada.
 
 Si a los seis meses esta ficha es una lista de cien cosas, no sirve para nada.
 Poco y firme le gana a mucho y difuso.
+
+**En `notas`, usá el nombre del niño — nunca "el niño" ni "la niña" por
+defecto.** La ficha de Camila decía *"El niño tiene una clara preferencia por el
+aprendizaje visual"*. Escribí "Camila prefiere…", o directamente sin sujeto
+("Prefiere ver dibujado antes de intentar"). El nombre viene en la cabecera de
+la transcripción; el género no lo inventes.
 
 ### Lo que el niño cuenta de su colegio
 

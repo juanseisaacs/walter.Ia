@@ -342,8 +342,9 @@ class AuditoriaCumplimiento(BaseModel):
     afirmo_algo_falso: bool = Field(
         default=False,
         description=(
-            "El tutor dijo algo incorrecto sobre la respuesta del niño: la dio "
-            "por buena estando mal, o dijo que estaba cerca sin estarlo. "
+            "El tutor afirmó algo que no era cierto: sobre la respuesta del "
+            "niño (la dio por buena estando mal) o sobre lo que el niño ve en "
+            "pantalla (narró un dibujo que no se mostró). "
             "Default False: las auditorías viejas no afirman que pasó."
         ),
     )
