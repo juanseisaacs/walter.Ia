@@ -87,7 +87,42 @@ function Dibujo({ escena }: { escena: Escena }) {
       return <VistaFraccion e={escena} />;
     case "texto":
       return <VistaTexto e={escena} />;
+    case "lista":
+      return <VistaLista e={escena} />;
   }
+}
+
+/**
+ * Las palabras, una debajo de otra, cada una de su color.
+ *
+ * El color acá hace trabajo: son cosas distintas y separadas, y con todas del
+ * mismo tinte la lista se lee como un párrafo. Aparecen una por una —el niño
+ * las va viendo escribirse— pero al final quedan TODAS, que es el punto.
+ */
+function VistaLista({ e }: { e: import("./escenas").Lista }) {
+  const n = e.palabras.length;
+  const alto = Math.min(62, (ALTO - 50) / n);
+  const y0 = (ALTO - alto * (n - 1)) / 2 - 6;
+  // Que la más larga entre siempre: el ancho manda sobre el alto.
+  const masLarga = Math.max(...e.palabras.map((p) => p.length));
+  const tam = Math.max(26, Math.min(alto * 0.78, (ANCHO - 50) / (masLarga * 0.58)));
+
+  return (
+    <>
+      {e.palabras.map((palabra, i) => (
+        <Trazo key={`${i}-${palabra}`} paso={i}>
+          <text
+            x={ANCHO / 2}
+            y={y0 + i * alto}
+            className={`pz-grande pz-lista-${(i % 4) + 1}`}
+            style={{ fontSize: `${tam}px` }}
+          >
+            {palabra}
+          </text>
+        </Trazo>
+      ))}
+    </>
+  );
 }
 
 /** Un trazo que aparece en su turno. `paso` es el lugar en la secuencia. */
@@ -298,7 +333,59 @@ function VistaRecta({ e }: { e: import("./escenas").Recta }) {
 // Escena: fracción
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Dos fracciones lado a lado, cada una de su color. Comparar es EL uso.
+ *
+ * Se dibujan siempre como tortas y del MISMO tamaño: si una fuera más grande
+ * que la otra, el dibujo estaría contestando la pregunta antes que el niño.
+ */
+function VistaComparacion({ e }: { e: import("./escenas").Fraccion }) {
+  const b = e.comparar!;
+  const r = 82;
+  const cy = 190;
+
+  const porcion = (cx: number, i: number, partes: number) => {
+    const a0 = (i / partes) * 2 * Math.PI - Math.PI / 2;
+    const a1 = ((i + 1) / partes) * 2 * Math.PI - Math.PI / 2;
+    const grande = a1 - a0 > Math.PI ? 1 : 0;
+    return `M ${cx} ${cy} L ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A ${r} ${r} 0 ${grande} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)} Z`;
+  };
+
+  const torta = (
+    cx: number,
+    num: number,
+    den: number,
+    clase: string,
+    desde: number,
+  ) => (
+    <g key={cx}>
+      <Trazo paso={desde}>
+        <text x={cx} y={cy - r - 26} className={`pz-rotulo-comp ${clase}-texto`}>
+          {num}/{den}
+        </text>
+      </Trazo>
+      {Array.from({ length: den }, (_, i) => (
+        <Trazo key={i} paso={desde + i + 1}>
+          <path d={porcion(cx, i, den)} className={i < num ? clase : "pz-porcion"} />
+        </Trazo>
+      ))}
+    </g>
+  );
+
+  const izq = ANCHO / 2 - 118;
+  const der = ANCHO / 2 + 118;
+
+  return (
+    <>
+      {torta(izq, e.numerador, e.denominador, "pz-porcion-a", 0)}
+      {torta(der, b.numerador, b.denominador, "pz-porcion-b", e.denominador + 1)}
+    </>
+  );
+}
+
 function VistaFraccion({ e }: { e: import("./escenas").Fraccion }) {
+  if (e.comparar) return <VistaComparacion e={e} />;
+
   // Cuántos enteros hacen falta. Una fracción impropia como 5/3 son DOS
   // pasteles: uno entero y dos tercios del otro. Dibujar uno solo es imposible
   // —no caben cinco tercios en un pastel de tres— y era lo que hacía que el
@@ -548,5 +635,7 @@ function describir(e: Escena): string {
       return `${e.numerador} de ${e.denominador}`;
     case "texto":
       return e.contenido;
+    case "lista":
+      return e.palabras.join(", ");
   }
 }

@@ -77,6 +77,40 @@ const MOMENTOS: { rotulo: string; dice: string; cuadro: Cuadro }[] = [
     cuadro: { escena: { tipo: "fraccion", numerador: 1, denominador: 2, forma: "torta" } },
   },
   {
+    rotulo: "Comparar 1/2 y 1/3",
+    dice: "¿Cuál pedazo es más grande? El naranja o el azul.",
+    cuadro: {
+      escena: {
+        tipo: "fraccion",
+        numerador: 1,
+        denominador: 2,
+        comparar: { numerador: 1, denominador: 3 },
+      },
+    },
+  },
+  {
+    rotulo: "Comparar 3/4 y 2/6",
+    dice: "Dos fracciones cualquiera, del mismo tamaño para poder mirarlas.",
+    cuadro: {
+      escena: {
+        tipo: "fraccion",
+        numerador: 3,
+        denominador: 4,
+        comparar: { numerador: 2, denominador: 6 },
+      },
+    },
+  },
+  {
+    rotulo: "Tres palabras con V",
+    dice: "Vaca, vela, viento. Las tres a la vez, cada una de su color.",
+    cuadro: { escena: { tipo: "lista", palabras: ["vaca", "vela", "viento"] } },
+  },
+  {
+    rotulo: "Cuatro palabras",
+    dice: "Hasta cuatro entran sin que deje de leerse de un vistazo.",
+    cuadro: { escena: { tipo: "lista", palabras: ["mesa", "silla", "ventana", "puerta"] } },
+  },
+  {
     rotulo: "✍️ La letra ñ",
     dice: "Mira cómo se escribe la eñe. Fíjate por dónde empieza el lápiz.",
     cuadro: { escena: { tipo: "texto", contenido: "ñ", pie: "la eñe" } },

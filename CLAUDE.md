@@ -275,6 +275,47 @@ incorporarla: fue **decidir qué no incorporar**.
 
 ---
 
+## Lección aprendida (visión, 21/08)
+
+**Durante tres días el tutor inventó todo lo que "vio".** Le mostramos un
+cuaderno con `8 + 5` y `12 − 7`, y le leyó al niño *"veo 5 + 3 y 10 − 4"*. Un
+círculo con UNA línea: *"lo partiste con dos líneas, quedaron cuatro pedazos
+iguales"* — la misma frase, palabra por palabra, que con dos líneas de verdad.
+
+La causa era el canal: `sendRealtimeInput({video})` es streaming de cámara y el
+frame suelto se descarta. La imagen **dentro del turno** (`sendClientContent`
+con `inlineData` + el texto juntos) se ve con precisión. Eso ya se había
+intentado y revertido, porque el modelo "se quedaba colgado": era cierto y era
+otra cosa — si el modelo YA está hablando, el turno con la imagen queda detrás
+del anterior. Se corta antes y funciona.
+
+Lo que hay que recordar no es el canal, es cómo se nos escapó:
+
+1. **Una verificación con un caso adivinable no es una verificación.** Lo que
+   sostenía el canal viejo era "leyó las letras de una gorra y contó cinco
+   dedos". Una mano tiene cinco dedos siempre. Un modelo que no ve nada acierta
+   las dos. → Para probar que un modelo VE, se le muestra **lo que no puede
+   adivinar**: un 7 gigante cuando el prompt dice que espera una torta.
+   `scripts/verificar_vision.py` hace exactamente eso, y es lo que hay que
+   correr antes de volver a tocar el camino de la imagen.
+2. **El control es la prueba, no el caso feliz.** Con una sola imagen no se
+   distingue ver de completar. Con dos que se contradicen, sí: la respuesta fue
+   **idéntica** con una línea y con dos. Ahí se acabó la discusión.
+3. **El niño lo dijo antes que nosotros, tres veces.** "Pero yo hice un círculo
+   y solo lo partí en una línea, ¿tú ves dos?". Cada vez el tutor le dio la
+   razón al instante y siguió — no vio mal: no vio, y después cedió. Un tutor
+   que cede ante la corrección del niño **esconde** el fallo en vez de
+   mostrarlo. Cuando un niño corrige al tutor sobre algo verificable, eso es un
+   reporte de bug.
+
+Y una de producto: el tutor afirmaba de la pizarra lo que no podía saber
+("¿ahí ya puedes ver las dos?" con una sola en pantalla, "el pedazo naranja"
+cuando los dos dibujos eran naranjas). El tool devolvía `{ mostrado: true }`.
+→ **Un tool que cambia lo que el niño ve le devuelve al tutor QUÉ quedó en
+pantalla**, no un "ok". Lo que no se le dice, se lo inventa.
+
+---
+
 ## Lección aprendida (fase 7)
 
 **El schema pesa más que el prompt.** Toda esta tanda salió de agregar un

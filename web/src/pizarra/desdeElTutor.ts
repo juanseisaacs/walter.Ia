@@ -7,6 +7,7 @@
  * vacío es mucho mejor que uno con una cuenta rota adelante de un niño.
  */
 
+import { MAX_PALABRAS } from "./escenas";
 import type { Anotacion, Cuadro, Escena } from "./escenas";
 
 /** Cuántas cajas caben en el tablero sin volverse ilegibles. */
@@ -35,6 +36,9 @@ Cuatro pasteles ya llenan el tablero; más se vuelven ilegibles. */
 const MAX_ENTEROS = 4;
 /** Una recta con doscientas marcas es una línea negra. */
 const MAX_PUNTOS_RECTA = 40;
+
+/** Más largo que esto no es una palabra suelta: es una frase, y para eso está la voz. */
+const MAX_LARGO_PALABRA = 16;
 
 function num(v: unknown): number | undefined {
   const n = typeof v === "string" ? Number(v) : v;
@@ -125,6 +129,19 @@ function aEscena(args: any): Escena | null {
       const numerador = entero(args.numerador, 0, MAX_PARTES * MAX_ENTEROS);
       if (denominador === undefined || numerador === undefined) return null;
       if (numerador > denominador * MAX_ENTEROS) return null;
+
+      // La segunda, para comparar. Acá SÍ se exige propia (numerador <=
+      // denominador): dos fracciones impropias lado a lado son cuatro o seis
+      // tortas y no se compara nada. Si viene mal, se cae la comparación —
+      // nunca el dibujo entero: mostrar una fracción es mejor que no mostrar.
+      const c = args.comparar_con ?? args.comparar;
+      const cd = entero(c?.denominador, 2, MAX_PARTES);
+      const cn = entero(c?.numerador, 0, MAX_PARTES);
+      const comparar =
+        cd !== undefined && cn !== undefined && cn <= cd && numerador <= denominador
+          ? { numerador: cn, denominador: cd }
+          : undefined;
+
       return {
         tipo: "fraccion",
         numerador,
@@ -132,6 +149,7 @@ function aEscena(args: any): Escena | null {
         // La torta se lee mejor con pocas partes; con muchas se vuelve un
         // abanico ilegible y la barra gana.
         forma: denominador <= 6 ? "torta" : "barra",
+        comparar,
       };
     }
 
@@ -142,7 +160,70 @@ function aEscena(args: any): Escena | null {
       return { tipo: "texto", contenido };
     }
 
+    case "lista": {
+      const crudas = Array.isArray(args.palabras)
+        ? args.palabras
+        : typeof args.palabras === "string"
+          ? // El modelo a veces manda "vaca, vela, viento" en un solo string.
+            // Es lo que quiso decir: se entiende en vez de devolver null.
+            args.palabras.split(/[,;·]/)
+          : [];
+      const palabras = crudas
+        .map((w: unknown) => (typeof w === "string" ? w.trim() : ""))
+        .filter((w: string) => w.length > 0 && w.length <= MAX_LARGO_PALABRA)
+        .slice(0, MAX_PALABRAS);
+      // Una sola palabra no es una lista: es `texto`, que la escribe a mano y
+      // se ve mucho mejor. Se degrada en vez de rechazar.
+      if (palabras.length === 0) return null;
+      if (palabras.length === 1) return { tipo: "texto", contenido: palabras[0] };
+      return { tipo: "lista", palabras };
+    }
+
     default:
       return null;
+  }
+}
+
+/**
+ * Lo que quedó en pantalla, en palabras, para devolvérselo al tutor.
+ *
+ * El tool devolvía `{ mostrado: true }` y nada más. Con eso el tutor no tenía
+ * cómo saber qué se ve, y afirmaba de más: mandó un medio, después un tercio, y
+ * preguntó "¿ahí ya puedes ver las dos?" — la segunda había borrado a la
+ * primera. Tampoco sabía los colores, así que dijo "el pedazo naranja" cuando
+ * los dos dibujos tenían naranja.
+ *
+ * No se le pide al modelo que adivine el estado del tablero: se lo decimos.
+ */
+export function describir(cuadro: Cuadro): string {
+  const e = cuadro.escena;
+  switch (e.tipo) {
+    case "operacion":
+      return `la cuenta ${e.a} ${e.op} ${e.b}${
+        e.resultado === undefined ? " sin resultado, abierta para él" : ` = ${e.resultado}`
+      }, escrita en columna con el signo en naranja`;
+    case "grupos":
+      return `${e.grupos} ${e.nombre ?? "grupos"} con ${e.porGrupo} en cada uno${
+        e.porGrupo > 12 ? " (el número escrito adentro, no puntos)" : " (puntos para contar)"
+      }`;
+    case "recta":
+      return `una recta del ${e.desde} al ${e.hasta}${
+        e.marca !== undefined ? `, marcado el ${e.marca}` : ""
+      }${e.saltaA !== undefined ? ` y un salto hasta el ${e.saltaA}` : ""}`;
+    case "fraccion": {
+      const uno = `${e.numerador}/${e.denominador}`;
+      if (e.comparar) {
+        return `${uno} en NARANJA a la izquierda y ${e.comparar.numerador}/${e.comparar.denominador} en AZUL a la derecha, del mismo tamaño para poder compararlas`;
+      }
+      return `${uno}: ${e.forma === "torta" ? "una torta" : "una barra"} partida en ${
+        e.denominador
+      } con ${e.numerador} ${e.numerador === 1 ? "parte pintada" : "partes pintadas"} de naranja`;
+    }
+    case "texto":
+      return `«${e.contenido}» escrito grande`;
+    case "lista":
+      return `${e.palabras.length} palabras, una debajo de otra y cada una de un color: ${e.palabras
+        .map((p) => `«${p}»`)
+        .join(", ")}`;
   }
 }

@@ -17,7 +17,7 @@ import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from ".
 import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
-import { aCuadro } from "../pizarra/desdeElTutor";
+import { aCuadro, describir } from "../pizarra/desdeElTutor";
 import type { Cuadro } from "../pizarra/escenas";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
@@ -43,25 +43,6 @@ const UMBRAL_BARGE_IN = 0.045;
  * los llena; una tos o un golpe en la mesa, no.
  */
 const MS_PARA_CORTAR = 200;
-
-/**
- * Cuánto esperar antes de EMPUJAR al tutor a hablar de la foto.
- *
- * Solo se empuja si en ese tiempo no dijo nada. La versión anterior preguntaba
- * a los 900 ms pasara lo que pasara, y eso resultó ser peor que no preguntar:
- * el modelo ya había empezado a contestar la imagen —"A ver,"— y el mensaje lo
- * CORTÓ, abriendo un turno nuevo donde la foto ya no estaba en foco. Después
- * decía, con razón, que no le había llegado nada.
- *
- * Tres cosas empujan turnos en esta pantalla a la vez: la voz del niño, la
- * imagen y este mensaje. La imagen es la única que no puede esperar su lugar,
- * así que las otras dos le ceden el paso.
- *
- * Bajó de 2.500 a 1.200 cuando la guardia dejó de esperar al audio: ahora se
- * detecta que el modelo arrancó en cuanto EMPIEZA a generar, no cuando ya
- * suena. Con eso, esperar de más solo agrega silencio.
- */
-const ESPERA_ANTES_DE_EMPUJAR_MS = 1200;
 
 export function useTutor(ninoId: string) {
   // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
@@ -89,14 +70,18 @@ export function useTutor(ninoId: string) {
   const [fotoEnviada, setFotoEnviada] = useState(false);
   /** El tutor todavía no dijo nada sobre la foto. Se apaga cuando habla. */
   const [mirandoFoto, setMirandoFoto] = useState(false);
-  /** ¿El tutor ya dijo algo desde que salió la foto? Si sí, no se le empuja. */
-  const hablóTrasFotoRef = useRef(false);
   const avisadoRef = useRef(false);
 
   const sesionRef = useRef<SesionAbierta | null>(null);
   const liveRef = useRef<any>(null);
   const micRef = useRef<CapturaMicrofono | null>(null);
   const reproductorRef = useRef<ReproductorContinuo | null>(null);
+  /** Espejo de `cuadro`: el tool corre en un closure y el estado le llega viejo. */
+  const cuadroRef = useRef<Cuadro | null>(null);
+  /** Cuándo se transcribió la última sílaba del niño. Para medir la espera. */
+  const callóRef = useRef<number | null>(null);
+  /** Puente al efecto de la sesión, que se monta una vez y no ve los callbacks. */
+  const cerrarTurnoAcumuladoRef = useRef<(() => void) | null>(null);
   const pendientesRef = useRef<Turno[]>([]);
   const acumNinoRef = useRef("");
   const acumTutorRef = useRef("");
@@ -157,6 +142,28 @@ export function useTutor(ninoId: string) {
      El modelo los pide; nosotros los resolvemos contra el backend. */
 
   /** Le cuenta algo al tutor por el canal de texto, fuera del ciclo de un tool. */
+  /**
+   * Vuelca a la transcripción lo que va acumulado, y la deja en orden.
+   *
+   * Normalmente lo hace `turnComplete`. Pero una imagen del niño se encola
+   * apenas sale, y si el turno anterior todavía no cerró se cuela ANTES: en
+   * `ses_cdb0b7fae50f` la marca "[le muestra un dibujo]" quedó dos turnos
+   * arriba de la hoja que lo produjo. La transcripción es lo único que se lee
+   * después —la usa el Analista y la usamos nosotros para auditar—, y una
+   * transcripción desordenada hace concluir cosas que no pasaron.
+   */
+  const cerrarTurnoAcumulado = useCallback(() => {
+    const dichoNino = acumNinoRef.current;
+    const dichoTutor = acumTutorRef.current;
+    acumNinoRef.current = "";
+    acumTutorRef.current = "";
+    if (dichoNino) encolar({ quien: "nino", texto: dichoNino });
+    if (dichoTutor) encolar({ quien: "tutor", texto: dichoTutor });
+    setTextoNino("");
+  }, [encolar]);
+
+  cerrarTurnoAcumuladoRef.current = cerrarTurnoAcumulado;
+
   const avisarAlTutor = useCallback((texto: string) => {
     try {
       liveRef.current?.sendClientContent({
@@ -165,6 +172,56 @@ export function useTutor(ninoId: string) {
       });
     } catch {
       /* si no se puede avisar, el tutor sigue hablando igual */
+    }
+  }, []);
+
+  /**
+   * Le muestra una imagen al tutor. La ÚNICA puerta: dibujo y foto entran igual.
+   *
+   * La imagen va DENTRO del turno, junto al texto que la acompaña, y no por
+   * `sendRealtimeInput({video})`. Eso último es un canal de streaming de
+   * cámara: el frame suelto se descarta y el modelo contesta describiendo lo
+   * que esperaba ver. Medido el 21/08 con controles:
+   *
+   *   | se le mandó        | por realtime            | dentro del turno        |
+   *   |--------------------|-------------------------|-------------------------|
+   *   | un 7 gigante       | "un círculo, dos líneas"| "veo el número siete"   |
+   *   | un triángulo       | "un círculo, dos líneas"| —                       |
+   *   | cuaderno con 8+5   | "veo 5 + 3 y 10 - 4"    | "ocho más cinco"        |
+   *
+   * Cuatro de cuatro inventadas por realtime; exactas por turno. La respuesta
+   * era IDÉNTICA con una línea y con dos: no veía mal, no veía.
+   *
+   * El código decía lo contrario ("verificado: leyó una gorra, contó cinco
+   * dedos") y por eso el cambio se había revertido una vez. Una mano tiene
+   * cinco dedos siempre: esa verificación no distinguía ver de adivinar. Para
+   * eso está el control con el 7 — nadie adivina un 7 cuando espera una torta.
+   *
+   * El cuelgue de aquel intento sí era real, y era otra cosa: si el modelo YA
+   * está hablando, el turno con la imagen queda detrás del anterior y la
+   * respuesta no llega nunca. Por eso se corta antes.
+   */
+  const mostrarleAlTutor = useCallback((jpegBase64: string, aviso: string): boolean => {
+    const live = liveRef.current;
+    if (!live) return false;
+    try {
+      // Si está hablando, su turno tapa al nuestro. Mismo corte que el barge-in.
+      reproductorRef.current?.detenerTodo();
+      live.sendClientContent({
+        turns: {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: jpegBase64 } },
+            { text: aviso },
+          ],
+        },
+        turnComplete: true,
+      });
+      console.info(`[imagen] enviada dentro del turno (${jpegBase64.length} b64)`);
+      return true;
+    } catch (e) {
+      console.warn("[imagen] no se pudo enviar:", e);
+      return false;
     }
   }, []);
 
@@ -286,6 +343,7 @@ export function useTutor(ninoId: string) {
       case "mostrar_en_pizarra": {
         if (args?.tipo === "limpiar") {
           setCuadro(null);
+          cuadroRef.current = null;
           setHoja(null);
           return { limpiada: true };
         }
@@ -305,12 +363,29 @@ export function useTutor(ninoId: string) {
           };
         }
         setHoja(null); // si había una hoja abierta, el tablero la reemplaza
+        const habia = cuadroRef.current !== null;
         setCuadro(cuadro);
-        return { mostrado: true };
+        cuadroRef.current = cuadro;
+        // Se le devuelve QUÉ quedó en pantalla, no un "ok". Con el "ok" pelado
+        // el tutor afirmaba de memoria: mandó un medio, después un tercio, y
+        // preguntó "¿ahí ya puedes ver las dos?" con una sola en el tablero.
+        return {
+          mostrado: true,
+          en_pantalla: describir(cuadro),
+          ...(habia
+            ? {
+                ojo:
+                  "La pizarra muestra UNA cosa a la vez: esto borró lo que " +
+                  "había antes. Si necesitas que el niño vea dos fracciones " +
+                  "juntas, mándalas en UNA sola llamada con `comparar_con`.",
+              }
+            : {}),
+        };
       }
 
       case "pedir_dibujo": {
         setCuadro(null); // la hoja toma el lugar del tablero
+        cuadroRef.current = null;
         setHoja(String(args?.consigna ?? "Dibújame lo que estás pensando"));
         return { hoja_abierta: true };
       }
@@ -364,59 +439,28 @@ export function useTutor(ninoId: string) {
     }
   }, [avisarAlTutor]);
 
-  /* ── El dibujo del niño ─────────────────────────────────────────────────
-     Sale por `sendRealtimeInput`, el MISMO canal que la foto de la cámara.
-     Ese camino está verificado con imágenes reales (el 20/08 el tutor leyó las
-     letras de una gorra), así que un dibujo es una foto con otra fuente.
-
-     Lo que NO se hace acá es el empujón condicional que sí lleva la cámara: la
-     foto llega sin aviso y a veces el modelo se queda esperando, pero acá el
-     tutor sabe que pidió un dibujo y que el niño lo está haciendo. */
+  /* ── El dibujo del niño ───────────────────────────────────────────────── */
 
   const enviarDibujo = useCallback(
     (jpegBase64: string) => {
       setHoja(null);
-      try {
-        liveRef.current?.sendRealtimeInput({
-          video: { data: jpegBase64, mimeType: "image/jpeg" },
-        });
-        console.info(`[pizarra] dibujo enviado (${jpegBase64.length} bytes en base64)`);
+      const salio = mostrarleAlTutor(
+        jpegBase64,
+        "[Sistema: este es el dibujo que acaba de hacer el niño. Describe lo " +
+          "que VES de verdad antes de decir si está bien: si le pediste una " +
+          "letra y dibujó otra, díselo. No menciones este aviso.]",
+      );
 
-        // LA MARCA, y es lo que arregla el problema de raíz.
-        //
-        // La imagen entra por el canal de tiempo real, que NO está ordenado
-        // respecto de la conversación: es un cuadro que se deja ahí. La voz del
-        // niño —"ya la hice, ¿cómo la ves?"— abre turno de inmediato, y quién
-        // llega primero es una carrera. Cuando gana la voz, el tutor contesta
-        // sin haber mirado nada y describe lo que ESPERA ver.
-        //
-        // Así se le dijo a un niño que su V era una W; él contestó "pero hice
-        // una V" y el tutor le dio la razón al instante (ses_71720df22ebc). No
-        // vio mal: no vio, y después cedió.
-        //
-        // Esto pone un evento ORDENADO en la conversación, justo después de la
-        // imagen. Con `turnComplete: false` no dispara respuesta ni interrumpe:
-        // solo garantiza que cuando el modelo hable, el dibujo ya esté adentro.
-        //
-        // La cámara resuelve lo mismo por otro lado (el empujón condicional),
-        // y además el prompt le pide al niño que se calle mientras toma la
-        // foto. Acá el niño habla siempre: por eso hace falta el orden.
-        avisarAlTutor(
-          "[Sistema: acaba de llegarte el dibujo que hizo el niño. Míralo y " +
-            "describe lo que VES de verdad antes de decir si está bien: si le " +
-            "pediste una letra y dibujó otra, díselo. Si no te llegó ninguna " +
-            "imagen, dilo en vez de opinar. No menciones este aviso.]",
-        );
-
-        // Queda en la transcripción, que es lo único que se puede leer después
-        // de la sesión. Sin esto, "el tutor dijo que estaba bien" no se
-        // distingue de "el tutor nunca recibió nada".
+      // Queda en la transcripción, que es lo único que se puede leer después de
+      // la sesión. Sin esto, "el tutor dijo que estaba bien" no se distingue de
+      // "el tutor nunca recibió nada". Se cierra primero el turno en curso para
+      // que la marca no se cuele antes de la hoja que la produjo.
+      if (salio) {
+        cerrarTurnoAcumulado();
         encolar({ quien: "nino", texto: "[le muestra al tutor un dibujo que hizo]" });
-      } catch (e) {
-        console.warn("[pizarra] no se pudo enviar el dibujo:", e);
       }
     },
-    [avisarAlTutor, encolar],
+    [mostrarleAlTutor, encolar, cerrarTurnoAcumulado],
   );
 
   /* ── La foto ────────────────────────────────────────────────────────────
@@ -438,82 +482,48 @@ export function useTutor(ninoId: string) {
         return;
       }
 
-      // POR `sendRealtimeInput`, y esto está verificado con una foto real: el
-      // 18/08 el tutor describió correctamente una mano con cinco dedos que
-      // llegó por acá.
+      // Misma puerta que el dibujo: la imagen va DENTRO del turno.
       //
-      // Se probó cambiarlo a `sendClientContent` con la imagen dentro de un
-      // turno, razonando que era el canal "correcto" para contenido puntual.
-      // El resultado fue que el tutor dejó de ver la foto y se quedaba
-      // colgado. Se revirtió.
+      // Acá vivía el argumento contrario —"verificado: leyó una gorra, contó
+      // cinco dedos"— y sostenía todo el camino de la cámara. Era falso: el
+      // 21/08 se le mostró un cuaderno con "8 + 5" y "12 - 7" y contestó "veo
+      // 5 + 3 y 10 - 4". Un tutor de matemáticas inventándole al niño la
+      // cuenta que trajo es lo peor que puede pasar acá.
       //
-      // Queda anotado porque el razonamiento sonaba bien y era falso: se
-      // cambió algo que YA FUNCIONABA por un argumento sobre canales, sin una
-      // sola prueba en contra. Lo verificado le gana a lo que parece correcto.
-      try {
-        liveRef.current?.sendRealtimeInput({
-          video: { data: foto.base64, mimeType: foto.mimeType },
-        });
-        console.info("[camara] foto enviada al tutor");
-
-        // EMPUJÓN CONDICIONAL. La imagen entra al stream y a veces el modelo
-        // arranca solo; cuando arranca, mandarle algo lo interrumpe. Así que se
-        // espera, y solo si NO dijo nada se le pide que mire.
-        //
-        // El error anterior fue empujar siempre: cortó un "A ver," que ya iba
-        // en camino y dejó al tutor diciendo que no le llegó la foto.
-        hablóTrasFotoRef.current = false;
-        setTimeout(() => {
-          if (hablóTrasFotoRef.current) {
-            console.info("[camara] el tutor ya está contestando: no se empuja");
-            return;
-          }
-          try {
-            liveRef.current?.sendClientContent({
-              turns: {
-                role: "user",
-                parts: [{ text: "¿Qué ves en la foto que te mandé?" }],
-              },
-              turnComplete: true,
-            });
-            console.info("[camara] no dijo nada: se le pide que mire");
-          } catch (e) {
-            // La imagen ya llegó igual; el niño puede preguntarle a viva voz.
-            console.warn("[camara] no se pudo empujar:", e);
-          }
-        }, ESPERA_ANTES_DE_EMPUJAR_MS);
-
-        // Confirmar ANTES de cerrar. Al tocar el botón el visor desaparecía de
-        // golpe y lo único que quedaba era "cámara desactivada": el niño no
-        // tenía cómo saber si la foto salió o si algo se rompió. Un disparo sin
-        // acuse de recibo se siente como un error, aunque haya funcionado.
-        setFotoEnviada(true);
-        setMirandoFoto(true);
-        setTimeout(() => {
-          setFotoEnviada(false);
-          setAvisoVisor(null);
-          setFallaCamara(null);
-          setCamara((s) => {
-            cerrarCamara(s);
-            return null;
-          });
-        }, 700);
-        return;
-      } catch (e) {
-        console.error("[camara] no se pudo enviar:", e);
+      // Se va con esto el EMPUJÓN CONDICIONAL: existía porque la imagen entraba
+      // al stream sin abrir turno y a veces el modelo se quedaba esperando. Un
+      // turno completo dispara la respuesta solo, así que el timeout de 1200 ms
+      // y su guardia sobran — y con ellos se va la espera de la primera foto.
+      if (!mostrarleAlTutor(foto.base64, "Mira lo que te estoy mostrando y dime qué ves.")) {
         avisarAlTutor(
           "[Sistema: la foto NO te llegó. No describas ninguna imagen: dile que no te llegó y que te lo cuente. No menciones este aviso.]",
         );
+        setAvisoVisor(null);
+        setFallaCamara(null);
+        setCamara((st) => {
+          cerrarCamara(st);
+          return null;
+        });
+        return;
       }
 
-      setAvisoVisor(null);
-      setFallaCamara(null);
-      setCamara((s) => {
-        cerrarCamara(s);
-        return null;
-      });
+      // Confirmar ANTES de cerrar. Al tocar el botón el visor desaparecía de
+      // golpe y lo único que quedaba era "cámara desactivada": el niño no tenía
+      // cómo saber si la foto salió o si algo se rompió. Un disparo sin acuse de
+      // recibo se siente como un error, aunque haya funcionado.
+      setFotoEnviada(true);
+      setMirandoFoto(true);
+      setTimeout(() => {
+        setFotoEnviada(false);
+        setAvisoVisor(null);
+        setFallaCamara(null);
+        setCamara((st) => {
+          cerrarCamara(st);
+          return null;
+        });
+      }, 700);
     },
-    [avisarAlTutor],
+    [mostrarleAlTutor, avisarAlTutor],
   );
 
   /**
@@ -719,16 +729,6 @@ export function useTutor(ninoId: string) {
           onmessage: (mensaje: LiveServerMessage) => {
             const contenido = mensaje.serverContent as any;
 
-            // El modelo empezó a generar. Se marca ACÁ y no al llegar el primer
-            // audio: entre que arranca y suena hay un hueco, y en ese hueco la
-            // guardia lo veía callado y lo empujaba — cortándole la respuesta.
-            // Es lo que hacía que la PRIMERA foto de cada sesión tardara: se
-            // comía el timeout entero. Las siguientes ya encontraban el ciclo
-            // caliente y contestaban solas.
-            if (contenido?.modelTurn || contenido?.generationComplete) {
-              hablóTrasFotoRef.current = true;
-            }
-
             const gastados = (mensaje as any).usageMetadata?.totalTokenCount;
             if (gastados) {
               tokensRef.current.suma += gastados;
@@ -784,7 +784,17 @@ export function useTutor(ninoId: string) {
 
             for (const parte of contenido?.modelTurn?.parts ?? []) {
               if (parte.inlineData?.data) {
-                hablóTrasFotoRef.current = true; // no interrumpirlo
+                // EL NÚMERO QUE FALTABA. "Se siente lento" se discutió tres
+                // veces sin un solo dato, y las tres el problema estaba en otro
+                // lado. Esto mide lo que el niño de verdad siente: desde su
+                // última sílaba hasta que el tutor suena. Adentro va el VAD
+                // (`silencioMs`), la red y el modelo — si el número es alto y
+                // se parece al VAD, el silencio lo estamos poniendo nosotros.
+                if (callóRef.current !== null) {
+                  const espera = Math.round(performance.now() - callóRef.current);
+                  callóRef.current = null;
+                  console.info(`[latencia] ${espera} ms de silencio antes de contestar`);
+                }
                 setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
                 reproductor.programar(parte.inlineData.data);
@@ -814,24 +824,21 @@ export function useTutor(ninoId: string) {
             if (delNino) {
               acumNinoRef.current += delNino;
               setTextoNino(acumNinoRef.current);
+              // El reloj del silencio. La última sílaba transcripta es lo más
+              // cerca que estamos de "el niño terminó de hablar".
+              callóRef.current = performance.now();
             }
 
             if (contenido?.turnComplete) {
-              const dichoNino = acumNinoRef.current;
               const dichoTutor = acumTutorRef.current;
-              acumNinoRef.current = "";
-              acumTutorRef.current = "";
 
               // Lo que el Analista va a LEER, visible en el momento. La
               // transcripción es su único insumo: un "dos" que llega como "32"
               // se ve acá y no dos días después, en la ficha del niño.
-              if (dichoNino) console.info(`[niño] ${dichoNino}`);
+              if (acumNinoRef.current) console.info(`[niño] ${acumNinoRef.current}`);
               if (dichoTutor) console.info(`[tutor] ${dichoTutor}`);
 
-              if (dichoNino) encolar({ quien: "nino", texto: dichoNino });
-              if (dichoTutor) encolar({ quien: "tutor", texto: dichoTutor });
-
-              setTextoNino("");
+              cerrarTurnoAcumuladoRef.current?.();
               setTextoTutor(dichoTutor); // en pantalla queda el ÚLTIMO turno, no la suma
             }
 

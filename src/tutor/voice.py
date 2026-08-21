@@ -280,6 +280,12 @@ DECLARACIONES_TOOLS: list[dict] = [
             "afirmarlo te deja mintiendo si algo falló. Si el niño dice que no ve "
             "nada, manda la pizarra otra vez con números más chicos en vez de "
             "pedirle que espere. "
+            "MUESTRA UNA SOLA COSA A LA VEZ: cada llamada borra la anterior. Si "
+            "quieres que vea VARIAS cosas juntas, van en UNA llamada — dos "
+            "fracciones con `comparar_con`, varias palabras con `lista`. Nunca "
+            "dos llamadas seguidas: el niño solo alcanza a ver la última. "
+            "La herramienta te contesta qué quedó en pantalla, con los colores: "
+            "usa ESO para hablarle. No digas 'el pedazo naranja' si no te lo dijo. "
             "Cuando cambien de tema, límpiala: lo de antes se queda ahí y confunde. "
             "Ya pasó — un niño preguntó por qué seguían las macetas en pantalla "
             "cuando hacía rato cantaban una canción."
@@ -289,13 +295,23 @@ DECLARACIONES_TOOLS: list[dict] = [
             "properties": {
                 "tipo": {
                     "type": "string",
-                    "enum": ["operacion", "grupos", "recta", "fraccion", "texto", "limpiar"],
+                    "enum": [
+                        "operacion",
+                        "grupos",
+                        "recta",
+                        "fraccion",
+                        "texto",
+                        "lista",
+                        "limpiar",
+                    ],
                     "description": (
                         "operacion: una cuenta en columna · grupos: N grupos de M "
                         "cosas · recta: recta numérica · fraccion: una fracción "
-                        "partida · texto: una letra o palabra grande · limpiar: "
-                        "borra el tablero, para cuando cambian de tema y lo de "
-                        "antes ya no viene al caso"
+                        "partida · texto: UNA letra o palabra grande, escrita a "
+                        "mano · lista: de dos a cuatro palabras, una debajo de "
+                        "otra y cada una de un color · limpiar: borra el tablero, "
+                        "para cuando cambian de tema y lo de antes ya no viene "
+                        "al caso"
                     ),
                 },
                 "a": {"type": "number", "description": "operacion: primer número"},
@@ -318,7 +334,33 @@ DECLARACIONES_TOOLS: list[dict] = [
                 "salta_a": {"type": "number", "description": "recta: a dónde salta"},
                 "numerador": {"type": "number"},
                 "denominador": {"type": "number"},
+                "comparar_con": {
+                    "type": "object",
+                    "description": (
+                        "fraccion: la SEGUNDA fracción, al lado, para comparar. "
+                        "Para '¿qué es más grande, un medio o un tercio?' va TODO "
+                        "en esta sola llamada: numerador=1 denominador=2 y "
+                        "comparar_con={numerador:1, denominador:3}. Dos llamadas "
+                        "seguidas no muestran dos cosas — la segunda borra a la "
+                        "primera. Se dibujan del mismo tamaño y de colores "
+                        "distintos: la primera naranja, la segunda azul."
+                    ),
+                    "properties": {
+                        "numerador": {"type": "number"},
+                        "denominador": {"type": "number"},
+                    },
+                },
                 "contenido": {"type": "string", "description": "texto: la letra o palabra"},
+                "palabras": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "lista: de dos a cuatro palabras cortas para que las vea "
+                        "JUNTAS. Si le vas a dar tres ejemplos, van todas acá en "
+                        "una sola llamada: tres `texto` seguidos no muestran tres "
+                        "palabras, muestran la última."
+                    ),
+                },
                 "senalar": {
                     "type": "string",
                     "enum": ["unidades", "decenas", "centenas", "llevada", "resultado"],

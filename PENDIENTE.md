@@ -1,6 +1,6 @@
 # Pendiente — retomar acá
 
-_Última poda: 2026-08-20, cierre del día._
+_Última poda: 2026-08-21._
 
 > Este archivo se **poda**, no solo se agrega. El 20/08 tenía 25 secciones y
 > ocho de los pendientes marcados en rojo ya estaban hechos hacía días — leerlo
@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **361 tests** de Python · **60** del front · **evals 45/45**
+- **361 tests** de Python · **73** del front · **evals 45/45**
 - **35 sesiones de voz reales**, la más larga de 9 minutos
 - **54 habilidades** de matemáticas (1° a 5°, el MEN numérico completo) con
   triple anclaje · **1.408 ejercicios validados**, ninguna habilidad vacía
@@ -60,6 +60,14 @@ no existen** — el producto promete lectura, escritura y aritmética, y solo ha
 aritmética. Ojo: los DBA de Lenguaje del MEN **no descomponen la
 decodificación**, así que esos nodos van a ser criterio nuestro, declarado como
 propio (`FUENTES.md` §2.3).
+
+> **Evidencia nueva (21/08, `ses_cdb0b7fae50f`).** Al niño se le ofreció
+> fracciones y contestó *"eh, no, quiero practicar escribir la w bien"*. Trabajó
+> nueve turnos en eso. La sesión cerró con `habilidades_trabajadas: []` y no
+> movió una sola fila de `dominio`: **16.573 tokens que el papá no va a ver en
+> ningún reporte.** El Analista hizo bien en no inventar una habilidad de
+> matemáticas — pero cuando el niño ELIGE escritura y el sistema no tiene dónde
+> anotarlo, el que pierde es el papá.
 
 **2. Diálogos modelo.** Cinco o seis conversaciones de ejemplo: el niño dice
 esto, el tutor debería responder así, y esto otro sería inaceptable. Cada una se
@@ -132,6 +140,21 @@ Faltan las reglas propias de la cámara: ante varios ejercicios, elegir UNO y
 preguntar por dónde empezaría; no leer en voz alta un enunciado que el niño
 puede leer; y que **una foto no cuente como intento** en la escalera.
 
+### El perfil acumula donde debería consolidar
+
+`datos_suyos` está impecable a las 19 sesiones (tres líneas, limpias): tiene la
+regla más clara del prompt del Analista. Los otros campos no:
+
+- `intereses`: "desafíos matemáticos" · "Retos matemáticos" · "matemáticas"
+- `frustraciones`: **"matemáticas"** — al mismo tiempo que figura como interés
+- `motivadores`: seis, tres de ellos solapados
+
+Es lo que el propio prompt advierte ("si a los seis meses esta ficha es una
+lista de cien cosas, no sirve para nada"), y ya está pasando. Va al prompt de
+sesión, así que además pesa contra el techo. Arreglarlo toca la salida del
+Analista — la operación que la fase 7 dejó marcada como la más cara — así que
+va con evals detrás, no de paso.
+
 ### Lo demás, chico
 
 - **El techo de tokens no corta durante la sesión**, solo al abrir.
@@ -141,6 +164,11 @@ puede leer; y que **una foto no cuente como intento** en la escalera.
   sin respaldo pasa. Verificarlo pediría un segundo modelo, y la regla del
   proyecto es que la verificación es código.
 - **7 errores de lint preexistentes** (líneas largas, un `l` ambiguo).
+- **La latencia percibida no estaba medida.** Desde el 21/08 la consola imprime
+  `[latencia] N ms de silencio antes de contestar` — de la última sílaba del
+  niño al primer audio del tutor. Adentro va el VAD (900 ms para un niño de 8,
+  `SILENCIO_FIN_TURNO_MS`), la red y el modelo. Si el número se parece al VAD,
+  el silencio lo ponemos nosotros y se baja ahí. Falta una sesión que lo mida.
 
 ### Medido y descartado
 
@@ -168,3 +196,6 @@ si algún prompt offline crece mucho.
 | "Se siente lento" | Era `vite dev`. La API monta el build; el onboarding pasó de 7,2 s a 3,6 s por turno |
 | La sesión larga se descartaba entera | La extracción pasó a tool use: el JSON dejó de llegar cortado |
 | El tutor no sabía qué le contó el niño de sí mismo | `PerfilPersonal.datos_suyos` |
+| El tutor inventaba lo que veía (foto y dibujo) | La imagen va dentro del turno, no por el canal de video. `scripts/verificar_vision.py` lo mide con un control que no se puede adivinar |
+| El tablero afirmaba de más ("¿ya ves las dos?") | El tool devuelve QUÉ quedó en pantalla y con qué colores; dos fracciones se comparan con `comparar_con` en una sola llamada |
+| El tablero no podía mostrar una lista de palabras | Escena `lista`: hasta cuatro, una por renglón y cada una de un color |

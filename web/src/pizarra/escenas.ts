@@ -83,6 +83,21 @@ export interface Fraccion {
   denominador: number;
   /** Barra partida o torta partida. La torta ayuda con medios y cuartos. */
   forma?: "barra" | "torta";
+  /**
+   * La segunda fracción, al lado, para COMPARAR. Cada una de su color.
+   *
+   * Existe porque comparar es el uso central de las fracciones en primaria —el
+   * DBA lo pide con esas palabras— y el tablero no podía. En `ses_020cfb503d5f`
+   * el tutor preguntó "¿qué es más grande, un medio o un tercio?", mandó las dos
+   * en llamadas separadas y la segunda borró a la primera. Le dijo al niño "¿ahí
+   * ya puedes ver las dos?" con una sola en pantalla, y el niño tuvo que
+   * corregirlo dos veces.
+   *
+   * El color separa: con las dos pintadas del mismo naranja, el niño contestó
+   * "el de un tercio tiene un pedazo naranja, el de un medio también, no sé de
+   * qué estamos hablando". Tenía razón.
+   */
+  comparar?: { numerador: number; denominador: number };
 }
 
 /** Letra, palabra o número, grande y solo. Para lectura y escritura. */
@@ -93,7 +108,31 @@ export interface Texto {
   pie?: string;
 }
 
-export type Escena = Operacion | Grupos | Recta | Fraccion | Texto;
+/**
+ * Dos a cuatro palabras, una debajo de otra. La lista del tablero.
+ *
+ * Es la sexta escena y la primera que no es de aritmética. Entró porque el
+ * tablero no podía hacer lo más común de una clase de lectura: escribir tres
+ * palabras y mirarlas juntas. En `ses_cdb0b7fae50f` el niño pidió "dame tres
+ * palabras que empiecen por w"; el tutor mandó tres `texto` seguidos, cada uno
+ * borró al anterior, y aun así dijo "ahí te LAS puse". El niño lo narró solo:
+ * "ya se escribió waffle, se está escribiendo windsurf, y ahora otra". Volvió
+ * a pasar en la misma sesión con vaca, vela y viento.
+ *
+ * La advertencia en el tool no alcanza cuando lo que el tutor quiere hacer es
+ * razonable y no hay forma de hacerlo: ahí no deja de pedirlo, empieza a
+ * afirmarlo. Es lo mismo que pasó con las fracciones impropias y con las 45
+ * canicas — la respuesta es dar la capacidad, no repetir la prohibición.
+ */
+export interface Lista {
+  tipo: "lista";
+  palabras: string[];
+}
+
+/** Cuántas palabras entran sin que la pizarra deje de leerse de un vistazo. */
+export const MAX_PALABRAS = 4;
+
+export type Escena = Operacion | Grupos | Recta | Fraccion | Texto | Lista;
 
 /** Lo que el tablero muestra en un momento dado. */
 export interface Cuadro {

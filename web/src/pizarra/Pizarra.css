@@ -187,3 +187,54 @@
   font-weight: 600;
   text-anchor: middle;
 }
+
+/* ── Comparar dos fracciones ──────────────────────────────────────────────
+   Cada fracción con SU color. Con las dos naranjas, "el pedazo naranja" no
+   señalaba nada y el niño lo dijo: "el de un tercio tiene un pedazo naranja,
+   el de un medio también". El color acá no decora, desambigua. */
+
+.pz-porcion-a {
+  fill: var(--pizarra-vivo-1);
+  stroke: var(--pizarra-tinta);
+  stroke-width: 2;
+}
+
+.pz-porcion-b {
+  fill: var(--pizarra-vivo-3);
+  stroke: var(--pizarra-tinta);
+  stroke-width: 2;
+}
+
+.pz-rotulo-comp {
+  font-size: 40px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.pz-porcion-a-texto {
+  fill: var(--pizarra-vivo-1);
+}
+
+.pz-porcion-b-texto {
+  fill: var(--pizarra-vivo-3);
+}
+
+/* ── La lista de palabras ─────────────────────────────────────────────────
+   Un color por palabra: son cosas separadas, y todas del mismo tinte se leen
+   como un párrafo. Se repiten a partir de la quinta, que no existe. */
+
+.pz-lista-1 {
+  fill: var(--pizarra-vivo-1);
+}
+
+.pz-lista-2 {
+  fill: var(--pizarra-vivo-2);
+}
+
+.pz-lista-3 {
+  fill: var(--pizarra-vivo-3);
+}
+
+.pz-lista-4 {
+  fill: var(--pizarra-vivo-4);
+}

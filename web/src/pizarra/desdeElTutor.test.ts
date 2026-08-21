@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { aCuadro } from "./desdeElTutor";
+import { aCuadro, describir } from "./desdeElTutor";
 
 describe("lo que el tutor pide bien", () => {
   it("arma la cuenta en columna con su llevada", () => {
@@ -133,5 +133,128 @@ describe("fracciones impropias: 5/3 se dibuja, no se rechaza", () => {
 
   it("pero no veinte pasteles al lado", () => {
     expect(aCuadro({ tipo: "fraccion", numerador: 60, denominador: 3 })).toBeNull();
+  });
+});
+
+describe("comparar dos fracciones: el caso de ses_020cfb503d5f", () => {
+  it("un medio y un tercio, en UNA llamada", () => {
+    // El tutor preguntó "¿qué es más grande, un medio o un tercio?" y las mandó
+    // en dos llamadas. La segunda borró a la primera y él igual dijo "¿ahí ya
+    // puedes ver las dos?". El niño lo corrigió dos veces.
+    const c = aCuadro({
+      tipo: "fraccion",
+      numerador: 1,
+      denominador: 2,
+      comparar_con: { numerador: 1, denominador: 3 },
+    });
+    expect(c?.escena).toMatchObject({
+      tipo: "fraccion",
+      numerador: 1,
+      denominador: 2,
+      comparar: { numerador: 1, denominador: 3 },
+    });
+  });
+
+  it("una comparación rota NO tumba el dibujo: se muestra la primera sola", () => {
+    const c = aCuadro({
+      tipo: "fraccion",
+      numerador: 1,
+      denominador: 2,
+      comparar_con: { numerador: 99 },
+    });
+    expect(c?.escena).toMatchObject({ tipo: "fraccion", numerador: 1, denominador: 2 });
+    expect((c?.escena as any).comparar).toBeUndefined();
+  });
+
+  it("no se comparan impropias: seis tortas no comparan nada", () => {
+    const c = aCuadro({
+      tipo: "fraccion",
+      numerador: 5,
+      denominador: 3,
+      comparar_con: { numerador: 1, denominador: 2 },
+    });
+    expect((c?.escena as any).comparar).toBeUndefined();
+  });
+});
+
+describe("describir(): lo que el tutor puede afirmar sin mentir", () => {
+  it("nombra el color de cada fracción cuando hay dos", () => {
+    const c = aCuadro({
+      tipo: "fraccion",
+      numerador: 1,
+      denominador: 2,
+      comparar_con: { numerador: 1, denominador: 3 },
+    })!;
+    const dicho = describir(c);
+    expect(dicho).toContain("NARANJA");
+    expect(dicho).toContain("AZUL");
+    expect(dicho).toContain("1/2");
+    expect(dicho).toContain("1/3");
+  });
+
+  it("dice que la cuenta quedó ABIERTA si no hay resultado", () => {
+    const c = aCuadro({ tipo: "operacion", a: 56, b: 38, op: "+" })!;
+    expect(describir(c)).toContain("abierta");
+  });
+
+  it("describe todas las escenas sin romperse", () => {
+    const casos = [
+      { tipo: "operacion", a: 7, b: 5, op: "+", resultado: 12 },
+      { tipo: "grupos", grupos: 3, por_grupo: 45, nombre: "cajas" },
+      { tipo: "recta", desde: 0, hasta: 20, marca: 7, salta_a: 12 },
+      { tipo: "fraccion", numerador: 3, denominador: 4 },
+      { tipo: "texto", contenido: "ñ" },
+    ];
+    for (const caso of casos) {
+      const c = aCuadro(caso);
+      expect(c, JSON.stringify(caso)).not.toBeNull();
+      expect(describir(c!).length).toBeGreaterThan(5);
+    }
+  });
+});
+
+describe("lista de palabras: el caso de ses_cdb0b7fae50f", () => {
+  it("tres palabras en UNA llamada", () => {
+    // El niño pidió "dame tres palabras que empiecen por w". El tutor mandó
+    // tres `texto` seguidos —cada uno borró al anterior— y dijo "ahí te LAS
+    // puse". El niño lo narró: "ya se escribió waffle, se está escribiendo
+    // windsurf, y ahora otra".
+    const c = aCuadro({ tipo: "lista", palabras: ["vaca", "vela", "viento"] });
+    expect(c?.escena).toMatchObject({ tipo: "lista", palabras: ["vaca", "vela", "viento"] });
+  });
+
+  it("si vienen en un solo string separadas por comas, se entienden igual", () => {
+    const c = aCuadro({ tipo: "lista", palabras: "vaca, vela, viento" });
+    expect(c?.escena).toMatchObject({ tipo: "lista", palabras: ["vaca", "vela", "viento"] });
+  });
+
+  it("una sola palabra cae a `texto`, que la escribe a mano y se ve mejor", () => {
+    const c = aCuadro({ tipo: "lista", palabras: ["ñu"] });
+    expect(c?.escena).toMatchObject({ tipo: "texto", contenido: "ñu" });
+  });
+
+  it("no entran más de cuatro: se queda con las primeras", () => {
+    const c = aCuadro({ tipo: "lista", palabras: ["a", "be", "ce", "de", "efe", "ge"] });
+    expect((c?.escena as any).palabras).toHaveLength(4);
+  });
+
+  it("una frase no es una palabra: se descarta esa y quedan las buenas", () => {
+    const c = aCuadro({
+      tipo: "lista",
+      palabras: ["vaca", "esto es una frase entera y larga", "vela"],
+    });
+    expect((c?.escena as any).palabras).toEqual(["vaca", "vela"]);
+  });
+
+  it("sin palabras no se dibuja nada", () => {
+    expect(aCuadro({ tipo: "lista", palabras: [] })).toBeNull();
+  });
+
+  it("describir() nombra las palabras y dice que van juntas", () => {
+    const c = aCuadro({ tipo: "lista", palabras: ["vaca", "vela", "viento"] })!;
+    const dicho = describir(c);
+    expect(dicho).toContain("vaca");
+    expect(dicho).toContain("viento");
+    expect(dicho).toContain("color");
   });
 });
