@@ -46,3 +46,17 @@ cuenta con otros nombres no sirve.
 
 Si te paso un tema (fútbol, dinosaurios), ambientá los ejercicios ahí — pero
 **sin forzar**. La matemática es la misma; cambia el envoltorio.
+
+## Cómo se le habla al niño
+
+Estos enunciados **el tutor los lee en voz alta**, y el tutor es colombiano.
+
+**Al niño se lo trata de "tú". Nada de voseo.** Ni *tenés, querés, comés,
+dividís, mirá, dale, sos*. Se dice **tienes, quieres, comes, divides, mira**.
+
+Se coló: nueve ejercicios de fracciones salieron con *"si comés una porción"* y
+*"si tenés un tercio"*. El código los rechaza, así que un ejercicio con voseo no
+llega al niño — pero sí se pierde el trabajo de generarlo.
+
+Nombres y contextos colombianos: la tienda, el recreo, los mil pesos, el bus.
+Nada de *autitos*, *bolitas* ni *pochoclo*.

@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import ast
 import operator
+import re
 import sys
 from uuid import uuid4
 
@@ -72,6 +73,19 @@ def evaluar_cuenta(expresion: str) -> float | None:
         return None
 
 
+VOSEO = re.compile(
+    r"\b(tenés|querés|podés|hacés|sabés|decís|comés|vivís|divid[íi]s|escribís|"
+    r"leés|sumás|restás|contás|andá|mirá|fijate|fijáte|pensá|pedí|sos|vos|dale)\b",
+    re.IGNORECASE,
+)
+"""El tutor LEE estos enunciados en voz alta, y el tutor es colombiano.
+
+Está en código y no solo en el prompt por la misma razón que `check_answer`: lo
+que no se puede permitir, no se pide — se impide. Nueve ejercicios de fracciones
+salieron con "si comés una porción" y "si tenés un tercio"; el prompt no decía
+nada y nadie los habría mirado antes de que el tutor se los leyera a un niño."""
+
+
 def validar(enunciado: str, respuesta: str, operacion: str | None) -> str | None:
     """Devuelve el motivo del rechazo, o None si el ejercicio pasa."""
     if not enunciado.strip():
@@ -80,6 +94,8 @@ def validar(enunciado: str, respuesta: str, operacion: str | None) -> str | None
         return "respuesta vacía"
     if len(enunciado) > 220:
         return "demasiado largo para escuchar de una vez"
+    if (v := VOSEO.search(enunciado)):
+        return f"voseo: '{v.group()}' — el tutor lo lee en voz alta y es colombiano"
 
     if not operacion:
         return None  # habilidades sin cuenta: no hay nada que verificar

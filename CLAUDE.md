@@ -197,7 +197,10 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
   999" tampoco)
 - `base_academica_men.md`: el marco del MEN alrededor del grafo (áreas, EBC,
   Saber, calendarios, desarrollo cognitivo). Ver `ARCHITECTURE.md` §19
-- 341 tests en verde
+- Banco: **417 ejercicios validados**, ~32 por habilidad. Ninguna habilidad
+  vacía (el 20/08 tres lo estaban, entre ellas *tablas de multiplicar* — que es
+  justo lo que un niño pidió y el tutor tuvo que improvisar)
+- 354 tests en verde
 
 ### Cómo se levanta para HABLAR con el tutor
 
