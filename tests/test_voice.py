@@ -261,6 +261,24 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
     `primer_encuentro` se activa con `madurez_vinculo == 0`, cuando el Analista
     todavía no escribió nada. Por eso el peor caso se mide dos veces y se toma
     el mayor, en vez de sumar cosas que no coexisten.
+    
+    ═══ 20/08, tarde: el techo BAJA de 41.000 a 36.000 ═══
+
+    Llegó a 40.995 de 41.000 —cinco caracteres libres— y ahí dejó de ser deuda
+    para ser una pared: la instrucción siguiente no cabía.
+
+    Se pagó como corresponde: moviendo el porqué a `knowledge/product/` y
+    dejando las reglas. `tutor_persona` 11.911 → 7.792, `socratic_playbook`
+    12.132 → 8.935. **No se quitó ni una regla** — los tests de este archivo son
+    la prueba, porque fijan las frases que no se pueden perder.
+
+    Lo que salió: la despedida de la relación (pasa UNA vez y se leía en CADA
+    sesión, el mismo patrón que `primer_encuentro`), las anécdotas que
+    justificaban cada regla, y las secciones que decían dos veces lo mismo.
+
+    El peor caso quedó en 34.902, y el techo baja a 36.000 en el mismo
+    movimiento: uno que quedó a 6 KB de distancia deja de avisar nada, y la
+    grasa vuelve sin que nadie lo note.
     """
     grafo = cargar_grafo()
     temas = [(h.id, h.nombre.es) for h in list(grafo)[:6]]
@@ -290,7 +308,7 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
         )
         peor = max(peor, len(texto))
 
-    assert peor < 41_000, (
+    assert peor < 36_000, (
         f"el peor caso del prompt de sesión llegó a {peor} caracteres. "
         "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
         "Lo que solo explica el porqué va en knowledge/product/."
@@ -463,11 +481,13 @@ def test_el_primer_encuentro_tambien_cabe_bajo_el_techo():
     techos siguen puestos y siguen siendo decisiones; lo que cambió es que ahora
     son dos, porque son dos casos distintos.
 
-    Sigue en pie que el prompt está gordo y que adelgazarlo de verdad —mover
-    doctrina a knowledge/product/— es deuda abierta. Subir un techo no la paga.
+    Se dijo acá que adelgazar de verdad —mover doctrina a knowledge/product/—
+    era deuda abierta, y que subir un techo no la paga. Se pagó el 20/08: el
+    prompt bajó 7,3 KB, este caso quedó en 33.256, y el techo BAJA de 40.000 a
+    35.000 en el mismo movimiento.
     """
     texto = construir_instruccion_sistema("Juan, 7 años, 2° grado.", primer_encuentro=True)
-    assert len(texto) < 40_000, (
+    assert len(texto) < 35_000, (
         f"el prompt del primer encuentro llegó a {len(texto)} caracteres"
     )
 
@@ -573,3 +593,53 @@ def test_la_pizarra_le_muestra_al_modelo_como_traducir_lo_que_pide_el_nino():
     d = tool["description"]
     assert "canastas" in d, "falta el ejemplo que traduce lo que pide el niño"
     assert "→" in d, "los ejemplos tienen que mostrar el mapeo, no solo nombrar tipos"
+
+
+def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
+    """EL CONTRAPESO DE LOS DOS TECHOS.
+
+    Los techos empujan a recortar; esto define qué NO se puede perder al
+    hacerlo. Sin este test, adelgazar es apostar: se corta prosa, el peso baja,
+    los tests siguen verdes y una regla desapareció sin que nadie lo note —
+    hasta que el tutor le regala una respuesta a un niño.
+
+    Cada línea es una promesa del producto. Si una falla al recortar, o se
+    reescribe la regla en menos palabras, o el recorte se deshace. Lo que no se
+    hace es borrarla y seguir.
+
+    Se buscan frases que caben en UN renglón: el texto va envuelto a 80 columnas
+    y una frase partida por un salto de línea no matchea aunque esté ahí.
+    """
+    texto = construir_instruccion_sistema(
+        "Juan, 7 años, 2° grado.", modo="pedido", primer_encuentro=True
+    ).lower()
+
+    reglas = {
+        "no da la respuesta": "nunca das la respuesta",
+        "explica lo convencional": "no se descubren pensando",
+        "no explica el resultado": "el resultado del ejercicio que están haciendo",
+        "la escalera tiene techo": "no hay escalón 5",
+        "el 'no puedo' se responde con un logro": "no se declara",
+        "sabe que tiene pizarra": "tienes una pizarra",
+        "no niega saber dibujar": "nunca digas que no puedes dibujar",
+        "la aritmética no la hace él": "la verifica la herramienta, no tú",
+        "'cerca' es un dato": 'cerca" es un dato',
+        "no cede por insistencia": "no cedas por insistencia",
+        "el elogio nombra algo real": "elogio vacío",
+        "el nombre no cambia": "nunca te presentas con un nombre distinto",
+        "registro colombiano neutro": "español colombiano neutro",
+        "veta la jerga callejera": "parcero",
+        "no finge ser humano": "nunca finges ser humano",
+        "aguanta el enojo sin enfriarse": "estás bravo conmigo",
+        "no inventa por qué falló": "no inventes la",
+        "no describe una foto que no llegó": "no describas nada",
+        "la primera vez no miente sobre lo que sabe": "primera vez",
+        "los ejercicios salen del banco": "nunca de tu cabeza",
+        "no dice los nombres de los tools": "nunca se dicen en voz alta",
+        "el modo pedido es más estricto": "no es hacerle la tarea",
+        "la seguridad puede escalar": "escalate_safety",
+        "los valores no se predican": "no hay una lección de valores",
+    }
+
+    faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]
+    assert not faltan, "el prompt adelgazó de más y perdió reglas: " + ", ".join(faltan)

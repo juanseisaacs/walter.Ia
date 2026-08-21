@@ -21,9 +21,12 @@ está aislado ahí a propósito.
 palabras a ~600 ms sin bajar el total. Requiere SSE en la API y un cambio en el
 front.
 
-**Y la deuda #1 sigue siendo el prompt de sesión:** 36,2 KB de base, y
-`tutor_persona` + `socratic_playbook` son 22,5 KB de eso — el 62 %. Es lo que
-Gemini tiene que digerir antes de la primera palabra.
+**La deuda #1 del prompt SE PAGÓ el 20/08.** Base de 36,2 → **30,4 KB**; peor
+caso de 40,995 → **34,9 KB**. Se movió el porqué a `knowledge/product/` y se
+dejaron las reglas: `tutor_persona` 11.911 → 7.792, `socratic_playbook` 12.132 →
+8.935. Los techos bajaron a 36.000 y 35.000 en el mismo movimiento, y hay un
+test nuevo —`test_ninguna_regla_se_cae_al_adelgazar_el_prompt`— que lista las 24
+promesas del producto y falla si un recorte se lleva una por delante.
 
 ---
 
