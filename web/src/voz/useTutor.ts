@@ -17,6 +17,7 @@ import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from ".
 import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
+import { tokenActual } from "../nino";
 import { aCuadro, describir } from "../pizarra/desdeElTutor";
 import type { Cuadro } from "../pizarra/escenas";
 
@@ -732,7 +733,7 @@ export function useTutor(ninoId: string) {
       reproductorRef.current = reproductor;
 
       modoRef.current = modo;
-      const sesion = await api.abrirSesion(ninoId, modo);
+      const sesion = await api.abrirSesion(ninoId, modo, tokenActual());
       sesionRef.current = sesion;
       bancoRef.current = sesion.ejercicios ?? [];
       entregadosRef.current = new Set();

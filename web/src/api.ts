@@ -69,10 +69,13 @@ async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  abrirSesion: (ninoId: string, modo: "guiado" | "pedido" = "guiado") =>
+  abrirSesion: (ninoId: string, modo: "guiado" | "pedido" = "guiado", token?: string | null) =>
     pedir<SesionAbierta>("/sesiones", {
       method: "POST",
-      body: JSON.stringify({ nino_id: ninoId, modo }),
+      // El `token` es la credencial del niño, del enlace que recibió el papá.
+      // Sin ella el backend contesta 401: el `nino_id` viaja en la URL y nunca
+      // fue un secreto.
+      body: JSON.stringify({ nino_id: ninoId, modo, token }),
     }),
 
   /** Reportar habilita recargar ejercicios. Sin esto la sesión se queda sin material. */

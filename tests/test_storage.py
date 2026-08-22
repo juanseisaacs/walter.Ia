@@ -510,3 +510,49 @@ def test_migrar_de_v2_a_v3_no_pierde_la_ficha_de_nadie(tmp_path):
     assert releido.calendario == Calendario.B
     assert releido.perfil.contexto_escolar.startswith("La profe")
     assert releido.dominio["mat.numeros.conteo_hasta_100"].nivel == 0.91
+
+
+def test_el_correo_del_papa_sobrevive_a_la_base(tmp_path):
+    """Se guardaba en el modelo y NO en la base: la columna no existía.
+
+    `Nino.email_papa` estaba desde hacía fases, el onboarding lo declaraba
+    obligatorio y `crear_nino_desde_ficha` lo poblaba — pero al releer la ficha
+    volvía en `None`. Siempre. Y de ahí sale a dónde se manda la ALERTA DE
+    SEGURIDAD, que es el camino más urgente del producto.
+    """
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(
+        Nino(id="n1", nombre="Juan", edad=7, grado=2, email_papa="papa@ejemplo.com")
+    )
+
+    assert repo.obtener_nino("n1").email_papa == "papa@ejemplo.com"
+
+
+def test_el_modelo_del_nino_y_la_tabla_no_se_desincronizan(tmp_path):
+    """EL candado. Es la lección de la fase 4, en el otro par de definiciones.
+
+    Allá eran `schema.json` y `models.Habilidad`; acá son `models.Nino` y la
+    tabla `ninos`. Un campo que se agrega al modelo y no al esquema no rompe
+    nada al escribir —SQLite lo ignora— y vuelve vacío al leer. Sin este test,
+    el siguiente campo se pierde igual que se perdió `email_papa`.
+    """
+    import sqlite3
+
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    con = sqlite3.connect(repo.ruta_db)
+    columnas = {c[1] for c in con.execute("PRAGMA table_info(ninos)")}
+    con.close()
+
+    # Lo que vive en otro lado a propósito, no en una columna suya.
+    aparte = {
+        "perfil",   # documento JSON: nunca se consulta por dentro
+        "dominio",  # tabla propia: es la consulta caliente del planificador
+    }
+    del_modelo = set(Nino.model_fields) - aparte
+
+    faltan = del_modelo - columnas
+    assert not faltan, (
+        f"{sorted(faltan)} está(n) en `Nino` y no en la tabla `ninos`: se "
+        f"guarda(n) sin error y vuelve(n) vacío(s) al leer. Agregá una "
+        f"migración, como la v5 para `email_papa`."
+    )

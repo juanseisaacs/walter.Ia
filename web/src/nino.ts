@@ -9,22 +9,37 @@
  * dependa de tenerlo a mano cada vez. Un enlace nuevo pisa al anterior: así el
  * segundo hijo se registra desde el mismo navegador sin borrar nada.
  *
- * No es autenticación y no pretende serlo. Es identidad, que es lo que falta
- * para que dos niños puedan usar el producto. La sesión del papá SÍ está
- * autenticada, con enlace mágico y vencimiento — ahí es donde viven los datos
- * que hay que proteger.
+ * El id es IDENTIDAD, no autenticación: viaja en la URL y se comparte por
+ * accidente. La credencial es el `t` que va en el mismo enlace, y desde el
+ * 22/08 el backend la exige para abrir sesión — antes bastaba con conocer un
+ * `nino_id` para quemarle la cuota a un niño ajeno y llevarse un token de voz.
+ *
+ * No vence: es cómo entra cada día, no una sesión. La del papá sí caduca a las
+ * 24 horas, porque ahí es donde viven los datos que hay que proteger.
  */
 
 const CLAVE = "rbh.nino";
+const CLAVE_TOKEN = "rbh.token";
 
 export function ninoActual(): string | null {
-  const deLaUrl = new URLSearchParams(window.location.search).get("nino");
+  const params = new URLSearchParams(window.location.search);
+  const deLaUrl = params.get("nino");
   if (deLaUrl) {
     localStorage.setItem(CLAVE, deLaUrl);
-    // Se limpia de la barra: un enlace con el id a la vista se comparte por
-    // accidente, y quien lo abra entra como ese niño.
+    // La credencial viene en el mismo enlace. Desde el 22/08 el backend la
+    // exige para abrir sesión: sin ella, `nino_id` daba acceso a cualquiera
+    // que lo conociera.
+    const token = params.get("t");
+    if (token) localStorage.setItem(CLAVE_TOKEN, token);
+    // Se limpia de la barra: un enlace a la vista se comparte por accidente,
+    // y ahora lleva la credencial además del id.
     window.history.replaceState({}, "", window.location.pathname);
     return deLaUrl;
   }
   return localStorage.getItem(CLAVE);
+}
+
+/** La credencial del niño. Sin ella el backend no abre sesión. */
+export function tokenActual(): string | null {
+  return localStorage.getItem(CLAVE_TOKEN);
 }

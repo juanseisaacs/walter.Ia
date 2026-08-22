@@ -121,7 +121,7 @@ def _esperar_backend(puerto: int, segundos: int = 30) -> bool:
     return False
 
 
-def _sembrar_nino(datos: Path, intereses: str = "") -> str:
+def _sembrar_nino(datos: Path, intereses: str = "") -> tuple[str, str]:
     """Un niño de 2° en la base desechable. Devuelve su id.
 
     `intereses` deja poblarle la ficha para ver qué hace el tutor con ella. Sin
@@ -141,7 +141,7 @@ def _sembrar_nino(datos: Path, intereses: str = "") -> str:
         "n=crear_nino_desde_ficha(f,'n_e2e');"
         f"n.perfil.intereses = {[i.strip() for i in intereses.split(',') if i.strip()]!r};"
         "RepositorioSQLite(cfg.DB, cfg.DATOS).guardar_nino(n);"
-        "print(n.id)"
+        "print(n.id, n.token_acceso)"
     )
     r = subprocess.run(
         [sys.executable, "-c", codigo],
@@ -149,7 +149,10 @@ def _sembrar_nino(datos: Path, intereses: str = "") -> str:
     )
     if r.returncode != 0:
         raise RuntimeError(f"no se pudo sembrar el niño:\n{r.stdout}\n{r.stderr}")
-    return r.stdout.strip().splitlines()[-1]
+    # id y credencial: desde el 22/08 el backend exige las dos para abrir
+    # sesión, igual que el enlace que el papá recibe de verdad.
+    nino_id, token = r.stdout.strip().splitlines()[-1].split()
+    return nino_id, token
 
 
 def _levantar_backend(datos: Path, puerto: int) -> subprocess.Popen:
@@ -191,7 +194,8 @@ def _sesiones_en(datos: Path) -> list[dict]:
 
 
 def _correr(
-    res: Resultados, base: str, nino_id: str, datos: Path, con_voz: bool, ver: bool
+    res: Resultados, base: str, nino_id: str, token: str, datos: Path,
+    con_voz: bool, ver: bool
 ) -> None:
     from playwright.sync_api import sync_playwright
 
@@ -226,7 +230,7 @@ def _correr(
         )
 
         # ── 4. con enlace ────────────────────────────────────────────────────
-        pag.goto(f"{base}/?nino={nino_id}", wait_until="networkidle")
+        pag.goto(f"{base}/?nino={nino_id}&t={token}", wait_until="networkidle")
         pag.wait_for_selector("text=¿Empezamos?", timeout=10_000)
         res.comprobar("con enlace, aparece el botón de empezar", True)
         res.comprobar(
@@ -242,6 +246,27 @@ def _correr(
             "el id del niño se borra de la URL",
             "nino=" not in pag.url,
             f"quedó a la vista: {pag.url}",
+        )
+
+        # El id viaja en la URL y se comparte por accidente: sin la credencial
+        # no puede abrir nada. Se comprueba contra el backend, no en la UI.
+        import json as _json
+        import urllib.request as _req
+
+        pedido = _req.Request(
+            f"{base}/api/sesiones",
+            data=_json.dumps({"nino_id": nino_id}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            _req.urlopen(pedido, timeout=10)
+            colado = True
+        except urllib.error.HTTPError as e:
+            colado = e.code != 401
+        res.comprobar(
+            "sin credencial no se abre sesión",
+            not colado,
+            "el `nino_id` solo alcanzó para llevarse un token de voz",
         )
 
         if not con_voz:
@@ -404,7 +429,7 @@ def main() -> int:
     backend = None
 
     try:
-        nino_id = _sembrar_nino(datos, args.intereses)
+        nino_id, token = _sembrar_nino(datos, args.intereses)
         res.dato("niño de prueba", f"{nino_id}"
                  + (f" · le gusta: {args.intereses}" if args.intereses else " · ficha VACÍA"))
         res.dato("datos desechables", str(datos))
@@ -416,7 +441,7 @@ def main() -> int:
             print(f"\n{salida[-1500:]}\n")
             return 1
 
-        _correr(res, base, nino_id, datos, con_voz, args.ver)
+        _correr(res, base, nino_id, token, datos, con_voz, args.ver)
         return res.resumen()
 
     finally:

@@ -221,6 +221,9 @@ def responder_onboarding(onboarding_id: str, cuerpo: RespuestaDelPapa):
         "listo": True,
         "nino_id": nino.id,
         "nombre": nino.nombre,
+        # El enlace del NIÑO, con su credencial. Es lo que el papá tiene que
+        # guardar: sin esto el alta termina y nadie puede entrar.
+        "enlace_del_nino": _url_del_nino(nino),
         "mensaje": _despedida(ficha),
     }
 
@@ -249,15 +252,38 @@ def _despedida(ficha: FichaInicial) -> str:
 class AbrirSesion(BaseModel):
     nino_id: str
     modo: ModoSesion = ModoSesion.GUIADO
+    token: str | None = None
+    """La credencial del niño, del enlace que recibió el papá.
+
+    Es `None`-able en el modelo y obligatoria en la práctica: así el 401 lo da
+    la comprobación de abajo, con su mensaje, en vez de un 422 de validación
+    que no le dice nada a nadie."""
 
 
 @app.post("/api/sesiones", tags=["niño"])
 def abrir_sesion(cuerpo: AbrirSesion):
-    """Devuelve el TOKEN, no la configuración.
+    """Devuelve el TOKEN de voz, no la configuración.
 
     El navegador no puede cambiar la persona, el playbook ni la política de
     seguridad (candado #1).
+
+    Y hay que probar quién es. Hasta el 22/08 esto abría sesión con cualquier
+    `nino_id` que le mandaran: se podía quemar la cuota de un niño ajeno, leer
+    los ejercicios que le tocaban hoy y, sobre todo, **obtener un token efímero
+    de Gemini** sin credencial ninguna. El `nino_id` viaja en la URL de la app
+    y no es un secreto — nunca lo fue, y `nino.ts` ya lo decía: *«no es
+    autenticación y no pretende serlo»*.
     """
+    nino = _repo.obtener_nino(cuerpo.nino_id)
+    # Mismo 401 para "no existe" y "token que no cuadra": distinguirlos
+    # convertiría esto en un oráculo para enumerar niños.
+    if (
+        nino is None
+        or not nino.token_acceso
+        or not secrets.compare_digest(cuerpo.token or "", nino.token_acceso)
+    ):
+        raise HTTPException(401, "Enlace inválido. Pídele a tu papá o mamá el enlace de nuevo.")
+
     try:
         return _orquestador.abrir(cuerpo.nino_id, cuerpo.modo)
     except ErrorPresupuesto as e:
@@ -589,15 +615,43 @@ class PedirEnlace(BaseModel):
     email: str
 
 
+def _mismo_correo(uno: str, otro: str) -> bool:
+    """Compara correos sin castigar por mayúsculas ni espacios de más.
+
+    No normaliza más que eso a propósito: quitar puntos o lo que va detrás de
+    un `+` es política de un proveedor concreto, y tratarlas como el mismo
+    buzón haría que `papa+x@gmail.com` abriera el panel de un niño registrado
+    con `papa@gmail.com`.
+    """
+    return uno.strip().casefold() == otro.strip().casefold()
+
+
 @app.post("/api/auth/magic-link", tags=["papá"])
 def pedir_enlace(cuerpo: PedirEnlace):
-    """Manda un enlace al mail. Sin contraseñas."""
-    nino = _repo.obtener_nino(cuerpo.nino_id)
-    if nino is None:
-        raise HTTPException(404, "No existe el niño")
+    """Manda el enlace del panel al correo REGISTRADO de ese niño.
 
-    token = _crear_enlace(cuerpo.nino_id)
-    _notificador.enviar(_enlace_de_acceso(cuerpo.email, nino, token))
+    Hasta el 22/08 esto mandaba el enlace al correo que le pasaran, sin
+    comprobar nada: quien conociera o adivinara un `nino_id` se enviaba a sí
+    mismo acceso de 24 horas al panel de un menor — nombre, edad, grado,
+    intereses, frustraciones, dominio y las notas de la auditoría.
+
+    Y la respuesta es **la misma pase lo que pase**. Contestar "no existe ese
+    niño" o "ese no es el correo" convertía este endpoint en un oráculo para
+    enumerar niños y adivinar correos; el 404 de antes ya lo era.
+    """
+    nino = _repo.obtener_nino(cuerpo.nino_id)
+
+    if (
+        nino is not None
+        and nino.email_papa
+        and _mismo_correo(cuerpo.email, nino.email_papa)
+    ):
+        token = _crear_enlace(cuerpo.nino_id)
+        _notificador.enviar(_enlace_de_acceso(cuerpo.email, nino, token))
+
+    # Un niño sin `email_papa` no recibe enlace, y es correcto: si no hay a
+    # quién avisar, tampoco hay a quién dejar entrar. El onboarding lo exige
+    # desde hace fases; los que están vacíos son fichas viejas hechas a mano.
     return {"enviado": True}
 
 
@@ -608,6 +662,16 @@ def pedir_enlace(cuerpo: PedirEnlace):
 # El panel lo sirve ESTE backend (server-rendered), no el frontend del niño.
 # En producción se apunta con URL_PUBLICA_BACKEND al dominio real.
 BASE_PANEL = os.getenv("URL_PUBLICA_BACKEND", "http://localhost:8000") + "/panel"
+URL_APP = os.getenv("URL_PUBLICA_BACKEND", "http://localhost:8000")
+
+
+def _url_del_nino(nino: Nino) -> str:
+    """El enlace con el que el niño entra, credencial incluida.
+
+    Va el token y no solo el id porque el id nunca fue un secreto: viaja en la
+    URL, se comparte por accidente y `nino.ts` lo dice desde el principio.
+    """
+    return f"{URL_APP}/?nino={nino.id}&t={nino.token_acceso or ''}"
 
 
 def _url_panel(nino_id: str, token: str) -> str:

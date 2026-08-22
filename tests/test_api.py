@@ -13,6 +13,9 @@ from tutor.api import _email_del_papa
 from tutor.models import Ejercicio, Nino, TextoLocalizado
 from tutor.notificaciones import NotificadorFalso
 
+# La credencial de cada niño: el enlace que el papá recibió al darlo de alta.
+TOKENS = {"n1": "tok-de-juan", "n2": "tok-de-sofia"}
+
 
 @pytest.fixture
 def cliente(tmp_path, monkeypatch):
@@ -22,9 +25,19 @@ def cliente(tmp_path, monkeypatch):
     from tutor.voice import EmisorFalso
 
     repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
-    nino = Nino(id="n1", nombre="Juan", edad=7, grado=2)
+    # Con `email_papa`, que es como los crea el onboarding: es obligatorio, y
+    # el enlace al panel solo se manda al correo REGISTRADO de cada niño.
+    nino = Nino(
+        id="n1", nombre="Juan", edad=7, grado=2,
+        email_papa="papa.juan@ej.com", token_acceso=TOKENS["n1"],
+    )
     repo.guardar_nino(nino)
-    repo.guardar_nino(Nino(id="n2", nombre="Sofia", edad=8, grado=3))
+    repo.guardar_nino(
+        Nino(
+            id="n2", nombre="Sofia", edad=8, grado=3,
+            email_papa="mama.sofia@ej.com", token_acceso=TOKENS["n2"],
+        )
+    )
     grafo = cargar_grafo()
     # Para toda habilidad, como la base real: así el fixture no se rompe cada
     # vez que el planificador cambia de opinión sobre por dónde empezar.
@@ -49,9 +62,13 @@ def cliente(tmp_path, monkeypatch):
     return TestClient(api.app)
 
 
-def _abrir(cliente) -> str:
-    r = cliente.post("/api/sesiones", json={"nino_id": "n1"})
-    assert r.status_code == 200
+def _abrir(cliente, nino_id: str = "n1", **extra) -> str:
+    """Abre sesión como lo hace la app: con la credencial del niño."""
+    r = cliente.post(
+        "/api/sesiones",
+        json={"nino_id": nino_id, "token": TOKENS[nino_id], **extra},
+    )
+    assert r.status_code == 200, r.text
     return r.json()["sesion_id"]
 
 
@@ -62,7 +79,7 @@ def _abrir(cliente) -> str:
 
 def test_abrir_devuelve_token_y_ejercicios_no_la_configuracion(cliente):
     """Candado #1 sobre HTTP: el navegador nunca ve el system prompt."""
-    datos = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()
+    datos = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n1"]}).json()
 
     assert datos["token"]
     assert len(datos["ejercicios"]) >= 15, "la habilidad del día más las vecinas"
@@ -73,23 +90,26 @@ def test_abrir_devuelve_token_y_ejercicios_no_la_configuracion(cliente):
 def test_el_tope_diario_devuelve_429(cliente):
     """Solo cuentan las sesiones donde el nino realmente trabajo."""
     for _ in range(3):
-        sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+        sid = _abrir(cliente)
         cliente.post("/api/tools/get_next_problem", params={"sesion_id": sid})
         cliente.post(f"/api/sesiones/{sid}/cerrar", json={})
-    r = cliente.post("/api/sesiones", json={"nino_id": "n1"})
+    r = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n1"]})
     assert r.status_code == 429
 
 
 def test_una_sesion_que_no_se_uso_no_quema_cupo(cliente):
     """Se corto internet o toco el boton sin querer: no pierde el cupo."""
     for _ in range(3):
-        sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+        sid = _abrir(cliente)
         cliente.post(f"/api/sesiones/{sid}/cerrar", json={"interrumpida": True})
-    assert cliente.post("/api/sesiones", json={"nino_id": "n1"}).status_code == 200
+    abierta = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n1"]})
+    assert abierta.status_code == 200
 
 
 def test_un_nino_inexistente_da_400(cliente):
-    assert cliente.post("/api/sesiones", json={"nino_id": "x"}).status_code == 400
+    # 401 y no 400: contestar distinto para "no existe" y "token que no cuadra"
+    # convertiría esto en un oráculo para enumerar niños.
+    assert cliente.post("/api/sesiones", json={"nino_id": "x"}).status_code == 401
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -193,8 +213,13 @@ def test_candado_2_sin_reportar_no_hay_recarga(cliente):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+CORREOS = {"n1": "papa.juan@ej.com", "n2": "mama.sofia@ej.com"}
+
+
 def _token_para(cliente, nino_id: str) -> str:
-    cliente.post("/api/auth/magic-link", json={"nino_id": nino_id, "email": "p@ej.com"})
+    cliente.post(
+        "/api/auth/magic-link", json={"nino_id": nino_id, "email": CORREOS[nino_id]}
+    )
     return api._notificador.enviados[-1].enlace.split("token=")[1]
 
 
@@ -397,7 +422,7 @@ def test_el_tutor_puede_pedir_un_tema_distinto(cliente):
     Sin esto el tutor improvisa, y lo que improvisa no queda atado a un nodo del
     grafo: la sesión no escribe dominio (18/08, ses_88be006b825f).
     """
-    abierta = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()
+    abierta = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n1"]}).json()
     sid = abierta["sesion_id"]
     otro = next(
         e["habilidad_id"]
@@ -420,7 +445,7 @@ def test_un_tema_sin_ejercicios_no_devuelve_otra_cosa(cliente):
     nada que ofrecer inventa. Tampoco puede entregar otro tema en silencio: el
     tutor terminaría corrigiendo contra un enunciado que el niño nunca oyó.
     """
-    sid = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["sesion_id"]
+    sid = _abrir(cliente)
 
     r = cliente.post(
         "/api/tools/get_next_problem",
@@ -486,7 +511,10 @@ def test_el_onboarding_da_de_alta_a_un_nino_de_verdad(cliente_con_entrevistador)
     assert fin["nino_id"]
 
     # Y el niño existe de verdad: puede abrir sesión.
-    abierta = c.post("/api/sesiones", json={"nino_id": fin["nino_id"]})
+    token_nuevo = fin["enlace_del_nino"].split("&t=")[1]
+    abierta = c.post(
+        "/api/sesiones", json={"nino_id": fin["nino_id"], "token": token_nuevo}
+    )
     assert abierta.status_code == 200, "se dio de alta un niño que no puede estudiar"
 
 
@@ -635,3 +663,125 @@ def test_sin_tecnicas_el_panel_no_habla_de_metodo(cliente):
     html = cliente.get(f"/panel/n1?token={token}").text
     assert "Se cambió la forma de enseñarle" not in html
     assert "Cómo se le enseña" not in html
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El enlace del panel solo va al correo registrado
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_no_se_le_manda_el_panel_de_un_nino_a_un_correo_cualquiera(cliente):
+    """EL agujero, cerrado.
+
+    Hasta el 22/08 este endpoint mandaba el enlace al correo que le pasaran:
+    quien conociera o adivinara un `nino_id` se enviaba a sí mismo acceso de 24
+    horas al panel de un menor — nombre, edad, grado, intereses, frustraciones,
+    dominio y las notas de la auditoría.
+    """
+    r = cliente.post(
+        "/api/auth/magic-link", json={"nino_id": "n1", "email": "cualquiera@ajeno.com"}
+    )
+
+    assert r.status_code == 200, "la respuesta no puede delatar que falló"
+    assert api._notificador.enviados == [], "mandó el panel de un niño a un desconocido"
+
+
+def test_al_correo_registrado_si_le_llega(cliente):
+    cliente.post("/api/auth/magic-link", json={"nino_id": "n1", "email": "papa.juan@ej.com"})
+    assert len(api._notificador.enviados) == 1
+
+
+def test_el_correo_no_distingue_mayusculas_ni_espacios(cliente):
+    """Un papá que escribe su correo a mano no tiene por qué acertar el formato."""
+    cliente.post(
+        "/api/auth/magic-link", json={"nino_id": "n1", "email": "  Papa.Juan@EJ.com "}
+    )
+    assert len(api._notificador.enviados) == 1
+
+
+def test_la_respuesta_es_la_misma_exista_o_no_el_nino(cliente):
+    """Si contestara distinto, esto sería un oráculo para enumerar niños.
+
+    El 404 de antes lo era: bastaba probar ids hasta que dejara de dar 404.
+    """
+    real = cliente.post("/api/auth/magic-link", json={"nino_id": "n1", "email": "x@y.com"})
+    fantasma = cliente.post(
+        "/api/auth/magic-link", json={"nino_id": "n_no_existe", "email": "x@y.com"}
+    )
+
+    assert real.status_code == fantasma.status_code == 200
+    assert real.json() == fantasma.json()
+    assert api._notificador.enviados == []
+
+
+def test_un_nino_sin_correo_registrado_no_abre_el_panel_de_nadie(cliente):
+    """Sin `email_papa` no hay a quién avisar, así que tampoco a quién dejar
+    entrar. Las fichas viejas hechas a mano quedan así hasta que se completen."""
+    api._repo.guardar_nino(Nino(id="n_sin_correo", nombre="Ana", edad=7, grado=2))
+
+    cliente.post(
+        "/api/auth/magic-link", json={"nino_id": "n_sin_correo", "email": "quien@sea.com"}
+    )
+    assert api._notificador.enviados == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Nadie abre sesión con un niño que no es suyo
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_sin_credencial_no_se_abre_sesion(cliente):
+    """EL segundo agujero, cerrado.
+
+    Hasta el 22/08 bastaba conocer un `nino_id` —que viaja en la URL de la app
+    y nunca fue un secreto— para quemarle la cuota a un niño ajeno, leer los
+    ejercicios que le tocaban hoy y, sobre todo, llevarse un token efímero de
+    Gemini sin credencial ninguna.
+    """
+    r = cliente.post("/api/sesiones", json={"nino_id": "n1"})
+
+    assert r.status_code == 401
+    assert "token" not in r.json(), "no puede filtrar un token de voz en el error"
+
+
+def test_con_la_credencial_de_otro_nino_tampoco(cliente):
+    """Tener acceso a UN niño no da acceso a los demás."""
+    r = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n2"]})
+    assert r.status_code == 401
+
+
+def test_el_401_es_el_mismo_exista_o_no_el_nino(cliente):
+    """Si el niño inexistente diera 400 y el token malo 401, probando ids se
+    podría enumerar quién está dado de alta."""
+    inexistente = cliente.post("/api/sesiones", json={"nino_id": "n_fantasma", "token": "x"})
+    real_mal_token = cliente.post("/api/sesiones", json={"nino_id": "n1", "token": "x"})
+
+    assert inexistente.status_code == real_mal_token.status_code == 401
+    assert inexistente.json() == real_mal_token.json()
+
+
+def test_el_error_le_dice_al_nino_qué_hacer(cliente):
+    """Un chico de 7 años frente a «401 Unauthorized» no sabe qué hacer."""
+    detalle = cliente.post("/api/sesiones", json={"nino_id": "n1"}).json()["detail"]
+    assert "papá" in detalle or "mamá" in detalle
+
+
+def test_el_onboarding_entrega_el_enlace_con_el_que_el_nino_entra(cliente_con_entrevistador):
+    """Sin esto, el alta termina y nadie puede entrar: el papá se queda con un
+    `nino_id` que ya no alcanza."""
+    c = cliente_con_entrevistador
+    onb = c.post("/api/onboarding").json()["onboarding_id"]
+    # El entrevistador del fixture completa la ficha en el SEGUNDO turno.
+    c.post(f"/api/onboarding/{onb}", json={"texto": "Se llama Sofía"})
+    fin = c.post(f"/api/onboarding/{onb}", json={"texto": "listo"}).json()
+
+    assert fin["listo"] is True
+    enlace = fin["enlace_del_nino"]
+    assert f"nino={fin['nino_id']}" in enlace
+    assert "&t=" in enlace, "el enlace no lleva la credencial"
+
+    token = enlace.split("&t=")[1]
+    assert len(token) >= 20, "una credencial corta se adivina"
+    assert c.post(
+        "/api/sesiones", json={"nino_id": fin["nino_id"], "token": token}
+    ).status_code == 200

@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Siete de las quince entradas de abajo son la misma falla con distinta cara:
+Ocho de las dieciséis entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -565,4 +565,56 @@ y el tema del día. Una orden de usar algo que no existe.
 
 Verificado después del arreglo, contra Gemini real y con la ficha vacía:
 *«Oye, ¿y a ti qué te gusta hacer? Cuéntame un poquito.»*
+
+---
+
+## Lección aprendida (el campo que nunca se guardó, 22/08)
+
+Se entró a cerrar dos agujeros de autenticación conocidos y apareció un tercero
+peor, que los explicaba a los dos.
+
+**Agujero 1.** `POST /api/auth/magic-link` mandaba el enlace del panel al correo
+que le pasaran, sin comprobar nada: quien conociera o adivinara un `nino_id` se
+enviaba a sí mismo acceso de 24 horas a la ficha de un menor.
+
+**Agujero 2.** `POST /api/sesiones` abría sesión con cualquier `nino_id`. El id
+viaja en la URL de la app y nunca fue un secreto — `nino.ts` lo decía desde el
+principio: *«no es autenticación y no pretende serlo»*. Con eso se le podía
+quemar la cuota a un niño ajeno y llevarse un token efímero de Gemini.
+
+**Y el tercero, que salió al arreglar el primero:** `Nino.email_papa` **no se
+persistía**. Estaba en el modelo, `FichaInicial` lo declaraba obligatorio y
+`crear_nino_desde_ficha` lo poblaba — pero la tabla `ninos` nunca tuvo la
+columna. Al releer la ficha volvía en `None`. Siempre, para todos.
+
+1. **Un arreglo anterior nunca funcionó, y su docstring lo tapaba.** El 21/08 se
+   "arregló" `_email_del_papa`, que devolvía un marcador de posición, para que
+   leyera este campo. El docstring que se escribió entonces afirma que
+   *«`crear_nino_desde_ficha` lo persiste desde entonces»*. No lo persistía. **La
+   alerta de seguridad siguió yendo a una dirección inventada todo este tiempo**,
+   y el comentario al lado del código juraba lo contrario. Es exactamente la
+   lección del 21/08 sobre docstrings que caducan, cometida en el mismo commit
+   que la escribió.
+2. **Es la fase 4 en el otro par de definiciones.** Allá eran `schema.json` y
+   `models.Habilidad`; acá son `models.Nino` y la tabla `ninos`. Un campo que se
+   agrega al modelo y no al esquema no rompe nada al escribir —SQLite lo ignora—
+   y vuelve vacío al leer. `test_el_modelo_del_nino_y_la_tabla_no_se
+   _desincronizan` compara los dos conjuntos, con las dos excepciones a
+   propósito (`perfil` es un documento JSON, `dominio` es tabla propia).
+3. **Lo destapó un test que fallaba por otra cosa.** Al exigir que el correo
+   coincidiera, catorce tests se cayeron porque el fixture creaba niños sin
+   `email_papa` — y al ir a arreglarlo apareció que ponerlo tampoco servía. El
+   agujero de auth hizo de detector del bug de persistencia.
+4. **Distinguir errores es filtrar información.** Los dos endpoints ahora
+   contestan lo MISMO exista o no el niño: un 404 en el magic-link y un 400 en
+   abrir sesión eran oráculos para enumerar quién está dado de alta. La
+   respuesta correcta a «ese niño no existe» es la misma que a «esa no es tu
+   credencial».
+
+El niño ahora entra con un token propio que viaja en su enlace (`?nino=…&t=…`),
+no vence —es cómo entra cada día, no una sesión— y se genera al nacer la ficha.
+Las cinco fichas viejas recibieron uno en la migración v6.
+
+Verificado de punta a punta: `e2e_voz` 15/15 con navegador y voz real, más una
+comprobación nueva que golpea el endpoint sin credencial y exige un 401.
 

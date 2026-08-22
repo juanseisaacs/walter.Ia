@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from abc import ABC, abstractmethod
 from collections import Counter
 from datetime import datetime, timedelta
@@ -1198,6 +1199,10 @@ def crear_nino_desde_ficha(ficha: FichaInicial, nino_id: str) -> Nino:
 
     return Nino(
         id=nino_id,
+        # La credencial con la que va a entrar cada día. Se genera acá, al
+        # nacer la ficha, para que no exista un instante en que el niño esté
+        # dado de alta y sin forma de entrar.
+        token_acceso=secrets.token_urlsafe(24),
         nombre=ficha.nombre_nino,
         edad=ficha.edad,
         grado=ficha.grado,

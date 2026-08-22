@@ -158,7 +158,7 @@ class Repositorio(ABC):
 # Esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERSION_ESQUEMA = 4
+VERSION_ESQUEMA = 6
 
 _ESQUEMA_V1 = """
 CREATE TABLE ninos (
@@ -242,6 +242,40 @@ CREATE TABLE enlaces (
     FOREIGN KEY (nino_id) REFERENCES ninos(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_enlaces_vence ON enlaces(vence);
+"""
+
+_ESQUEMA_V6 = """
+ALTER TABLE ninos ADD COLUMN token_acceso TEXT;
+UPDATE ninos SET token_acceso = lower(hex(randomblob(16))) WHERE token_acceso IS NULL;
+"""
+"""La credencial del niño.
+
+El `UPDATE` no es opcional: las fichas que ya existían quedarían sin token y
+sus niños no podrían entrar. Se les genera uno acá mismo, dentro de la misma
+migración, para que no haya un instante en que la columna exista vacía.
+
+`randomblob(16)` son 128 bits del generador de SQLite. No es un secreto de alto
+valor —da acceso a las sesiones de UN niño, no a los datos del papá— pero tiene
+que ser imposible de adivinar, que es justo lo que le faltaba al `nino_id`.
+"""
+
+_ESQUEMA_V5 = """
+ALTER TABLE ninos ADD COLUMN email_papa TEXT;
+"""
+"""El correo del papá, que se guardaba en el modelo y NO en la base.
+
+`Nino.email_papa` existía desde hacía fases, `FichaInicial` lo declaraba
+obligatorio y `crear_nino_desde_ficha` lo poblaba — pero la tabla `ninos` nunca
+tuvo la columna, así que al releer la ficha volvía en `None`. Siempre.
+
+Es la lección de la fase 4 con otra cara: dos definiciones del mismo concepto
+—el modelo Pydantic y el esquema SQL— que se separan sin que nadie avise.
+`test_el_modelo_del_nino_y_la_tabla_no_se_desincronizan` lo cierra.
+
+Y tenía una consecuencia que no era menor: `_email_del_papa` se "arregló" el
+21/08 para leer este campo en vez de un marcador de posición, con un docstring
+que afirmaba que ya se persistía. No se persistía. **La alerta de seguridad
+siguió yendo a una dirección inventada todo este tiempo.**
 """
 
 _ESQUEMA_V4 = """
@@ -345,6 +379,10 @@ class RepositorioSQLite(Repositorio):
                 con.executescript(_ESQUEMA_V3)
             if version < 4:
                 con.executescript(_ESQUEMA_V4)
+            if version < 5:
+                con.executescript(_ESQUEMA_V5)
+            if version < 6:
+                con.executescript(_ESQUEMA_V6)
             if version < VERSION_ESQUEMA:
                 con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
 
@@ -403,6 +441,8 @@ class RepositorioSQLite(Repositorio):
             grado=fila["grado"],
             idioma=fila["idioma"],
             calendario=Calendario(fila["calendario"]),
+            email_papa=fila["email_papa"],
+            token_acceso=fila["token_acceso"],
             dominio=dominio,
             perfil=PerfilPersonal.model_validate_json(fila["perfil"]),
             creado_en=_texto_a_fecha(fila["creado_en"]),
@@ -422,14 +462,20 @@ class RepositorioSQLite(Repositorio):
         with self._conectar() as con:
             con.execute(
                 """
-                INSERT INTO ninos (id, nombre, edad, grado, idioma, calendario, perfil, creado_en)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO ninos (id, nombre, edad, grado, idioma, calendario,
+                                   email_papa, token_acceso, perfil, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     nombre     = excluded.nombre,
                     edad       = excluded.edad,
                     grado      = excluded.grado,
                     idioma     = excluded.idioma,
                     calendario = excluded.calendario,
+                    email_papa = excluded.email_papa,
+                    -- El token NO se pisa con NULL: quien guarda la ficha desde
+                    -- el pipeline no lo lleva, y perderlo dejaría al niño sin
+                    -- poder entrar hasta que el papá pidiera otro enlace.
+                    token_acceso = COALESCE(excluded.token_acceso, ninos.token_acceso),
                     perfil     = excluded.perfil
                 """,
                 (
@@ -439,6 +485,8 @@ class RepositorioSQLite(Repositorio):
                     nino.grado,
                     nino.idioma,
                     nino.calendario.value,
+                    nino.email_papa,
+                    nino.token_acceso,
                     nino.perfil.model_dump_json(),
                     _fecha_a_texto(nino.creado_en or datetime.now()),
                 ),

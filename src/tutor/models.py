@@ -214,6 +214,17 @@ class Nino(BaseModel):
         ),
     )
 
+    token_acceso: str | None = Field(
+        default=None,
+        description=(
+            "La credencial con la que el niño entra. Viaja en el enlace que el "
+            "papá recibe al terminar el onboarding y no vence: es cómo entra "
+            "cada día, no una sesión. Sin esto, `POST /api/sesiones` abría "
+            "sesión con cualquier `nino_id` que le mandaran — y devolvía un "
+            "token de Gemini a quien lo pidiera."
+        ),
+    )
+
     email_papa: str | None = Field(
         default=None,
         description=(
