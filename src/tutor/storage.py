@@ -158,7 +158,7 @@ class Repositorio(ABC):
 # Esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERSION_ESQUEMA = 3
+VERSION_ESQUEMA = 4
 
 _ESQUEMA_V1 = """
 CREATE TABLE ninos (
@@ -242,6 +242,21 @@ CREATE TABLE enlaces (
     FOREIGN KEY (nino_id) REFERENCES ninos(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_enlaces_vence ON enlaces(vence);
+"""
+
+_ESQUEMA_V4 = """
+ALTER TABLE sesiones ADD COLUMN tecnica_id TEXT;
+ALTER TABLE sesiones ADD COLUMN dominio_inicial REAL;
+"""
+"""Qué técnica se usó y en qué nivel arrancó la habilidad del día.
+
+Los dos juntos son todo lo que el motor de técnicas necesita para medir: la
+ganancia de una técnica es la suma de `dominio_final - dominio_inicial` de las
+sesiones donde estuvo activa, y el dominio final ya vive en la tabla `dominio`.
+
+Aditiva y sin default: las sesiones anteriores al motor quedan en NULL, que es
+lo correcto — no dicen nada de ninguna técnica y `medir()` las ignora. Poner un
+cero habría sido inventar que arrancaron sin dominio.
 """
 
 _ESQUEMA_V3 = """
@@ -328,6 +343,8 @@ class RepositorioSQLite(Repositorio):
                 con.executescript(_ESQUEMA_V2)
             if version < 3:
                 con.executescript(_ESQUEMA_V3)
+            if version < 4:
+                con.executescript(_ESQUEMA_V4)
             if version < VERSION_ESQUEMA:
                 con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
 
@@ -468,6 +485,8 @@ class RepositorioSQLite(Repositorio):
             habilidades_trabajadas=json.loads(fila["habilidades_trabajadas"]),
             tokens_consumidos=fila["tokens_consumidos"],
             analizada=bool(fila["analizada"]),
+            tecnica_id=fila["tecnica_id"],
+            dominio_inicial=fila["dominio_inicial"],
         )
 
     def crear_sesion(self, sesion: Sesion) -> None:
@@ -475,8 +494,9 @@ class RepositorioSQLite(Repositorio):
             con.execute(
                 """
                 INSERT INTO sesiones (id, nino_id, modo, estado, inicio, fin,
-                                      habilidades_trabajadas, tokens_consumidos, analizada)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      habilidades_trabajadas, tokens_consumidos, analizada,
+                                      tecnica_id, dominio_inicial)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 self._valores_sesion(sesion),
             )
@@ -492,7 +512,8 @@ class RepositorioSQLite(Repositorio):
                 """
                 UPDATE sesiones SET
                     estado = ?, fin = ?, habilidades_trabajadas = ?,
-                    tokens_consumidos = ?, analizada = ?
+                    tokens_consumidos = ?, analizada = ?,
+                    tecnica_id = ?, dominio_inicial = ?
                 WHERE id = ?
                 """,
                 (
@@ -501,6 +522,8 @@ class RepositorioSQLite(Repositorio):
                     json.dumps(sesion.habilidades_trabajadas),
                     sesion.tokens_consumidos,
                     int(sesion.analizada),
+                    sesion.tecnica_id,
+                    sesion.dominio_inicial,
                     sesion.id,
                 ),
             )
@@ -517,6 +540,8 @@ class RepositorioSQLite(Repositorio):
             json.dumps(s.habilidades_trabajadas),
             s.tokens_consumidos,
             int(s.analizada),
+            s.tecnica_id,
+            s.dominio_inicial,
         )
 
     def sesiones_sin_analizar(self) -> list[Sesion]:

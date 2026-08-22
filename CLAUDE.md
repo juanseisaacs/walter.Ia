@@ -116,6 +116,12 @@ Estas no se negocian. Cada una viene de una decisión razonada en
   enum declarado de un lado y consumido del otro se separa sin que nada avise:
   el compilador no puede verlo porque son dos lenguajes. Ver
   `tests/test_contrato_pizarra.py`.
+- **La técnica dice CÓMO explicar, nunca si dar la respuesta.** El motor de
+  técnicas elige la forma de enseñar; el playbook socrático es innegociable y
+  entra antes en el prompt. Una técnica que lo contradiga la rechaza el test.
+- **Ninguna técnica entra sin bloque de evidencia**, con fuente, respaldo y
+  `adaptacion_es` — si la evidencia viene en inglés, hay que decir si transfiere.
+  `efecto_verificado` va en `false` mientras nadie lo contraste con el original.
 - **Los veredictos del método se encadenan.** Cada auditoría queda anotada en
   `data/audits/cadena.jsonl` con el hash de la anterior. Editar un veredicto
   viejo rompe la cadena y `verificar_cadena` dice dónde. Es lo que convierte el
@@ -132,6 +138,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar la escalera de pistas | `knowledge/prompts/socratic_playbook.es.md` |
 | Cambiar los valores que el tutor vive | `knowledge/prompts/valores.es.md` |
 | Agregar una habilidad al currículum | `knowledge/curriculum/*.yaml` |
+| Agregar o cambiar una **forma de enseñar** | `knowledge/tecnicas/*.yaml`. Van de a pares rivales, y ninguna entra sin bloque de evidencia |
 | Cambiar cómo se calcula el dominio | `src/tutor/pedagogy.py` |
 | Agregar un tool del tutor | `src/tutor/tools.py` |
 | Cambiar dónde se guardan los datos | `src/tutor/storage.py` (solo ese archivo) |
@@ -170,6 +177,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
 | `python -m scripts.demo_persistencia` | El ciclo completo, de la sesión al dominio | no |
+| `python -m scripts.demo_tecnicas` | El motor de técnicas sesión a sesión, con tres niños simulados | no |
 | `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
 | `python -m scripts.verificar_tokens` | Que el prompt de sesión siga bajo el techo | no |
 | `python -m scripts.build_exercise_bank` | Reconstruye el banco. El validador impide voseo y enunciados largos — eso no lo sostiene el prompt | **sí** |

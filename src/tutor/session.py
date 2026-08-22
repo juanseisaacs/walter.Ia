@@ -32,8 +32,14 @@ from .models import (
     NivelSeguridad,
     Sesion,
 )
-from .pedagogy import habilidades_disponibles, resumen_para_prompt, siguiente_habilidad
+from .pedagogy import (
+    habilidades_disponibles,
+    nivel_efectivo,
+    resumen_para_prompt,
+    siguiente_habilidad,
+)
 from .storage import Repositorio
+from .tecnicas import Biblioteca, Decision, bloque_para_prompt, cargar_biblioteca, elegir, medir
 from .tools import BancoDeSesion
 from .voice import (
     ConfiguracionSesion,
@@ -194,11 +200,16 @@ class Orquestador:
         grafo: GrafoHabilidades,
         emisor: EmisorDeTokens,
         vigilante: EvaluadorSeguridad | None = None,
+        tecnicas: Biblioteca | None = None,
     ) -> None:
         self.repo = repo
         self.grafo = grafo
         self.emisor = emisor
         self.vigilante = vigilante
+        # Se carga una vez y se reusa: son seis YAML y la sesión los necesita
+        # ANTES de que el niño hable. Leerlos al abrir sería trabajo pesado en
+        # el peor momento (§9).
+        self.tecnicas = tecnicas or cargar_biblioteca()
 
         # Estado en memoria de las sesiones vivas.
         self._bancos: dict[str, BancoDeSesion] = {}
@@ -206,6 +217,39 @@ class Orquestador:
         self._alertas: dict[str, list[EvaluacionSeguridad]] = {}
         self._reportado_desde_recarga: dict[str, int] = {}
         self._ultima_actividad: dict[str, datetime] = {}
+
+    # ── Elegir cómo enseñar ──────────────────────────────────────────────────
+
+    def _elegir_tecnica(self, nino_id: str, habilidad_id: str) -> Decision:
+        """Con qué técnica se trabaja hoy esta habilidad.
+
+        El historial se reconstruye de las sesiones cerradas: cada una guardó
+        qué técnica usó y en qué nivel arrancó. No hay tabla de técnicas ni nada
+        que el Analista tenga que decir — es aritmética sobre lo ya persistido.
+
+        Solo cuentan las sesiones que trabajaron ESTA habilidad: que `su_mundo`
+        funcione con fracciones no dice nada de si funciona con multiplicación,
+        y mezclarlas haría que una técnica buena en un tema tape que es mala en
+        otro.
+        """
+        nino = self.repo.obtener_nino(nino_id)
+        historial_crudo: list[tuple[str | None, float, float]] = []
+        activa: str | None = None
+
+        # Un año hacia atrás: lo suficiente para todo lo que existe, y acotado
+        # para que esto no crezca sin techo cuando haya niños de verdad.
+        desde = datetime.now() - timedelta(days=365)
+        for s in self.repo.sesiones_de(nino_id, desde, datetime.now()):
+            if s.tecnica_id is None or s.dominio_inicial is None or s.fin is None:
+                continue
+            if habilidad_id not in s.habilidades_trabajadas:
+                continue
+            registro = nino.dominio.get(habilidad_id) if nino else None
+            final = nivel_efectivo(registro, s.fin) if registro else 0.0
+            historial_crudo.append((s.tecnica_id, s.dominio_inicial, final))
+            activa = s.tecnica_id  # la última que se usó
+
+        return elegir(self.tecnicas, habilidad_id, medir(historial_crudo), activa)
 
     # ── Abrir ────────────────────────────────────────────────────────────────
 
@@ -233,8 +277,20 @@ class Orquestador:
 
         ejercicios = self._precargar(nino, objetivo, ahora)
 
+        # CÓMO se le va a enseñar hoy, no solo qué. La técnica se asigna acá
+        # —igual que la habilidad— y se anota en qué nivel arrancaba, que es la
+        # mitad del dato que después no se puede reconstruir. Ver `tecnicas.py`.
+        decision = self._elegir_tecnica(nino_id, objetivo.id)
+        registro = nino.dominio.get(objetivo.id)
+        dominio_inicial = nivel_efectivo(registro, ahora) if registro else 0.0
+
         sesion = Sesion(
-            id=f"ses_{uuid4().hex[:12]}", nino_id=nino_id, modo=modo, inicio=ahora
+            id=f"ses_{uuid4().hex[:12]}",
+            nino_id=nino_id,
+            modo=modo,
+            inicio=ahora,
+            tecnica_id=decision.tecnica_id,
+            dominio_inicial=dominio_inicial,
         )
         self.repo.crear_sesion(sesion)
 
@@ -256,6 +312,7 @@ class Orquestador:
                 temas=self._temas_para_prompt(banco),
                 tema_principal=objetivo.id,
                 primer_encuentro=primer_encuentro,
+                como_ensena=bloque_para_prompt(self.tecnicas.obtener(decision.tecnica_id)),
             ),
             deteccion=deteccion_para_edad(nino.edad),
         )

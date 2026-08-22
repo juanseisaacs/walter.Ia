@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Seis de las doce entradas de abajo son la misma falla con distinta cara:
+Seis de las trece entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -430,4 +430,49 @@ archivo. Ahora el navegador tiene los dos relojes, con el mismo criterio que el
 techo de tokens: avisar al 90% para que el tutor cierre él, cortar al 100%. Y
 los relojes se limpian al cerrar, porque uno que sobrevive corta la sesión
 siguiente a destiempo.
+
+---
+
+## Lección aprendida (el motor de técnicas, 22/08)
+
+Es lo único que el otro tutor tenía y acá no: no *qué* enseñar —eso lo resuelve
+el planificador desde la fase 2— sino descubrir **cómo le entra a este niño**.
+Se venía aplazando por caro, y el aplazamiento era correcto por la razón
+equivocada.
+
+**Lo caro no era el motor: era una forma concreta de construirlo.** El diseño
+que se copiaba puntúa técnicas contra señales que un modelo extrae de la
+conversación, y eso significa meter señales en la salida del Analista — la
+operación que la fase 7 dejó marcada como la más cara, la que tumbó una suite de
+evals de 4/4 a 0/4 por agregar un boolean.
+
+La salida fue cambiar la pregunta. En vez de *predecir* qué técnica servirá, se
+**asigna** una —igual que se asigna la habilidad— y se mide la ganancia de
+dominio mientras estuvo activa. El Analista no se entera de que existe el motor:
+su esquema no se toca. Dos columnas aditivas en `sesiones` (`tecnica_id`,
+`dominio_inicial`) alcanzan para todo.
+
+1. **Predecir y medir no valen lo mismo.** El propio proyecto del que se copió
+   lo dice en su README: *«la decisión final la da la ganancia de dominio medida,
+   no este ranking; el ranking solo dice por dónde empezar a probar»*. Se
+   implementó la mitad que decide y se dejó la que sugiere. El día que haya
+   niños y datos para calibrar un predictor, se agrega encima sin tirar nada.
+2. **La demo mostró lo que los tests no.** Cada regla estaba probada y el
+   comportamiento completo solo se ve corriendo doce sesiones seguidas:
+   `scripts/demo_tecnicas.py` simula tres niños —uno al que solo le entra por lo
+   concreto, uno al que le da igual el método, y uno al que ninguna le sirve— y
+   deja ver el ritmo. Es la fase 2 aplicada por adelantado.
+3. **Un test mío falló y tenía razón el código.** El caso «todas probadas y
+   ninguna buena» le daba a una técnica tres sesiones de +0,02: suman 0,06 y
+   superan el umbral de 0,05, así que el motor la elegía por *«le está
+   funcionando»* y el camino que el test decía probar no se tocaba. El test
+   ahora comprueba su propia premisa antes de medir nada.
+4. **Una técnica es texto que entra al prompt, y por ahí se cuela lo que sea.**
+   Una redactada sin cuidado —«resuélvele el ejercicio para que vea cómo se
+   hace»— contradiría la única regla que el producto promete, y el modelo
+   obedecería a la instrucción más concreta. Hay un test que rechaza las formas
+   de decirlo, y el playbook socrático entra antes en el prompt.
+
+Y una de método, de las tres veces que se aplazó esto: **la respuesta correcta a
+«es muy caro» no siempre es esperar. A veces es preguntar qué parte es la cara.**
 

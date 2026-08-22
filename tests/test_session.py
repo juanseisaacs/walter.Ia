@@ -541,3 +541,65 @@ def test_el_navegador_de_verdad_corta_por_tiempo():
         "los relojes tienen que limpiarse al cerrar: uno que sobrevive corta la "
         "sesión siguiente a destiempo"
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El motor de técnicas, entrando por donde entra el niño
+# ─────────────────────────────────────────────────────────────────────────────
+# Los tests de `test_tecnicas.py` prueban que el motor decide bien. Estos
+# prueban que su decisión LLEGA — que es la otra mitad, y la que este repo
+# tiene documentada siete veces como la que se pierde.
+
+
+def test_abrir_asigna_una_tecnica_y_la_deja_escrita(orq, repo):
+    a = orq.abrir("n1", ahora=AHORA)
+    sesion = repo.obtener_sesion(a.sesion_id)
+
+    assert sesion.tecnica_id, "la sesión se abrió sin técnica: el motor no corrió"
+    assert sesion.dominio_inicial is not None, (
+        "sin el nivel de partida no hay forma de medir cuánto movió la técnica, "
+        "y el motor entero queda decorativo"
+    )
+
+
+def test_la_tecnica_llega_al_prompt_del_tutor(orq):
+    """Elegirla y no pasarla es exactamente no tener motor."""
+    from tutor.tecnicas import cargar_biblioteca
+
+    orq.abrir("n1", ahora=AHORA)
+    prompt = orq.emisor.emitidos[-1].instruccion_sistema
+
+    assert "Cómo enseñas hoy" in prompt, "el bloque de la técnica no entró"
+    activas = [t.como_ensena.strip().split("\n")[0] for t in cargar_biblioteca()]
+    assert any(linea in prompt for linea in activas), "entró el título sin el método"
+
+
+def test_la_tecnica_no_puede_pisar_el_metodo_socratico(orq):
+    """El playbook va ANTES que la técnica en el prompt, pero lo que importa es
+    que los dos estén: la técnica dice de qué forma explicar, nunca si dar la
+    respuesta."""
+    orq.abrir("n1", ahora=AHORA)
+    prompt = orq.emisor.emitidos[-1].instruccion_sistema
+
+    assert "Cómo enseñas hoy" in prompt
+    assert prompt.index("pista") < prompt.index("Cómo enseñas hoy"), (
+        "la escalera de pistas tiene que entrar antes que la técnica"
+    )
+
+
+def test_una_sesion_sin_tecnica_previa_no_inventa_historial(orq, repo):
+    """Las 62 sesiones anteriores al motor están en NULL y tienen que quedarse
+    así: repartirlas entre las técnicas de hoy sería inventar evidencia."""
+    from tutor.models import Sesion
+
+    vieja = Sesion(
+        id="ses_vieja", nino_id="n1", modo=ModoSesion.GUIADO,
+        inicio=AHORA - timedelta(days=1), fin=AHORA - timedelta(days=1),
+        habilidades_trabajadas=["mat.suma.sin_reagrupacion"],
+    )
+    repo.crear_sesion(vieja)
+    repo.actualizar_sesion(vieja)
+    assert repo.obtener_sesion("ses_vieja").tecnica_id is None
+
+    a = orq.abrir("n1", ahora=AHORA)  # no debe reventar ni contar la vieja
+    assert a.sesion_id

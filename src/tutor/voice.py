@@ -495,6 +495,7 @@ def construir_instruccion_sistema(
     temas: list[tuple[str, str]] | None = None,
     tema_principal: str | None = None,
     primer_encuentro: bool = False,
+    como_ensena: str | None = None,
 ) -> str:
     """Persona + método + valores + seguridad + este niño.
 
@@ -523,6 +524,12 @@ def construir_instruccion_sistema(
     # en algo que ya pasó, además de gastar espacio.
     if primer_encuentro:
         partes.append(cargar_prompt("primer_encuentro", idioma))
+
+    # CÓMO enseñar hoy. Va después del playbook —que es el método socrático,
+    # innegociable— y antes de los temas: la técnica dice de qué forma explicar,
+    # nunca si dar la respuesta. Ver `tecnicas.py`.
+    if como_ensena:
+        partes.append(como_ensena)
 
     if temas:
         partes.append(_bloque_temas(temas, tema_principal))

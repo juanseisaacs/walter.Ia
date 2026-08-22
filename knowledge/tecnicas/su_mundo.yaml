@@ -1,0 +1,57 @@
+# Par rival: su_mundo ↔ numero_puro
+#
+# De dónde salen los enunciados. Es el par que decide si la sesión se siente
+# una conversación o un cuaderno.
+
+- id: su_mundo
+  nombre: "Con lo que le gusta"
+  rival: numero_puro
+
+  aplica_a: []
+
+  como_ensena: |
+    Todo ejercicio pasa por lo que a él le interesa. Si le gustan los
+    dinosaurios, las sumas son de dinosaurios; si es el fútbol, son goles.
+    Lo que sepas de él está en el resumen del principio: úsalo.
+
+    No lo anuncies ("como sé que te gustan los dinosaurios..."), solo hazlo.
+    Anunciarlo suena a que le estás haciendo un favor.
+
+    Cambia el disfraz, nunca la matemática: el ejercicio que trae el banco es
+    el que es, tú le cambias el envoltorio.
+
+  senal_de_que_funciona: "se engancha, pregunta cosas del tema, alarga la sesión"
+  senal_de_que_no: "se va detrás del tema y se olvida de la cuenta"
+
+  evidencia:
+    fuente: "Contextos de interés personal en problemas matemáticos"
+    respaldo: "Personalizar el contexto se asocia a más motivación y persistencia; el efecto sobre el aprendizaje en sí es más discutido que el efecto sobre las ganas"
+    efecto_verificado: false
+    adaptacion_es: "El contexto tiene que ser de SU mundo, no de un mundo traducido: 'quarters' o 'cookies' no funcionan igual que monedas y galletas."
+    confianza_es: media
+
+- id: numero_puro
+  nombre: "El número pelado"
+  rival: su_mundo
+
+  aplica_a: []
+
+  como_ensena: |
+    Nada de historias. El ejercicio es la cuenta, sin envoltorio: "cuánto es
+    47 más 28".
+
+    Ritmo rápido, uno tras otro, sin narrativa entre medio. Lo que se practica
+    acá es la operación, y el cuento se lleva atención que le hace falta.
+
+    Sigues siendo cálido con él — la calidez está en cómo le hablas, no en
+    disfrazar los números.
+
+  senal_de_que_funciona: "agarra ritmo y encadena varios seguidos"
+  senal_de_que_no: "se apaga, contesta con monosílabos, pregunta cuánto falta"
+
+  evidencia:
+    fuente: "Carga cognitiva: el contexto narrativo como información ajena a la tarea"
+    respaldo: "Un enunciado con historia añade lectura y memoria de trabajo a un ejercicio que no las necesitaba; con niños que ya están al límite, eso empeora el resultado"
+    efecto_verificado: false
+    adaptacion_es: "Aplica más todavía en un niño con la lectura floja: el problema con historia le mide la lectura, no la cuenta."
+    confianza_es: alta

@@ -1,0 +1,67 @@
+# Par rival: concreto_primero ↔ estructura_primero
+#
+# Las dos enseñan lo mismo por caminos opuestos. Esa es la única razón por la
+# que el motor tiene algo que elegir: si cada técnica cubriera un contenido
+# distinto, no habría nada que comparar y esto sería un catálogo, no un motor.
+
+- id: concreto_primero
+  nombre: "Empezar por lo concreto"
+  rival: estructura_primero
+
+  # Con qué habilidades tiene sentido. Vacío = con todas.
+  aplica_a: [suma, resta, multiplicacion, division, fracciones, numeros]
+
+  # Lo que entra al prompt de sesión cuando esta técnica está activa. Es una
+  # instrucción de CÓMO enseñar, no de qué: el qué lo decide el planificador.
+  como_ensena: |
+    Arranca siempre por cosas que se puedan contar o partir: galletas, fichas,
+    dedos, pedazos de torta. Deja que las manipule o las imagine antes de
+    escribir un solo número.
+
+    El orden es: primero los objetos, después el dibujo, y solo al final los
+    números. No pases al siguiente paso hasta que el de antes le salga.
+
+    Si se traba con el número, vuelve a los objetos sin hacerlo notar — no le
+    digas "volvamos atrás", solo cambia el ejemplo a algo que pueda tocar.
+
+  # Qué mirar para saber si le está sirviendo A ESTE NIÑO. No es la teoría: es
+  # lo que se ve en la sesión.
+  senal_de_que_funciona: "resuelve el paso con objetos y después traslada solo al número"
+  senal_de_que_no: "cuenta bien las fichas y al escribirlo se pierde igual"
+
+  evidencia:
+    fuente: "Secuencia CRA (concreto-representacional-abstracto), derivada de Bruner (enactivo → icónico → simbólico)"
+    respaldo: "Repetidamente estudiada en matemáticas de primaria, con resultados favorables sobre todo en niños que van rezagados"
+    # SIN tamaño de efecto: no lo verificamos contra el metaanálisis original y
+    # no se inventa un número para que se vea más sólido. La regla del proyecto
+    # vale también acá — lo que no se midió, se dice.
+    efecto_verificado: false
+    adaptacion_es: "No depende del idioma: contar y partir objetos es igual en cualquier lengua."
+    confianza_es: alta
+
+- id: estructura_primero
+  nombre: "Empezar por la estructura"
+  rival: concreto_primero
+
+  aplica_a: [suma, resta, multiplicacion, division, fracciones, numeros]
+
+  como_ensena: |
+    Muéstrale la forma de la operación antes que los objetos: la cuenta en
+    columna, la recta numérica, la tabla. Que vea la ESTRUCTURA y descubra la
+    regla que la gobierna.
+
+    Usa la pizarra desde el primer turno. Pregúntale qué nota, qué se repite,
+    qué pasa cuando una columna se pasa de nueve.
+
+    Los objetos vienen después, y solo para confirmar lo que ya entendió.
+    Traerlos antes le quita el descubrimiento.
+
+  senal_de_que_funciona: "se adelanta a la regla, dice 'entonces siempre pasa que...'"
+  senal_de_que_no: "repite el procedimiento sin poder explicar por qué"
+
+  evidencia:
+    fuente: "Aprendizaje por descubrimiento guiado; representación visual del sistema posicional"
+    respaldo: "El descubrimiento GUIADO —con andamiaje, no libre— aparece por delante tanto del descubrimiento puro como de la exposición directa"
+    efecto_verificado: false
+    adaptacion_es: "Sin cambios. El sistema posicional es el mismo."
+    confianza_es: alta

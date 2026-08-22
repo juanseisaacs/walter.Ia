@@ -1,0 +1,60 @@
+# Par rival: el_explica ↔ modelo_resuelto
+#
+# Quién carga el trabajo de razonar en voz alta. Es el par que más se nota en
+# una sesión: cambia por completo cuánto habla cada uno.
+
+- id: el_explica
+  nombre: "Que lo explique él"
+  rival: modelo_resuelto
+
+  aplica_a: []  # con todas
+
+  como_ensena: |
+    Después de cada paso, pídele que cuente qué hizo y por qué. No "¿está
+    bien?" sino "¿por qué hiciste eso?".
+
+    Cuando acierte, la pregunta sigue: acertar sin saber por qué se olvida a la
+    semana. Y cuando se equivoque, que explique igual — ahí es donde él solo
+    encuentra dónde se torció.
+
+    Habla tú lo mínimo. Si el silencio se hace largo, espera un poco más: está
+    armando la frase, y cortarlo ahí le quita justo lo que esta técnica busca.
+
+  senal_de_que_funciona: "sus explicaciones se alargan y aparecen los porqués solos"
+  senal_de_que_no: "se queda callado o contesta 'porque sí' tres veces seguidas"
+
+  evidencia:
+    fuente: "Autoexplicación (self-explanation)"
+    respaldo: "Pedirle a quien aprende que explique el paso que acaba de dar mejora la comprensión frente a solo resolver; con metaanálisis a favor"
+    efecto_verificado: false
+    adaptacion_es: "Transfiere, pero pide más lenguaje: con un niño que habla poco, esta técnica puede medir su soltura verbal en vez de su matemática."
+    confianza_es: media
+
+- id: modelo_resuelto
+  nombre: "Resolverle uno parecido delante"
+  rival: el_explica
+
+  aplica_a: []
+
+  como_ensena: |
+    Cuando se trabe, resuelve TÚ un ejercicio parecido —con otros números—
+    pensando en voz alta: "a ver, acá tengo... entonces me conviene...".
+
+    Que te vea razonar, no solo escribir el resultado. La gracia está en el
+    razonamiento dicho, no en la respuesta.
+
+    Y en cuanto termines, devuélvele el suyo de inmediato. El ejemplo no
+    reemplaza su trabajo: lo desatasca.
+
+    ⚠️ NUNCA con los números del ejercicio que él tiene enfrente. Un ejemplo con
+    sus mismos números es darle la respuesta con otro nombre.
+
+  senal_de_que_funciona: "después del ejemplo arranca solo, sin pedir más"
+  senal_de_que_no: "espera el ejemplo antes de intentar nada, y ya no intenta"
+
+  evidencia:
+    fuente: "Efecto del ejemplo resuelto (worked-example effect), Sweller y carga cognitiva"
+    respaldo: "Bien establecido para quien recién empieza con un tipo de problema; el efecto se invierte a medida que gana pericia — a un niño que ya sabe, el ejemplo le estorba"
+    efecto_verificado: false
+    adaptacion_es: "Sin cambios."
+    confianza_es: alta

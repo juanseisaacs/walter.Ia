@@ -101,6 +101,7 @@ el niño habla → el tutor usa el banco y check_answer → la sesión cierra
 |---|---|
 | Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado contra los documentos primarios |
 | Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
+| Técnicas de enseñanza, en pares rivales | **6** — el motor prueba, mide y cambia |
 | Tests de Python | **415**, en verde |
 | Tests del front | **73**, en verde |
 | Casos de eval en las 4 suites de YC | **48** — la última corrida completa dio 45/45 el 20/08; los 3 casos agregados después no se han corrido |
@@ -185,6 +186,38 @@ mantener al niño enganchado; el vigilante, para frenar y escalar: incentivos
 opuestos. Y la cosa que puede ser manipulada no puede ser la que detecta la
 manipulación — el vigilante ve solo una ventana de 3-4 turnos, con contexto
 limpio.
+
+---
+
+### El motor de técnicas: descubrir CÓMO le entra
+
+El planificador contesta **qué** enseñarle hoy. El motor de técnicas contesta la
+otra mitad: **cómo**. Seis técnicas en tres pares rivales —empezar por lo
+concreto contra empezar por la estructura, que lo explique él contra resolverle
+uno parecido, con lo que le gusta contra el número pelado— y el ciclo es:
+
+```
+asignar una técnica → medir si el dominio subió mientras estuvo activa
+        ↑                              ↓
+   probar la rival  ←  ¿no movió nada en 3 sesiones?
+```
+
+Eso es lo que convierte *«creemos que así se enseña mejor»* en *«con ésta subió
+dos décimas y con la otra no se movió»* — que es lo que un papá puede preguntar
+y hay que poder contestarle.
+
+**La técnica se asigna, no se infiere.** La elige el backend al abrir la sesión,
+igual que la habilidad, y la evidencia sale de la tabla de dominio que ya se
+llena sola. Se pierde poder para *predecir* cuál probar primero; se gana no
+tocar el esquema del Analista, que es la operación más cara de este repo. Y se
+pierde menos de lo que parece: predecir solo dice por dónde empezar — quien
+decide es la ganancia medida.
+
+**La técnica dice cómo explicar, nunca si dar la respuesta.** El método
+socrático entra antes en el prompt y no se negocia; hay un test que rechaza
+cualquier técnica que lo contradiga.
+
+Para verlo funcionando sin gastar nada: `python -m scripts.demo_tecnicas`.
 
 ---
 

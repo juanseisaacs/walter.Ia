@@ -198,6 +198,32 @@ durante el desarrollo, el navegador abriendo sesión antes de que el niño toque
 el botón, o sesiones que mueren al conectar. Lo dice el log del servidor
 cruzado con `inicio`/`fin`, no hace falta código nuevo para averiguarlo.
 
+### El motor de técnicas funciona y el papá no lo ve
+
+El ciclo cierra —se asigna, se mide, se abandona, entra la rival— pero todo eso
+vive en la base. El papá no se entera de que su hijo cambió de método ni de por
+qué, y **ese es el argumento del producto**: poder contestar *«¿por qué cambió
+de método?»* con *«se probó una, se midió, no movió el nivel, se pasó a la
+siguiente»*.
+
+Falta llevarlo al reporte semanal y al panel. Es aditivo —`MetricasReporte` ya
+se calcula en código y `elegir()` ya devuelve el `porque` redactado— pero toca
+el reporte, que tiene verificación estricta contra las métricas: hay que
+comprobar que `verificar_reporte` no tumbe un reporte correcto por mencionar
+una técnica. Va con evals detrás.
+
+### Las 6 técnicas no tienen efecto verificado
+
+Todas declaran fuente y respaldo, y todas tienen `efecto_verificado: false` —
+nadie contrastó el tamaño del efecto contra el metaanálisis original. Está
+puesto así a propósito para que se vea, y hay un test que falla el día que
+alguien lo ponga en `true` sin decir contra qué lo contrastó.
+
+Cerrarlo es media tarde de lectura por técnica. Antes de eso conviene saber
+cuáles se usan de verdad: con 6 técnicas y 3 sesiones cada una, agotar la
+biblioteca son 18 sesiones, y no tiene sentido verificar la evidencia de una
+que el motor nunca llegue a probar.
+
 ### Lo demás, chico
 
 - **El último hash de la cadena no se publica en ningún lado.** La cadena de

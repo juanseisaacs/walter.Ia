@@ -292,6 +292,18 @@ class Sesion(BaseModel):
     tokens_consumidos: int = 0
     analizada: bool = False
 
+    tecnica_id: str | None = None
+    """Con qué técnica se enseñó. La elige el backend al abrir, igual que la
+    habilidad — ver `tecnicas.py`. `None` en las sesiones anteriores al motor."""
+
+    dominio_inicial: float | None = None
+    """Nivel de la habilidad del día al ABRIR la sesión.
+
+    Es la mitad que no se puede reconstruir después: el dominio de hoy está en
+    la tabla, pero el de antes de esta sesión ya se perdió. Sin este número no
+    hay forma de saber cuánto movió la técnica, que es de lo que se trata todo
+    el motor."""
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Salida del Analista de sesión  (agente #4)
