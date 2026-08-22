@@ -5,8 +5,16 @@ aritmética** — y, mientras tanto, en **carácter, mentalidad y liderazgo**.
 Enseña con método socrático: guía con preguntas y pistas escalonadas, **nunca
 regala la respuesta**. Aprende del niño sesión a sesión.
 
-Nace del RFS **"The Primer"** de Y Combinator. Ver `ARCHITECTURE.md` para las
-decisiones de diseño y su razón.
+Nace del RFS **"The Primer"** de Y Combinator.
+
+**Los cuatro documentos, y qué contesta cada uno:**
+
+| Archivo | Contesta |
+|---|---|
+| `CLAUDE.md` (este) | **Cómo trabajar acá.** Las reglas y dónde va cada cosa |
+| `ARCHITECTURE.md` | **Qué se decidió y por qué.** Si no está ahí, no se decidió |
+| `BITACORA.md` | **Por qué las reglas son las que son.** Lo que se rompió y qué costó |
+| `PENDIENTE.md` | **Dónde retomar.** Se poda, no solo se agrega |
 
 ---
 
@@ -40,7 +48,7 @@ Si el tutor sermonea, dejó de formar.
 ## Reglas duras
 
 Estas no se negocian. Cada una viene de una decisión razonada en
-`ARCHITECTURE.md`.
+`ARCHITECTURE.md`, y varias de un bug que costó caro (`BITACORA.md`).
 
 ### Latencia
 - **La respuesta hablada del tutor nunca espera a nuestra infraestructura.**
@@ -104,6 +112,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 - Los módulos puros (`models`, `curriculum`, `pedagogy`, `storage`, `tools`)
   **no hacen red ni I/O externo**. Si un cambio los obliga a hacerlo, el diseño
   está mal.
+- **Un contrato entre Python y TypeScript necesita un test que lo cruce.** Un
+  enum declarado de un lado y consumido del otro se separa sin que nada avise:
+  el compilador no puede verlo porque son dos lenguajes. Ver
+  `tests/test_contrato_pizarra.py`.
 
 ---
 
@@ -126,6 +138,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Agregar un caso de prueba del método | `evals/parent_trust/` |
 | Cambiar cómo se ve el panel del papá | `src/tutor/panel.py` (solo ese archivo) |
 | Cambiar qué dice el reporte semanal | `knowledge/prompts/parent_companion.es.md` |
+| Agregar un tipo a la pizarra | `voice.py` (el enum) **y** `web/src/pizarra/desdeElTutor.ts` (el handler). El test de contrato falla si se hace solo uno |
 
 ---
 
@@ -139,72 +152,29 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 ---
 
-## Comandos
+## Cómo se verifica
 
-```bash
-# Entorno
-python -m venv .venv && .venv/Scripts/activate
-pip install -e ".[dev]"
+**Ninguna afirmación de "funciona" vale sin haber corrido la que corresponda.**
 
-# Tests (rápidos, sin red)
-pytest
+| Comando | Qué cubre | ¿Gasta cuota? |
+|---|---|---|
+| `pytest` | 398 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
+| `cd web && npm test` | 73 tests del front: audio, micrófono, pizarra | no |
+| `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
+| `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
+| `python -m scripts.demo_persistencia` | El ciclo completo, de la sesión al dominio | no |
+| `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
+| `python -m scripts.verificar_tokens` | Que el prompt de sesión siga bajo el techo | no |
+| `python -m scripts.build_exercise_bank` | Reconstruye el banco. El validador impide voseo y enunciados largos — eso no lo sostiene el prompt | **sí** |
+| `python -m evals.runner` | Las 4 suites de YC, 48 casos, contra el modelo real | **sí** |
+| `python -m scripts.verificar_gemini` | Los supuestos de la Live API contra la API real | **sí** |
+| `python -m scripts.verificar_vision` | ¿El tutor VE o completa? Le muestra lo que no puede adivinar | **sí** |
+| `python -m scripts.procesar_pendientes` | Drena la cola del Analista **y aplica la retención**. La purga corre siempre, aunque la cola esté vacía o falte la llave. `--seco` la calcula sin borrar | **sí** |
+| `python -m scripts.generar_reportes` | El reporte semanal al papá | **sí** |
 
-# Evals (consumen API)
-python -m evals.runner
-python -m evals.runner --suite parent_trust
-
-# Construir el banco de ejercicios (una vez, por lote)
-python -m scripts.build_exercise_bank
-```
-
----
-
-## Estado
-
-**El circuito completo cierra**, de la voz del niño al panel del papá.
-
-El niño habla → el tutor usa el banco y `check_answer` → la sesión se cierra →
-el Analista escribe el dominio → el planificador de mañana arranca con la
-evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el panel.
-
-- `curriculum.py`: carga y valida el grafo (rechaza ciclos, prerrequisitos
-  colgados, IDs duplicados) y lo navega en ambas direcciones
-- `pedagogy.py`: dominio, olvido, planificador sin techo, escalera socrática,
-  **presunción de grado** (un niño de 2° no arranca contando hasta 100, ni se
-  le reporta al papá un atraso que nadie midió), **registro por grado** (cómo
-  piensa un niño de 1° y cómo uno de 5°) y **momento del año escolar** (los dos
-  calendarios colombianos — el almanaque cambia el tono, nunca qué nodo sigue)
-- `storage.py`: `RepositorioSQLite` completo — WAL, transacciones atómicas,
-  migraciones por `user_version`, idempotencia, retención, auditorías y reportes
-- `tools.py`: `check_answer` (entiende números hablados en español, tolerante
-  con la forma y estricto con el valor), `BancoDeSesion`, `request_camera`,
-  `escalate_safety`
-- `voice.py`: prompt de sesión, tools, fin de turno por edad, token con la
-  configuración **atada** (candado #1), voz `Leda` en `es-CO` y transcripción
-  de entrada con idioma fijo + sesgo aritmético
-- `session.py`: `Orquestador` — abre (precarga + presupuesto + token), registra
-  turnos con los dos niveles de seguridad, cierra y encola para el Analista
-- `pipeline.py`: Analista (señales y auditoría en dos llamadas — §18), Vigilante,
-  métricas en código, reporte al papá verificado contra la fuente, y las tareas
-  que drenan las dos colas
-- `api.py`: plano de control + el panel del papá server-rendered (`panel.py`)
-- `web/`: la interfaz de voz del niño (React + Vite)
-- `evals/`: 45 casos en las 4 suites de YC — **45/45** el 2026-08-20, corridas
-  DESPUÉS de agregar `datos_suyos` a la salida del Analista. Incluye
-  `curriculum_fidelity` en 4/4, que es la suite que la fase 7 tumbó a 0/4 al
-  agregar un campo: el riesgo era real y esta vez no se materializó
-- `matematicas.yaml`: **54 habilidades de 1° a 5°** con **triple anclaje** — DBA
-  citado por número, EBC por ciclo y Core Knowledge. Es el pensamiento numérico
-  del MEN completo; geometría, medición y estadística quedan fuera a propósito
-  (el alcance es lectura, escritura y aritmética). El grafo se recorre entero
-  desde una sola raíz, con test. Lo que sigue sin verificar se dice en la
-  cabecera del YAML
-- `base_academica_men.md`: el marco del MEN alrededor del grafo (áreas, EBC,
-  Saber, calendarios, desarrollo cognitivo). Ver `ARCHITECTURE.md` §19
-- Banco: **1.408 ejercicios validados**, ~26 por habilidad, **ninguna vacía**.
-  Cero voseo y cero enunciados largos: los tres los impide el validador, no el
-  prompt
-- 386 tests en verde, 73 del front, y el lint en cero
+Y una que no es un comando: **abrir `data/tutor.db` y leer las filas.** Cuatro
+de los siete bugs de `BITACORA.md` los destapó mirar el dato, no la suite.
 
 ### Cómo se levanta para HABLAR con el tutor
 
@@ -224,227 +194,46 @@ buscar la respuesta y vuelve". Medido el 19/08: el backend responde en **4 ms**
 —veinte veces por debajo del presupuesto— así que cuando la sesión se siente
 lenta, **el sospechoso no es el backend**. Ver `ARCHITECTURE.md` §9.
 
-```
-python -m scripts.demo_planificador     # el cerebro
-python -m scripts.demo_persistencia     # el ciclo completo
-python -m scripts.demo_verificacion     # check_answer con voz
-python -m scripts.verificar_gemini      # los 2 supuestos contra la API real
-python -m scripts.procesar_pendientes   # drena la cola del Analista
-python -m scripts.generar_reportes      # el reporte semanal al papá
-```
+---
+
+## Al terminar algo
+
+Correr la verificación que corresponda, y **decir el resultado tal cual salió.**
+
+- Si algo falla, se dice que falla, con su salida.
+- Si algo quedó sin hacer, se dice cuál y por qué.
+- Si una medición contradice algo que se afirmó antes, se dice.
+- Si el bug tenía otra causa que la que se supuso primero, se dice la real.
+
+**Un "listo" sin verificación no vale.** Y si cambió algo duradero —una
+decisión, una trampa nueva, un pendiente que se cierra— actualizar
+`ARCHITECTURE.md`, `BITACORA.md` o `PENDIENTE.md`, según cuál sea.
+
+---
+
+## Estado
+
+**El circuito completo cierra**, de la voz del niño al panel del papá.
+
+El niño habla → el tutor usa el banco y `check_answer` → la sesión se cierra →
+el Analista escribe el dominio → el planificador de mañana arranca con la
+evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el panel.
+
+| | |
+|---|---|
+| Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado |
+| Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
+| Tests | **398** de Python + **73** del front, en verde. Lint en cero |
+| Casos de eval en las 4 suites de YC | **48** |
+| Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
+
+El detalle de qué hace cada módulo está en `README.md`; las decisiones y su
+razón, en `ARCHITECTURE.md`.
 
 **Arquitectura de voz verificada (2026-08-17):** `live_connect_constraints`
 funciona (el navegador no puede cambiar el prompt) y tool calling anda. El
 modelo `gemini-3.1-flash-live-preview` **solo devuelve AUDIO** — la entrada sí
 acepta texto.
 
-**Lo que falta es evidencia, no código:** una sesión de voz con audio real que
-confirme que la transcripción arreglada corrige el "dos" → "32", y la medición
-de `check_answer` en la consola del navegador. Ver `PENDIENTE.md`.
-
-Ver `ARCHITECTURE.md` §17 para el plan de fases.
-
----
-
-## Lección aprendida (fase 8)
-
-Entró una fuente académica nueva —el marco del MEN— y el trabajo real no fue
-incorporarla: fue **decidir qué no incorporar**.
-
-1. **Una fuente secundaria no gana por cubrir más.** Traía las cinco áreas con
-   los DBA de cada grado; `FUENTES.md` solo tenía dos áreas. Y sin embargo sus
-   tablas de DBA estaban **corridas un grado** (los primeros de cada grado eran
-   del grado siguiente). Se vio solo porque existía el cruce contra los PDF
-   primarios. → Ante dos fuentes que se contradicen, **gana la que se contrastó
-   con el primario**, aunque la otra se vea más completa y mejor ordenada.
-2. **El aplazamiento con costo escrito es alcance, no deuda.** Cuatro cosas
-   buenas del documento se dejaron afuera (calendario escolar, memoria
-   institucional estructurada, Saber, abrir las cinco áreas) con el precio
-   anotado y qué las destrabaría. `ARCHITECTURE.md` §19.
-3. **Antes de agregar un campo, mirar si ya hay dónde ponerlo.** La memoria del
-   colegio parecía pedir campos nuevos en `PerfilPersonal` y en la salida del
-   Analista. `notas` ya existía y es texto libre: se resolvió con un párrafo en
-   un `.md`, sin tocar Python ni el schema de un agente — que es la operación
-   que la fase 7 dejó marcada como la más cara.
-4. **Un test que mide lo que no es, pasa igual.** El test del techo del prompt
-   medía con el literal `"Juan, 7 años, 2° grado."` en vez del resumen real, y
-   se comía ~650 caracteres sin verlos. El anti-voseo revisaba un solo niño, y
-   "seguí subiendo" vivía tranquilo en la rama VA ADELANTADO. Los dos estaban en
-   verde. → Cuando una función tiene ramas, **el test tiene que recorrerlas**;
-   un caso de ejemplo no es cobertura. Es la fase 2 otra vez.
-
----
-
-## Lección aprendida (visión, 21/08)
-
-**Durante tres días el tutor inventó todo lo que "vio".** Le mostramos un
-cuaderno con `8 + 5` y `12 − 7`, y le leyó al niño *"veo 5 + 3 y 10 − 4"*. Un
-círculo con UNA línea: *"lo partiste con dos líneas, quedaron cuatro pedazos
-iguales"* — la misma frase, palabra por palabra, que con dos líneas de verdad.
-
-La causa era el canal: `sendRealtimeInput({video})` es streaming de cámara y el
-frame suelto se descarta. La imagen **dentro del turno** (`sendClientContent`
-con `inlineData` + el texto juntos) se ve con precisión. Eso ya se había
-intentado y revertido, porque el modelo "se quedaba colgado": era cierto y era
-otra cosa — si el modelo YA está hablando, el turno con la imagen queda detrás
-del anterior. Se corta antes y funciona.
-
-Lo que hay que recordar no es el canal, es cómo se nos escapó:
-
-1. **Una verificación con un caso adivinable no es una verificación.** Lo que
-   sostenía el canal viejo era "leyó las letras de una gorra y contó cinco
-   dedos". Una mano tiene cinco dedos siempre. Un modelo que no ve nada acierta
-   las dos. → Para probar que un modelo VE, se le muestra **lo que no puede
-   adivinar**: un 7 gigante cuando el prompt dice que espera una torta.
-   `scripts/verificar_vision.py` hace exactamente eso, y es lo que hay que
-   correr antes de volver a tocar el camino de la imagen.
-2. **El control es la prueba, no el caso feliz.** Con una sola imagen no se
-   distingue ver de completar. Con dos que se contradicen, sí: la respuesta fue
-   **idéntica** con una línea y con dos. Ahí se acabó la discusión.
-3. **El niño lo dijo antes que nosotros, tres veces.** "Pero yo hice un círculo
-   y solo lo partí en una línea, ¿tú ves dos?". Cada vez el tutor le dio la
-   razón al instante y siguió — no vio mal: no vio, y después cedió. Un tutor
-   que cede ante la corrección del niño **esconde** el fallo en vez de
-   mostrarlo. Cuando un niño corrige al tutor sobre algo verificable, eso es un
-   reporte de bug.
-
-Y una de producto: el tutor afirmaba de la pizarra lo que no podía saber
-("¿ahí ya puedes ver las dos?" con una sola en pantalla, "el pedazo naranja"
-cuando los dos dibujos eran naranjas). El tool devolvía `{ mostrado: true }`.
-→ **Un tool que cambia lo que el niño ve le devuelve al tutor QUÉ quedó en
-pantalla**, no un "ok". Lo que no se le dice, se lo inventa.
-
----
-
-## Lección aprendida (el código sin llamador, 21/08)
-
-Se entró a arreglar una cosa —el dominio que se perdía en silencio— y aparecieron
-**cuatro fallas del mismo tipo, todas con la suite en verde**. Ninguna era un
-bug de lógica: en las cuatro el código estaba bien escrito, bien comentado y
-bien testeado. Lo que faltaba era **alguien que lo llamara**.
-
-- `excedio_duracion()` — test propio desde la fase 5, cero llamadores.
-  `MAX_MINUTOS_SESION = 45` no cortaba nunca.
-- `_avisar()` en `scripts/generar_reportes.py` — escrita entera, con su
-  docstring explicando por qué importaba, y `main()` no la invocaba.
-- `_email_del_papa()` — devolvía siempre el marcador de posición, con un
-  docstring que afirmaba que el campo "todavía no está en el modelo". Estaba: es
-  obligatorio en el onboarding desde hace fases. **La alerta de seguridad, que es
-  el camino más urgente del producto, se despachaba a un correo inventado.**
-- Dos tests con el **mismo nombre** en `test_pedagogy.py`. Python se queda con
-  el último: el primero no corrió nunca desde que se escribió.
-
-Cuatro cosas que quedaron:
-
-1. **Código muerto se ve idéntico a código que funciona.** Se lee bien, tiene
-   test, el test pasa. Lo que no tiene es un camino desde una petición real
-   hasta él. → El test de una función **no prueba que la función se use**; para
-   eso hace falta un test que entre por donde entra el usuario, o mirar los
-   llamadores a mano.
-2. **Un docstring es una afirmación sin verificar.** El de `_email_del_papa`
-   decía algo que había dejado de ser cierto, y por eso nadie volvió a mirar. Un
-   comentario que dice "PENDIENTE: X no existe todavía" **caduca**, y cuando
-   caduca miente con toda la autoridad de estar escrito al lado del código.
-3. **El lint no es cosmética.** De los 20 errores, uno (`F811`) escondía un test
-   que no corría. Se venían aplazando por "chicos". El que valía la pena estaba
-   mezclado con diecinueve que no.
-4. **El descarte silencioso es el patrón de fondo.** Un `continue` sin rastro,
-   una función sin llamador y un test pisado son la misma falla: algo dejó de
-   pasar y no había dónde enterarse. → Cuando el código decide **no** hacer algo,
-   esa rama necesita un nombre y una salida (log, contador, lo que sea). Ver
-   `pipeline.DestinoSenal`: nombrar las tres ramas del descarte fue todo el
-   arreglo.
-
-Y una de método: la señal que destapó todo fue **leer los datos de la base a
-mano**, no la suite. Es la misma de la fase 2 (lo detectó la demo) y la de la
-fase 6 (lo detectó leer el reporte de verdad). Van tres.
-
----
-
-## Lección aprendida (fase 7)
-
-**El schema pesa más que el prompt.** Toda esta tanda salió de agregar un
-boolean a `AuditoriaCumplimiento`: `curriculum_fidelity` cayó de 4/4 a 0/4 sin
-que nada del currículum se tocara. El modelo devolvía la auditoría impecable y
-`observaciones: []`.
-
-Cuatro cosas que quedaron, todas medidas:
-
-1. **Un schema tiene presupuesto de atención, y se reparte.** Medido:
-   sin campos extra 4/4 · con un campo trivial 3/4 · con un campo que exige
-   juicio 0/4. Cuando dos trabajos distintos comparten una salida estructurada,
-   **el que pierde es el que no estás mirando**. La salida fue partir el Analista
-   en dos llamadas (`ARCHITECTURE.md` §18).
-2. **El síntoma miente.** "Observaciones vacías" se lee como "el prompt está
-   mal", y se pierde una tarde corrigiendo el prompt. Ante una regresión en evals
-   después de tocar un modelo Pydantic, la primera prueba es **volver el modelo a
-   HEAD dejando el prompt nuevo**: separa las dos causas en una corrida.
-3. **Un baseline con una variable a medias no es un baseline.** La primera
-   medición se hizo con el `models.py` nuevo y el prompt viejo — la peor de las
-   tres combinaciones — y dio 0/4, lo que parecía probar que la regresión era
-   preexistente. No lo era.
-4. **Una descripción de campo enfática puede colgar al modelo.** Un
-   `description` largo y en mayúsculas ("OBLIGATORIO…") hizo que Haiku entrara en
-   un loop generando `‌` hasta agotar `max_tokens`, y el JSON truncado se
-   descartaba entero. La misma regla, dicha corta y en tono neutro: 4/4 estable
-   en tres corridas. En salida estructurada, **el campo se describe, no se grita.**
-
-Y una que es de método, no de modelos: cuando el mismo síntoma vuelve tres veces
-con arreglos distintos, el arreglo está en el lugar equivocado. `habilidad_id`
-se resolvió cuando se dejó de pedirle al modelo lo que el código ya sabía — si
-la sesión trabajó una sola habilidad, no había nada que inferir.
-
----
-
-## Lección aprendida (fase 6)
-
-Dos datos se estaban **inventando solos**, en direcciones opuestas, y ninguno
-lo detectaron los tests:
-
-- `cumplimiento_metodo` devolvía `1.0` cuando no había ni una sesión auditada:
-  el reporte iba a decirle al papá que el método se sostuvo en el 100% de las
-  sesiones, sin haber mirado ninguna.
-- `grado_de_trabajo` devolvía 1 para un niño de 2° del que no había evidencia,
-  porque contaba nodos de 1° que nunca se midieron. El reporte le decía al papá
-  que su hijo trabaja por debajo de su grado.
-
-Los dos son el mismo error: **tratar la ausencia de evidencia como evidencia.**
-Lo detectó correr el reporte de verdad y leerlo, no la suite.
-
-→ Cuando un número va a llegarle al papá, `None` es una respuesta válida y hay
-que dejar que llegue hasta la superficie. "No lo medimos" se dice; no se
-completa con un default que parece un dato.
-
-Y una tercera, de la misma corrida: **la verificación estricta también hace
-daño si no distingue lo que se afirma de lo que se propone.** `verificar_reporte`
-tumbó un reporte correcto porque la sugerencia para casa decía "este dinosaurio
-pesaba 350 kilos". Un verificador que rechaza lo válido termina dejando al papá
-sin nada, que es el resultado que quería evitar.
-
----
-
-## Lección aprendida (fase 4)
-
-Hay **dos** definiciones del nodo de currículum: `knowledge/curriculum/schema.json`
-(valida los YAML) y `models.Habilidad` (lo que usa el código). Pueden separarse
-sin que nada avise — pasó con `verificable_en_codigo`, que vivió solo en el JSON
-desde la fase 0: el YAML lo declaraba, jsonschema lo validaba, y Pydantic lo
-descartaba en silencio.
-
-→ `test_schema_json_y_el_modelo_pydantic_no_se_desincronizan` compara los dos
-conjuntos de campos. **Al agregar un campo hay que tocar los dos archivos.**
-
----
-
-## Lección aprendida (fase 2)
-
-Los tests de `pedagogy.py` verificaban comportamiento **relativo** ("decae", "lo
-firme decae más lento") y todos pasaban — pero el olvido estaba calibrado diez
-veces más rápido de lo real: un niño "perdía" contar hasta 100 en dos semanas.
-
-Lo detectó la **demo**, no los tests.
-
-→ Para cualquier modelo con constantes numéricas, escribir también tests de
-**calibración absoluta** ("dos semanas no borran lo dominado", "las vacaciones
-desgastan pero no borran") y correr una simulación con datos realistas antes de
-darlo por bueno.
+**Lo que falta es evidencia, no código.** Ver `PENDIENTE.md` y
+`ARCHITECTURE.md` §17 para el plan de fases.

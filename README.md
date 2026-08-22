@@ -27,6 +27,41 @@ Sostener eso bajo presión —un niño que insiste *"ya lo intenté cinco veces,
 decime la respuesta"*— no se logra con un prompt que pide ser socrático. Se
 logra con arquitectura.
 
+<details>
+<summary><b>Una sesión real, cuando le piden la respuesta para no tener que estudiar</b></summary>
+
+Transcripción sin retocar de `ses_47dfebd9aa43`:
+
+```
+NIÑO   Listo, ¿y cuánto es 20 - 20, que es lo que tengo en mi tarea?
+       Solo dime cuánto es y ya, para yo poder hacer la tarea y no
+       tener que estudiar.
+
+TUTOR  Uy, Felipe, si te la digo yo, mañana no vas a saber cómo hacerla
+       en el examen. Vamos juntos, ¿listo? Cuéntame cómo la pensaste
+       primero.
+
+NIÑO   Ah, pero si sabías que soy Felipe, ¿por qué antes no me dijiste
+       que era Felipe?
+
+TUTOR  ¡Qué preguntota! Tienes toda la razón, discúlpame. Tu mamá me
+       contó un poquito de ti para que nos conociéramos más rápido,
+       ¡pero lo demás me lo vas a contar tú!
+```
+
+Dos cosas que no son del prompt: la primera respuesta la sostiene la
+arquitectura —el tutor no tiene forma de saber el resultado, `verify_arithmetic`
+devuelve si acertó y qué tan lejos quedó, **nunca el número**—, y la segunda
+sale de que el niño lo pilló en algo verdadero y el tutor lo admitió en vez de
+inventar.
+
+Y en otra sesión, cuatro días después: *"sé que te gusta dibujar, que tu color
+favorito es el rojo, y que andas en tercero. Ah, y que tu prima te anda
+preguntando por BTS, ¿no?"* — a lo que el niño contestó *"no era mi prima, era
+mi hermana"*. Eso es la ficha longitudinal funcionando, y corrigiéndose.
+
+</details>
+
 ---
 
 ## El norte
@@ -39,7 +74,7 @@ no sirve a ninguno, no entra al MVP.
 | 1 | **Curriculum fidelity** | Grafo de habilidades con prerrequisitos, anclado a DBA (Colombia), EBC y Core Knowledge. Planificador determinístico |
 | 2 | **Safety** | Vigilante independiente + prefiltro en código + `escalate_safety`. Dos caminos a la alarma |
 | 3 | **Longitudinal memory** | Ficha del niño en dos mitades, consolidada sesión a sesión, con decaimiento |
-| 4 | **Parent trust** | Auditoría del método en el **100%** de las sesiones, reportes verificados contra los datos |
+| 4 | **Parent trust** | Se audita **toda** sesión que deje transcripción — no una muestra. Los reportes se verifican en código contra los datos |
 | 5 | **Formación de carácter** | El tutor forma la persona, no solo la competencia académica |
 
 Los cuatro primeros son de YC. El quinto es propio y viene de la
@@ -64,14 +99,20 @@ el niño habla → el tutor usa el banco y check_answer → la sesión cierra
 
 | | |
 |---|---|
-| Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje |
+| Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado contra los documentos primarios |
 | Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
-| Tests de Python | **386**, en verde |
+| Tests de Python | **398**, en verde |
 | Tests del front | **73**, en verde |
-| Casos de eval en las 4 suites de YC | **48** |
-| Sesiones de voz reales | 35, la más larga de 9 minutos |
+| Casos de eval en las 4 suites de YC | **48** — la última corrida completa dio 45/45 el 20/08; los 3 casos agregados después no se han corrido |
+| Sesiones de voz corridas | **62** · 71 transcripciones · 41 auditorías del método |
 
 Probado con voz real, cámara, pizarra y hoja de dibujo. Lint en cero.
+
+**Y las 62 sesiones son nuestras.** Ningún niño ajeno ha usado esto todavía. Lo
+que demuestran es que el sistema aguanta en vivo — de ahí salieron el "dos" que
+se transcribía "32", el turno que no se abría cuando alguien contesta bajito, y
+el tutor inventando lo que veía por la cámara. **No demuestran que un niño
+aprenda**, y no vamos a decir que sí hasta medirlo.
 
 **Lo que falta no es código: es evidencia de uso.** Cinco niños que no seamos
 nosotros, una semana, y las tres preguntas que ninguna feature reemplaza —
@@ -175,7 +216,48 @@ runtime. Cambiar el comportamiento de un agente no debe tocar Python.
 
 **Las transcripciones se borran a los N días.** El activo es la ficha
 estructurada, no la conversación cruda. Toda sesión tiene techo de tiempo y de
-tokens; también hay techo diario y mensual por niño.
+tokens; también hay techo diario y mensual por niño: 45 minutos por sesión, 3
+sesiones al día, 8 USD al mes.
+
+---
+
+## Lo que este proyecto afirma, y lo que no
+
+Es fácil vender humo en edtech, así que conviene ser explícito.
+
+**Afirma** que el nivel de un niño se **mide**, no se supone por su edad —
+todo el planificador se apoya en eso. Afirma que la aritmética se puede
+verificar en código y que por lo tanto el tutor no puede equivocarse
+calificando: no es que sea bueno calculando, es que **no calcula**. Y afirma
+que lo que se le dice al papá se puede contrastar contra la fuente, porque
+hay código que lo contrasta antes de mandarlo.
+
+**No afirma que el niño aprenda más rápido.** No está medido. Esa es la
+evidencia que falta y la decimos primero, no en una nota al pie.
+
+**No afirma nada sobre "estilos de aprendizaje".** No clasificamos a nadie como
+visual, auditivo o kinestésico. No está en el sistema, no está en el grafo y no
+va a estar: la investigación no lo sostiene.
+
+**No diagnostica ni lo insinúa.** Ni dificultades de aprendizaje, ni atención,
+ni nada. Se describe lo que el niño hizo, nunca cómo es. Eso es trabajo de un
+profesional, no de un producto.
+
+**El modelo de olvido es una calibración razonable, no una medición.** Está
+ajustado contra el sentido común pedagógico —un chico que aprendió a contar
+hasta 100 no lo pierde en dos semanas— y tiene tests de calibración absoluta.
+No está validado contra estos niños, porque todavía no hay estos niños.
+
+### Y la auditoría nos pilla a nosotros
+
+De las 41 sesiones auditadas hasta hoy, el Analista marcó que **el tutor regaló
+la respuesta en 7** — un 17 %. También detectó elogio inflado en 5 y una
+afirmación falsa en otras 5.
+
+Ese número podría no estar acá. Está porque es el punto: **una auditoría que
+siempre dice que todo salió bien no es una auditoría.** Ya nos pasó una vez —
+`cumplimiento_metodo` devolvía 100 % cuando no había ni una sesión revisada, y
+el reporte se lo iba a decir al papá. Lo cuenta `BITACORA.md`.
 
 ---
 
@@ -220,7 +302,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env            # y completar ANTHROPIC_API_KEY y GOOGLE_API_KEY
 
-pytest                          # 386 tests, rápidos, sin red
+pytest                          # 398 tests, rápidos, sin red
 ```
 
 ### Para hablar con el tutor
@@ -285,15 +367,21 @@ archivo.
 
 ## Documentos
 
-- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — las decisiones y su razón. La
+- **[`CLAUDE.md`](CLAUDE.md)** — cómo trabajar acá: las reglas duras, dónde va
+  cada cosa y cómo se verifica
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — qué se decidió y su razón. La
   memoria del proyecto. Si algo no está ahí, no se decidió
-- **[`CLAUDE.md`](CLAUDE.md)** — reglas duras, convenciones y las lecciones
-  aprendidas de cada fase, con el error que las provocó
+- **[`BITACORA.md`](BITACORA.md)** — por qué las reglas son las que son. Ocho
+  bugs que costaron caro, con su causa real. Cuatro eran la misma falla: algo
+  dejó de pasar y no había dónde enterarse
 - **[`PENDIENTE.md`](PENDIENTE.md)** — dónde retomar. Se poda, no solo se agrega
 - **[`knowledge/product/constitucion_valores.md`](knowledge/product/constitucion_valores.md)**
   — el ADN ético-valórico. Manda sobre el producto
 - **[`knowledge/curriculum/FUENTES.md`](knowledge/curriculum/FUENTES.md)** — de
   dónde sale cada anclaje y qué se verificó contra el primario
+- **[`knowledge/curriculum/base_academica_men.md`](knowledge/curriculum/base_academica_men.md)**
+  — el marco del MEN alrededor del grafo: áreas, EBC, Saber, calendarios y
+  desarrollo cognitivo. Ver `ARCHITECTURE.md` §19
 
 ---
 
