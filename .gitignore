@@ -2,6 +2,9 @@
 # Contienen datos de menores. Ver ARCHITECTURE.md §12.
 data/
 
+# Capturas del e2e: se regeneran corriendo la prueba
+capturas/
+
 # Secretos
 .env
 

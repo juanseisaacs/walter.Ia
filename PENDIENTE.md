@@ -155,6 +155,44 @@ sesión, así que además pesa contra el techo. Arreglarlo toca la salida del
 Analista — la operación que la fase 7 dejó marcada como la más cara — así que
 va con evals detrás, no de paso.
 
+### 🔴 El tutor nunca rompe el silencio, y una de cada cuatro sesiones muere ahí
+
+Lo destapó `scripts.e2e_voz` en su primera corrida real, el 22/08. La sesión
+abre bien, el planificador elige tema, la cara aparece, el estado dice *«Te
+escucho»*… y **pasan quince segundos sin que el tutor diga una palabra.**
+
+Contado sobre las 71 transcripciones reales:
+
+| Quién abre la conversación | Sesiones |
+|---|---|
+| El niño | **52** |
+| El tutor | **0** |
+| Nadie — la sesión queda vacía | **19** |
+
+El tutor no saluda nunca. Espera. Un chico de 7 años frente a una cara
+sonriente que no le habla no insiste: se va. **Eso explica las 19 sesiones
+vacías** de abajo mucho mejor que cualquiera de las tres hipótesis que estaban
+anotadas acá.
+
+Es la falla de producto más barata de arreglar y la más cara de dejar: se
+pierde una de cada cuatro sesiones **antes de la primera palabra**, y ninguna
+de las features que vienen después importa si el niño no llega a hablar.
+
+Lo que hay que decidir antes de tocar nada es **qué dice**, y eso es decisión
+de producto, no de código:
+
+- ¿Saluda igual todos los días, o el primer día distinto? Ya existe
+  `primer_encuentro.es.md` para eso.
+- ¿Nombra el tema de hoy (*«¿seguimos con pares e impares?»*) o abre libre?
+- ¿Y si el niño no contesta al saludo? Callarse otra vez lo devuelve al mismo
+  silencio.
+
+Mecánicamente el enganche está: `useTutor.ts` ya sabe mandar texto por
+`sendClientContent`. Falta el turno de apertura y qué poner en él.
+
+`e2e_voz` deja esa comprobación en rojo a propósito: mientras el tutor no
+hable primero, la prueba tiene que doler.
+
 ### Una de cada tres sesiones se abre y se cierra sin un solo turno
 
 Medido el 22/08 sobre los datos reales: **19 de 62 sesiones tienen la

@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Cinco de las nueve entradas de abajo son la misma falla con distinta cara:
+Cinco de las diez entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -306,4 +306,47 @@ O sea que la regla dura decía *«las transcripciones se borran a los N días»*
 Y un hallazgo colateral que quedó anotado en `PENDIENTE.md`: **19 de 62 sesiones
 (31 %) se abren y se cierran sin un solo turno**, una de ellas de 117,7 minutos.
 Cada una consume un token efímero y cuenta contra el tope diario.
+
+---
+
+## Lección aprendida (el silencio que nadie oyó, 22/08)
+
+`scripts/e2e_voz.py` es el cuarto de los cinco puntos que se trajeron del
+peritaje: una prueba de punta a punta con navegador de verdad, micrófono
+sintético y sesión Live real contra Gemini. Se escribió para automatizar lo que
+`PENDIENTE.md` venía pidiendo a mano desde hacía días.
+
+**Encontró el bug más caro del producto en su primera corrida.** La sesión abre
+en 2,1 s, el planificador elige tema, la cara aparece, el estado dice «Te
+escucho»… y pasan quince segundos sin que el tutor diga una palabra. El tutor
+**no saluda nunca**: espera a que hable el niño.
+
+Contado después sobre las 71 transcripciones reales: el niño abre la
+conversación en las 52 que tienen contenido, el tutor en **cero**, y 19 quedaron
+vacías. Una de cada cuatro sesiones muere antes de la primera palabra.
+
+1. **Estaba a la vista desde el primer día y nadie lo vio.** Las 71
+   transcripciones estaban en disco; bastaba contar quién habla primero, que es
+   una línea de código. No se vio porque quien probaba el producto era quien lo
+   construyó, y un adulto que sabe cómo funciona **siempre** saluda primero. El
+   micrófono sintético no sabe nada del producto, y por eso se comportó como el
+   usuario real que se queda callado esperando.
+2. **La prueba de voz no valía por medir latencia.** Se justificó como «medir el
+   silencio hasta que contesta» y terminó valiendo por algo que no estaba en la
+   lista: que nadie contestaba. El valor de una prueba de punta a punta no es
+   confirmar lo que ya se sabe, es que la ejecute alguien sin las suposiciones
+   del que la escribió.
+3. **El dato ya estaba en `PENDIENTE.md` y estaba mal explicado.** «19 de 62
+   sesiones se abren sin un solo turno» llevaba tres hipótesis anotadas
+   —recargas de página, sesiones que mueren al conectar, el navegador abriendo
+   antes de tiempo— y ninguna era la buena. La causa no era técnica.
+4. **Una prueba en rojo a propósito.** La comprobación «el tutor le habla
+   primero al niño» queda fallando hasta que se arregle. Un e2e que se pone en
+   verde bajando el listón deja de servir.
+
+Y un detalle de método, porque se repitió: la prueba se verificó rompiendo lo
+que mide —un `console.error` inyectado en el build— antes de creerle. Salió en
+rojo con exit 1 y en verde con exit 0. Es la tercera vez en dos días que
+comprobar el detector encuentra algo; la primera fue el inspector de la pizarra
+y la segunda el hook de knowledge/, que aprobaba sin haber validado nada.
 

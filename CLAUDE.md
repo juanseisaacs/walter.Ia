@@ -171,6 +171,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | `python -m evals.runner` | Las 4 suites de YC, 48 casos, contra el modelo real | **sí** |
 | `python -m scripts.verificar_gemini` | Los supuestos de la Live API contra la API real | **sí** |
 | `python -m scripts.verificar_vision` | ¿El tutor VE o completa? Le muestra lo que no puede adivinar | **sí** |
+| `python -m scripts.e2e_voz` | La pantalla del niño en un navegador de verdad, con sesión Live real. `--sin-voz` hace la mitad que no cuesta nada | **sí** |
 | `python -m scripts.procesar_pendientes` | Drena la cola del Analista **y aplica la retención**. La purga corre siempre, aunque la cola esté vacía o falte la llave. `--seco` la calcula sin borrar | **sí** |
 | `python -m scripts.generar_reportes` | El reporte semanal al papá | **sí** |
 

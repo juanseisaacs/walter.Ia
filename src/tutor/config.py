@@ -33,7 +33,21 @@ comparar dos versiones sin tocar código ni perder las actuales.
 
 Sin la variable, los de siempre."""
 
-DATOS = RAIZ / "data"
+DATOS = Path(os.environ["DATOS_DIR"]) if os.getenv("DATOS_DIR") else RAIZ / "data"
+"""Dónde vive todo lo de runtime: la base, las transcripciones, los reportes.
+
+Mismo patrón que `PROMPTS_DIR`, y por la misma razón — poder apuntar a otro
+lado sin tocar código:
+
+    $env:DATOS_DIR = "C:\\tmp\\prueba"
+
+Lo pide la prueba de voz de punta a punta (`scripts.e2e_voz`), que levanta el
+backend contra una base desechable. Sin esto, cada corrida dejaría un niño
+inventado y una sesión de prueba entre los datos de verdad — que es justo lo
+que ya ensuciamos con las 19 sesiones vacías anotadas en `PENDIENTE.md`.
+
+Sin la variable, `data/` de siempre."""
+
 DB = DATOS / "tutor.db"
 TRANSCRIPCIONES = DATOS / "transcripts"
 REPORTES = DATOS / "reports"
