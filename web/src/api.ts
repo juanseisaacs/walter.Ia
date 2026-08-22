@@ -22,6 +22,8 @@ export interface SesionAbierta {
   habilidad_id: string;
   habilidad_nombre: string;
   ejercicios: Ejercicio[];
+  /** Instrucción interna que dispara el saludo del tutor. No la oye el niño. */
+  apertura?: string;
 }
 
 export interface Turno {

@@ -431,6 +431,29 @@ def cargar_prompt(nombre: str, idioma: str = cfg.IDIOMA_POR_DEFECTO) -> str:
     return ruta.read_text(encoding="utf-8").strip()
 
 
+def instruccion_de_apertura(primer_encuentro: bool = False) -> str:
+    """Lo que provoca que el TUTOR hable primero.
+
+    No es parte del prompt de sesión: es un turno que el navegador manda apenas
+    conecta, para que el modelo produzca audio sin esperar al niño.
+
+    Hizo falta porque el tutor no abría la conversación **nunca**. Medido el
+    22/08 sobre 71 transcripciones reales: el niño habla primero en las 52 que
+    tienen contenido, el tutor en 0, y 19 quedaron vacías. Una de cada cuatro
+    sesiones moría antes de la primera palabra — el chico abría la app, veía una
+    cara que no le decía nada, y se iba.
+
+    Todo lo demás ya estaba: `primer_encuentro.es.md` explica cómo presentarse y
+    `session.abrir()` sabe cuándo es el primer día. Lo que faltaba era el
+    disparo. Es el patrón de `BITACORA.md` una vez más — contenido escrito, sin
+    nadie que lo invoque.
+
+    El texto vive en `knowledge/prompts/`: cambiar cómo saluda el tutor no
+    debería tocar Python, y esto es justo lo que se va a querer ajustar.
+    """
+    return cargar_prompt("apertura_primer_dia" if primer_encuentro else "apertura")
+
+
 def _bloque_temas(temas: list[tuple[str, str]], principal: str | None) -> str:
     """Los temas que el banco tiene cargados HOY, con su id.
 

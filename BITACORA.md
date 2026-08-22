@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Cinco de las diez entradas de abajo son la misma falla con distinta cara:
+Cinco de las once entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -349,4 +349,39 @@ que mide —un `console.error` inyectado en el build— antes de creerle. Salió
 rojo con exit 1 y en verde con exit 0. Es la tercera vez en dos días que
 comprobar el detector encuentra algo; la primera fue el inspector de la pizarra
 y la segunda el hook de knowledge/, que aprobaba sin haber validado nada.
+
+---
+
+## Lección aprendida (lo último que se dice se perdía siempre, 22/08)
+
+Arreglado el silencio inicial —el tutor ya saluda primero— el e2e volvió a
+correr y quedó una comprobación en rojo que no se esperaba: **el tutor hablaba y
+la transcripción seguía en 0 bytes.**
+
+`terminar()` reportaba la cola de turnos pendientes y después limpiaba
+`acumNinoRef` y `acumTutorRef` **sin encolarlos**. Ahí vive lo que se está
+diciendo en el turno en curso, el que todavía no cerró con `turnComplete`. O
+sea: el último turno de cada sesión se perdía siempre, desde siempre.
+
+1. **En una sesión corta, ese turno es la sesión entera.** El bug llevaba meses
+   y se veía como una línea de menos en la transcripción — invisible entre
+   cuarenta. Solo se hizo evidente en una sesión de un turno, que es justo lo que
+   el e2e produce.
+2. **Un arreglo destapó el siguiente.** El silencio inicial escondía este: sin
+   nadie hablando, no había último turno que perder. Es la tercera vez esta
+   semana que quitar una capa deja ver la de abajo.
+3. **Lo que se pierde no es simétrico.** El último turno es donde el niño se
+   despide, donde suelta lo que quedó pendiente, y donde el tutor cierra con lo
+   que le gustó de cómo trabajó — que es literalmente lo que `primer_encuentro
+   .es.md` pide para que quiera volver. De todos los turnos posibles, se estaba
+   perdiendo el que más pesa.
+
+El arreglo son seis líneas: empujar los dos acumulados a la cola antes del
+último reporte. Se empujan a mano en vez de llamar a `cerrarTurnoAcumulado()`
+porque ese dispara su propio reporte en paralelo, y en el cierre interesa que
+todo salga junto en la última llamada.
+
+Verificado con el e2e antes y después: `0 bytes` → `tutor: ¡Hola! Yo soy
+Walter. Vamos a estudiar juntos y te voy a acompañar un buen rato, no solo hoy.
+Oye, ¿a ti te gustan los dinosaurios?`
 

@@ -311,6 +311,13 @@ def _correr(
             "abrió la conversación 0 veces, y 19 murieron vacías",
         )
 
+        # Dejarlo terminar la frase antes de cortar. Sin esto la transcripción
+        # guarda "¡Hola! Yo" y se pierde el resto del saludo: cortar al tutor a
+        # mitad de palabra no prueba nada de lo que se quería probar.
+        if hablo:
+            print("  dejándolo terminar el saludo…")
+            pag.wait_for_timeout(9_000)
+
         pag.click("text=Terminar")
         pag.wait_for_timeout(2_500)
 
@@ -322,7 +329,22 @@ def _correr(
         turnos = transcripcion.read_text(encoding="utf-8").strip() if transcripcion.exists() else ""
         if turnos:
             res.dato("turnos registrados", str(len(turnos.splitlines())))
-            res.dato("primera línea", turnos.splitlines()[0][:70])
+            primera = turnos.splitlines()[0]
+            res.dato("cómo abrió", primera[:150])
+
+            res.comprobar(
+                "el que abre la conversación es el tutor",
+                primera.startswith("tutor:"),
+                f"abrió {primera.split(':')[0]!r}",
+            )
+            # Es un niño recién creado: `madurez_vinculo` en cero, o sea que hoy
+            # se conocen. Tiene que presentarse con su nombre, no entrar como
+            # si vinieran de veinte sesiones.
+            res.comprobar(
+                "el primer día se presenta con su nombre",
+                "walter" in primera.lower(),
+                "no dijo cómo se llama en el primer encuentro",
+            )
             # Con turnos, la sesión TIENE que quedar en la cola del Analista.
             res.comprobar(
                 "y encolada para el Analista",

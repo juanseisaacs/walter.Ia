@@ -1,6 +1,6 @@
 # Pendiente — retomar acá
 
-_Última poda: 2026-08-21._
+_Última poda: 2026-08-22._
 
 > Este archivo se **poda**, no solo se agrega. El 20/08 tenía 25 secciones y
 > ocho de los pendientes marcados en rojo ya estaban hechos hacía días — leerlo
@@ -16,11 +16,14 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **386 tests** de Python · **73** del front · **evals 45/45** · lint en cero
-- **35 sesiones de voz reales**, la más larga de 9 minutos
+- **415 tests** de Python · **73** del front · **evals 45/45** (los 3 casos
+  agregados después no se han corrido) · lint en cero
+- **62 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
+- La pantalla del niño tiene prueba de punta a punta con navegador y sesión
+  Live real: `python -m scripts.e2e_voz` (14/14 el 22/08)
 - **54 habilidades** de matemáticas (1° a 5°, el MEN numérico completo) con
   triple anclaje · **1.408 ejercicios validados**, ninguna habilidad vacía
-- 4 niños en la base, todos de prueba
+- 5 niños en la base, todos de prueba
 
 ### Cómo levantarlo
 
@@ -155,43 +158,26 @@ sesión, así que además pesa contra el techo. Arreglarlo toca la salida del
 Analista — la operación que la fase 7 dejó marcada como la más cara — así que
 va con evals detrás, no de paso.
 
-### 🔴 El tutor nunca rompe el silencio, y una de cada cuatro sesiones muere ahí
+### El tutor ya saluda primero — falta ver si alcanza
 
-Lo destapó `scripts.e2e_voz` en su primera corrida real, el 22/08. La sesión
-abre bien, el planificador elige tema, la cara aparece, el estado dice *«Te
-escucho»*… y **pasan quince segundos sin que el tutor diga una palabra.**
+Resuelto el 22/08. El tutor abre la conversación apenas el niño entra:
+`session.abrir()` manda una instrucción de apertura que el navegador dispara al
+conectar, y el texto vive en `knowledge/prompts/apertura*.md` — distinto el
+primer día que los siguientes, como se decidió.
 
-Contado sobre las 71 transcripciones reales:
+Verificado contra Gemini real (`scripts.e2e_voz`, 14/14): el primer día dice
+*«¡Hola! Yo soy Walter. Vamos a estudiar juntos y te voy a acompañar un buen
+rato, no solo hoy. Oye, ¿a ti te gustan los dinosaurios?»* — se presenta y hace
+una sola pregunta, que es el guion de `primer_encuentro.es.md`.
 
-| Quién abre la conversación | Sesiones |
-|---|---|
-| El niño | **52** |
-| El tutor | **0** |
-| Nadie — la sesión queda vacía | **19** |
+**Lo que falta es saber si sirve.** Que el tutor hable primero elimina la causa
+que dejaba 19 de 71 sesiones vacías, pero eso es una hipótesis hasta que haya
+sesiones nuevas con las que compararlo. La medición es de una línea: contar
+otra vez quién abre la conversación, dentro de un par de semanas.
 
-El tutor no saluda nunca. Espera. Un chico de 7 años frente a una cara
-sonriente que no le habla no insiste: se va. **Eso explica las 19 sesiones
-vacías** de abajo mucho mejor que cualquiera de las tres hipótesis que estaban
-anotadas acá.
-
-Es la falla de producto más barata de arreglar y la más cara de dejar: se
-pierde una de cada cuatro sesiones **antes de la primera palabra**, y ninguna
-de las features que vienen después importa si el niño no llega a hablar.
-
-Lo que hay que decidir antes de tocar nada es **qué dice**, y eso es decisión
-de producto, no de código:
-
-- ¿Saluda igual todos los días, o el primer día distinto? Ya existe
-  `primer_encuentro.es.md` para eso.
-- ¿Nombra el tema de hoy (*«¿seguimos con pares e impares?»*) o abre libre?
-- ¿Y si el niño no contesta al saludo? Callarse otra vez lo devuelve al mismo
-  silencio.
-
-Mecánicamente el enganche está: `useTutor.ts` ya sabe mandar texto por
-`sendClientContent`. Falta el turno de apertura y qué poner en él.
-
-`e2e_voz` deja esa comprobación en rojo a propósito: mientras el tutor no
-hable primero, la prueba tiene que doler.
+Y queda una pregunta abierta que solo se contesta viendo a un niño: **si no
+contesta el saludo, ¿el tutor insiste?** Hoy se queda callado esperando, que es
+volver al mismo silencio un turno más tarde.
 
 ### Una de cada tres sesiones se abre y se cierra sin un solo turno
 

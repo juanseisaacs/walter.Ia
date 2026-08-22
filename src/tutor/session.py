@@ -41,6 +41,7 @@ from .voice import (
     EmisorDeTokens,
     construir_instruccion_sistema,
     deteccion_para_edad,
+    instruccion_de_apertura,
 )
 
 
@@ -137,6 +138,17 @@ class SesionAbierta(BaseModel):
     habilidad_nombre: str
     ejercicios: list[Ejercicio]
 
+    apertura: str = ""
+    """El turno que el navegador manda apenas conecta, para que hable el TUTOR.
+
+    Es una instrucción interna, no algo que el niño oiga: el modelo la lee y
+    contesta en audio con su saludo. Distinta el primer día (se presenta) que
+    los siguientes (lo saluda por su nombre y propone por dónde seguir).
+
+    Viaja desde acá y no está escrita en el navegador por la misma razón que el
+    resto del prompt: cambiar cómo saluda el tutor no puede pedir un build del
+    front. El texto vive en `knowledge/prompts/apertura*.md`."""
+
     max_tokens: int = cfg.MAX_TOKENS_SESION
     """El techo de gasto, que hasta ahora solo conocía el backend.
 
@@ -231,6 +243,11 @@ class Orquestador:
         # inventando ejercicios.
         banco = BancoDeSesion(ejercicios, principal=objetivo.id)
 
+        # `madurez_vinculo` sube en cada sesión analizada: en cero significa que
+        # todavía no se conocen. Decide dos cosas distintas — qué instrucciones
+        # lleva el prompt, y con qué frase abre la boca el tutor.
+        primer_encuentro = nino.perfil.madurez_vinculo == 0
+
         configuracion = ConfiguracionSesion(
             instruccion_sistema=construir_instruccion_sistema(
                 resumen_para_prompt(nino, self.grafo, ahora),
@@ -238,7 +255,7 @@ class Orquestador:
                 nino.idioma,
                 temas=self._temas_para_prompt(banco),
                 tema_principal=objetivo.id,
-                primer_encuentro=nino.perfil.madurez_vinculo == 0,
+                primer_encuentro=primer_encuentro,
             ),
             deteccion=deteccion_para_edad(nino.edad),
         )
@@ -258,6 +275,7 @@ class Orquestador:
             habilidad_id=objetivo.id,
             habilidad_nombre=objetivo.nombre.es,
             ejercicios=ejercicios,
+            apertura=instruccion_de_apertura(primer_encuentro),
         )
 
     def _precargar(

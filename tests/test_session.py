@@ -115,6 +115,74 @@ def test_abrir_deja_todo_listo(orq):
     assert a.deteccion.silencio_ms >= 800, "paciencia calibrada por edad"
 
 
+def test_la_sesion_trae_con_que_hacer_hablar_al_tutor_primero(orq):
+    """Sin esto, el tutor no abre la boca hasta que el niño hable.
+
+    Y el niño no habla: medido el 22/08 sobre 71 transcripciones reales, el
+    tutor abrió la conversación 0 veces y 19 sesiones quedaron completamente
+    vacías. Una de cada cuatro moría antes de la primera palabra.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    assert a.apertura, "la sesión salió sin nada que dispare el saludo del tutor"
+
+
+def test_el_primer_dia_el_tutor_saluda_distinto(orq, repo):
+    """Presentarse una vez, no todos los días.
+
+    `madurez_vinculo` en cero significa que todavía no se conocen. Un tutor que
+    en la sesión 40 se sigue presentando no recuerda al niño, y eso es
+    exactamente lo contrario de lo que el producto promete.
+    """
+    nino = repo.obtener_nino("n1")
+    assert nino.perfil.madurez_vinculo == 0, "el niño de prueba arranca sin vínculo"
+    primera = orq.abrir("n1", ahora=AHORA).apertura
+
+    # Ya se conocen: sube el contador como lo sube el Analista tras cada sesión.
+    nino.perfil.madurez_vinculo = 5
+    repo.guardar_nino(nino)
+    siguiente = orq.abrir("n1", ahora=AHORA).apertura
+
+    assert primera != siguiente, "saluda igual el primer día que el día 40"
+    assert "PRIMERA" in primera, "el primer día no dice que se están conociendo"
+
+
+def test_el_navegador_de_verdad_manda_la_apertura():
+    """El backend puede mandarla perfecta y el front ignorarla.
+
+    Es el mismo antipatrón que `test_contrato_pizarra`: algo declarado de un
+    lado y consumido del otro, en dos lenguajes, sin nada que los ate. Y acá
+    duele más, porque el síntoma de que falle es **silencio** — nadie ve un
+    error, el niño simplemente no oye nada y se va.
+    """
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parent.parent
+    hook = (raiz / "web" / "src" / "voz" / "useTutor.ts").read_text(encoding="utf-8")
+
+    assert "sesion.apertura" in hook, (
+        "useTutor.ts dejó de usar `apertura`: el tutor volvió a esperar en "
+        "silencio a que hable el niño"
+    )
+    assert "sendClientContent" in hook, "sin sendClientContent no hay turno que disparar"
+
+    tipos = (raiz / "web" / "src" / "api.ts").read_text(encoding="utf-8")
+    assert "apertura" in tipos, "el tipo del cliente no declara el campo"
+
+
+def test_la_apertura_no_es_algo_que_el_nino_deba_oir(orq):
+    """Es una instrucción para el modelo, no un guion para leer.
+
+    Un modelo de voz lee en voz alta lo que le mandas si no le queda clarísimo
+    que no debe. Estas dos aperturas lo dicen en la primera línea y en
+    mayúsculas — y si alguien las reescribe sin eso, el niño va a oír «esto no
+    se lee en voz alta», que es peor que el silencio.
+    """
+    from tutor.voice import instruccion_de_apertura
+
+    for texto in (instruccion_de_apertura(True), instruccion_de_apertura(False)):
+        assert "NO SE LEE EN VOZ ALTA" in texto.upper()
+
+
 def test_el_banco_trae_mas_de_una_habilidad(orq):
     """Para que "mejor hagamos restas" no obligue al tutor a improvisar.
 

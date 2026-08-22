@@ -101,7 +101,7 @@ el niño habla → el tutor usa el banco y check_answer → la sesión cierra
 |---|---|
 | Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado contra los documentos primarios |
 | Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
-| Tests de Python | **411**, en verde |
+| Tests de Python | **415**, en verde |
 | Tests del front | **73**, en verde |
 | Casos de eval en las 4 suites de YC | **48** — la última corrida completa dio 45/45 el 20/08; los 3 casos agregados después no se han corrido |
 | Sesiones de voz corridas | **62** · 71 transcripciones · 41 auditorías del método |
@@ -302,7 +302,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env            # y completar ANTHROPIC_API_KEY y GOOGLE_API_KEY
 
-pytest                          # 411 tests, rápidos, sin red
+pytest                          # 415 tests, rápidos, sin red
 ```
 
 ### Para hablar con el tutor

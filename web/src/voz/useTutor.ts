@@ -594,6 +594,23 @@ export function useTutor(ninoId: string) {
 
       const sesion = sesionRef.current;
       if (sesion) {
+        /* Lo que se estaba diciendo JUSTO cuando se cerró también cuenta.
+           Hasta el 22/08 estas dos líneas se limpiaban más abajo sin encolarse,
+           así que el último turno de cada sesión se perdía siempre — y en una
+           sesión corta ese turno puede ser el único que hubo. Se vio con el
+           e2e: el tutor saludaba, se le daba a Terminar, y la transcripción
+           quedaba en 0 bytes pese a que había hablado.
+
+           Se empujan a mano en vez de llamar a `cerrarTurnoAcumulado()` porque
+           ese dispara su propio reporte en paralelo si llega al lote, y acá
+           interesa que salga todo junto en la última llamada. */
+        if (acumNinoRef.current) {
+          pendientesRef.current.push({ quien: "nino", texto: acumNinoRef.current });
+        }
+        if (acumTutorRef.current) {
+          pendientesRef.current.push({ quien: "tutor", texto: acumTutorRef.current });
+        }
+
         if (pendientesRef.current.length) {
           await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
         }
@@ -942,6 +959,33 @@ export function useTutor(ninoId: string) {
       canalRef.current?.postMessage({ tipo: "arranco", pestana: pestanaRef.current });
 
       setEstado("escuchando");
+
+      /* QUE HABLE EL TUTOR PRIMERO.
+         Hasta el 22/08 acá no pasaba nada: la sesión quedaba abierta esperando
+         a que el niño rompiera el silencio. Medido sobre 71 transcripciones
+         reales — el niño abre la conversación en las 52 que tienen contenido,
+         el tutor en NINGUNA, y 19 quedaron vacías. Una de cada cuatro sesiones
+         moría antes de la primera palabra: el chico entraba, veía una cara que
+         no le decía nada, y se iba.
+
+         El texto no está acá a propósito: viene del backend (`sesion.apertura`)
+         y vive en `knowledge/prompts/apertura*.md`, distinto el primer día que
+         los siguientes. Cambiar cómo saluda el tutor no puede pedir un build
+         del front.
+
+         Va DESPUÉS del micrófono: si el niño contesta encima del saludo, el
+         barge-in ya está escuchando. Y si esto falla, la sesión sigue viva —
+         un saludo perdido es mucho menos grave que no poder hablar. */
+      if (sesion.apertura) {
+        try {
+          live.sendClientContent({
+            turns: { role: "user", parts: [{ text: sesion.apertura }] },
+            turnComplete: true,
+          });
+        } catch (e) {
+          console.warn("[apertura] el tutor no pudo saludar primero:", e);
+        }
+      }
     } catch (e: any) {
       // Un arranque a medias deja el micrófono abierto y el socket colgando:
       // el siguiente intento se sumaría encima en vez de reemplazarlo.
