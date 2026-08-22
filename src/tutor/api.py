@@ -41,7 +41,7 @@ from .pipeline import (
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
 from .tecnicas import cambio_de_metodo, cargar_biblioteca
-from .tools import Veredicto, check_answer, verify_arithmetic
+from .tools import Veredicto, check_answer, verify_arithmetic, verify_language
 from .voice import emisor_por_defecto
 
 
@@ -411,6 +411,36 @@ def tool_verify_arithmetic(cuerpo: VerificarCuenta):
         "veredicto": r.veredicto.value,
         "valor_interpretado": r.valor_interpretado,
         "distancia": r.distancia.value if r.distancia else None,
+    }
+
+
+class VerificarLengua(BaseModel):
+    palabra: str = Field(description="La palabra por la que preguntó el tutor")
+    que: str = Field(description="Qué le preguntó: silabas, separar, inicial, rima…")
+    respuesta_nino: str = Field(description="Lo que dijo el niño, sin interpretar")
+    palabra2: str = Field(default="", description="Solo para `rima`: la segunda palabra")
+
+
+@app.post("/api/tools/verify_language", tags=["tools"])
+def tool_verify_language(cuerpo: VerificarLengua):
+    """Lo mismo que `verify_arithmetic`, para lectura y escritura.
+
+    Existe porque el 22/08, en una sesión de sílabas trabadas, el tutor llamó
+    seis veces a `verify_arithmetic` —la única herramienta de verificar que
+    tenía— y como no sabe nada de sílabas le devolvió REQUIERE_JUICIO las seis.
+    Entonces el modelo juzgó él, y a un niño que separó «prim-o» le dijo
+    «¡Perfecto!». Lo notó el niño.
+
+    A diferencia de la aritmética, acá SÍ se devuelve lo correcto, pero solo
+    cuando el niño ya se equivocó: la corrección de un silabeo no es «la
+    respuesta» que arruina el ejercicio, y sin ella el tutor la inventa.
+    """
+    r = verify_language(cuerpo.palabra, cuerpo.que, cuerpo.respuesta_nino, cuerpo.palabra2)
+    return {
+        "correcto": r.veredicto == Veredicto.CORRECTO,
+        "veredicto": r.veredicto.value,
+        "valor_interpretado": r.valor_interpretado,
+        "lo_correcto": r.lo_correcto,
     }
 
 

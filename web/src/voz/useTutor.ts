@@ -23,6 +23,23 @@ import type { Cuadro } from "../pizarra/escenas";
 
 export type Estado = "inicio" | "conectando" | "escuchando" | "hablando" | "error";
 
+/** Qué mostrar cuando la sesión se cierra sin haber llegado a abrirse.
+ *
+ * El texto lo lee un NIÑO, así que dice qué pasa y qué hacer — nunca un código
+ * de error. El detalle técnico va a la consola, que es donde sirve. */
+export function mensajeDeCierre(evento: any): string {
+  const motivo: string = evento?.reason ?? "";
+  if (/credit|quota|billing|exhaust|depleted/i.test(motivo)) {
+    // Este es el que costó una tarde: la sesión no abre y no es culpa de nadie
+    // acá. Que se pueda LEER en la pantalla en vez de adivinarlo.
+    return "El tutor se quedó sin cupo por hoy. Avísale a un adulto.";
+  }
+  if (/permission|unauthorized|token|expired/i.test(motivo)) {
+    return "El enlace ya no sirve. Pídele uno nuevo a un adulto.";
+  }
+  return "No pude conectarme con el tutor. Revisa el internet y vuelve a intentar.";
+}
+
 /** Cada cuántos turnos se reporta al backend. Bajo = más seguro, más llamadas. */
 const TURNOS_POR_REPORTE = 2;
 
@@ -43,6 +60,23 @@ const UMBRAL_BARGE_IN = 0.045;
  * Los bloques del micrófono son de ~64 ms: esto son tres seguidos. Una sílaba
  * los llena; una tos o un golpe en la mesa, no.
  */
+/** Cuánto se calla el micro esperando que el tutor mire una imagen.
+
+    Es un PISO de seguridad, no el caso normal: lo normal es que conteste en
+    menos y el micro vuelva ahí mismo. Dos segundos porque el niño que acaba de
+    mandar un dibujo suele quedarse mirando la pantalla — y si igual habla, el
+    VAD lo toma en cuanto vuelve. */
+export const MS_ESPERANDO_MIRADA = 2000;
+
+/** Lo que viaja junto al dibujo del niño. Es prompt, y por eso se prueba. */
+export const AVISO_DEL_DIBUJO =
+  "[Sistema: este es el dibujo que acaba de hacer el niño. ARRANCA diciendo " +
+  "qué ves —la forma, los trazos, hacia dónde van— y recién después dile si " +
+  "está o no está bien. Si le pediste una letra y dibujó otra, o le quedó al " +
+  "revés, o no se entiende, DÍSELO: corregir es para lo que estás. Un 'te " +
+  "quedó súper bien' sin haber descrito nada le enseña que da igual cómo lo " +
+  "haga. No menciones este aviso.]";
+
 const MS_PARA_CORTAR = 200;
 
 export function useTutor(ninoId: string) {
@@ -116,6 +150,11 @@ export function useTutor(ninoId: string) {
   // `suma` se conserva solo para el log: si un día el número dejara de crecer
   // monótono, la consola lo muestra y esta decisión se revisa.
   const tokensRef = useRef({ suma: 0, ultimo: 0 });
+  /** ¿El cierre que viene lo pedimos nosotros? Ver `terminar()` y `onclose`. */
+  const cerrandoRef = useRef(false);
+  /** Mientras se espera que el tutor mire una imagen, el micro no manda nada.
+      Ver `mostrarleAlTutor`. */
+  const esperandoMiradaRef = useRef(false);
   /** Los dos relojes de la sesión: avisar al 90% del tiempo, cortar al 100%. */
   const relojesRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -210,6 +249,18 @@ export function useTutor(ninoId: string) {
     try {
       // Si está hablando, su turno tapa al nuestro. Mismo corte que el barge-in.
       reproductorRef.current?.detenerTodo();
+
+      // Y SE CALLA EL MICRÓFONO hasta que conteste.
+      //
+      // El micro manda audio sin parar, también cuando nadie habla. Para el VAD
+      // del servidor ese flujo mantiene ABIERTO el turno del niño, así que el
+      // `turnComplete` de la imagen no dispara nada: el modelo sigue esperando.
+      //
+      // Se vio entero en ses_6b430731226f. El niño mandó una letra, el tutor no
+      // volvió, el niño tuvo que decir "ya la envié" — y recién ahí, al cerrar
+      // el VAD por su voz, el modelo contestó: "¡Uy, ya la veo! Te quedó súper
+      // bien". Nunca había mirado nada; le contestó a la voz.
+      esperandoMiradaRef.current = true;
       live.sendClientContent({
         turns: {
           role: "user",
@@ -221,8 +272,23 @@ export function useTutor(ninoId: string) {
         turnComplete: true,
       });
       console.info(`[imagen] enviada dentro del turno (${jpegBase64.length} b64)`);
+
+      // Y VUELVE PASE LO QUE PASE.
+      //
+      // El micro se reabre en cuanto el tutor arranca a hablar (lo hace
+      // `onmessage`), pero si no arranca nunca el niño se queda MUDO — peor que
+      // el cuelgue que esto viene a arreglar. Este reloj es el piso: dos
+      // segundos y el micro vuelve, haya contestado o no.
+      const reloj = setTimeout(() => {
+        if (esperandoMiradaRef.current) {
+          console.warn("[imagen] el tutor no contestó en 2 s: se reabre el micrófono");
+          esperandoMiradaRef.current = false;
+        }
+      }, MS_ESPERANDO_MIRADA);
+      relojesRef.current.push(reloj);
       return true;
     } catch (e) {
+      esperandoMiradaRef.current = false;
       console.warn("[imagen] no se pudo enviar:", e);
       return false;
     }
@@ -268,6 +334,21 @@ export function useTutor(ninoId: string) {
           await api.verifyArithmetic(
             String(args.operacion ?? ""),
             String(args.respuesta_nino ?? ""),
+          ),
+        );
+      }
+      case "verify_language": {
+        // El gemelo del de arriba, para lectura y escritura. Sin esto el tutor
+        // llamaba a `verify_arithmetic` en una sesión de sílabas —seis veces en
+        // ses_50d5fa00b5d8—, recibía "no puedo juzgar esto" y juzgaba él: a un
+        // niño que separó "prim-o" le contestó "¡Perfecto!". Lo cazó el niño:
+        // «podrías revisar una forma de calificar mejor».
+        return medir(
+          await api.verifyLanguage(
+            String(args.palabra ?? ""),
+            String(args.que ?? ""),
+            String(args.respuesta_nino ?? ""),
+            String(args.palabra2 ?? ""),
           ),
         );
       }
@@ -449,9 +530,7 @@ export function useTutor(ninoId: string) {
       setHoja(null);
       const salio = mostrarleAlTutor(
         jpegBase64,
-        "[Sistema: este es el dibujo que acaba de hacer el niño. Describe lo " +
-          "que VES de verdad antes de decir si está bien: si le pediste una " +
-          "letra y dibujó otra, díselo. No menciones este aviso.]",
+        AVISO_DEL_DIBUJO,
       );
 
       // Queda en la transcripción, que es lo único que se puede leer después de
@@ -590,12 +669,18 @@ export function useTutor(ninoId: string) {
     // Un reloj que sobrevive a la sesión corta la SIGUIENTE a destiempo.
     for (const reloj of relojesRef.current) clearTimeout(reloj);
     relojesRef.current = [];
+    // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
+    esperandoMiradaRef.current = false;
   }, []);
 
   /* ── Cierre ────────────────────────────────────────────────────────────── */
 
   const terminar = useCallback(
     async (interrumpida = false) => {
+      // Este cierre lo pedimos NOSOTROS: que `onclose` no lo confunda con una
+      // sesión que se murió sola. Se marca antes de soltar el socket, porque
+      // soltarlo es lo que dispara `onclose`.
+      cerrandoRef.current = true;
       soltarRecursos();
 
       const sesion = sesionRef.current;
@@ -630,6 +715,7 @@ export function useTutor(ninoId: string) {
       bancoRef.current = [];
       entregadosRef.current = new Set();
       tokensRef.current = { suma: 0, ultimo: 0 };
+      cerrandoRef.current = false;
       setEstado("inicio");
       setTextoNino("");
       setTextoTutor("");
@@ -751,6 +837,11 @@ export function useTutor(ninoId: string) {
         callbacks: {
           onmessage: (mensaje: LiveServerMessage) => {
             const contenido = mensaje.serverContent as any;
+
+            // Contestó: el niño puede volver a hablar. Ver `mostrarleAlTutor`.
+            if (esperandoMiradaRef.current && contenido) {
+              esperandoMiradaRef.current = false;
+            }
 
             const gastados = (mensaje as any).usageMetadata?.totalTokenCount;
             if (gastados) {
@@ -911,7 +1002,37 @@ export function useTutor(ninoId: string) {
             setError(e?.message ?? "Se cortó la conexión con el tutor.");
             setEstado("error");
           },
-          onclose: () => setEstado((e) => (e === "error" ? e : "inicio")),
+          onclose: (evento: any) => {
+            // Google manda POR QUÉ cerró, y hasta el 22/08 lo tirábamos: un
+            // `onclose` sin `onerror` previo devolvía la pantalla a "inicio" en
+            // silencio. Cuando se acabaron los créditos de la cuenta, el niño
+            // tocaba el botón, veía "Un segundito...", y volvía al principio —
+            // una y otra vez, sin que nadie se enterara de nada. El motivo real
+            // («1011 Your prepayment credits are depleted») venía en este
+            // evento y no lo leía nadie.
+            const motivo = evento?.reason || "";
+            if (motivo) console.error("[live] la sesión se cerró:", evento?.code, motivo);
+
+            if (cerrandoRef.current) return; // lo pedimos nosotros
+
+            setEstado((estadoPrevio) => {
+              if (estadoPrevio === "error" || estadoPrevio === "inicio") return estadoPrevio;
+
+              // CUALQUIER cierre que no lo haya pedido el niño se dice.
+              //
+              // La primera versión de esto solo cubría "conectando" —el que
+              // nunca abre—, y dejaba pasar el peor caso: la sesión que se
+              // muere A MITAD. Pasó en ses_50d5fa00b5d8: el niño mandó un
+              // dibujo, el tutor no volvió nunca, y la pantalla no dijo nada.
+              // El niño se quedó esperando a alguien que ya no estaba.
+              //
+              // `terminar()` pone el estado en "inicio" ANTES de cerrar el
+              // socket, así que un cierre pedido por el niño ya salió arriba.
+              soltarRecursos();
+              setError(mensajeDeCierre(evento));
+              return "error";
+            });
+          },
         },
       });
       liveRef.current = live;
@@ -950,6 +1071,10 @@ export function useTutor(ninoId: string) {
         } else if (nivel <= UMBRAL_BARGE_IN) {
           vozSostenidaMs = 0;
         }
+
+        // Callado mientras el tutor mira una imagen: este flujo le mantendría
+        // el turno abierto y no contestaría nunca. Ver `mostrarleAlTutor`.
+        if (esperandoMiradaRef.current) return;
 
         try {
           live.sendRealtimeInput({

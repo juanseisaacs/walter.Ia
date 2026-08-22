@@ -4,6 +4,7 @@ Sin API key: todo lo que importa acá es cómo se arma la configuración y que
 quede atada al token. La conexión real la hace el navegador.
 """
 
+import re
 from datetime import datetime
 
 import pytest
@@ -341,6 +342,7 @@ def test_estan_declarados_los_tools():
     assert nombres == {
         "check_answer",
         "verify_arithmetic",
+        "verify_language",
         "get_next_problem",
         "request_camera",
         "escalate_safety",
@@ -379,12 +381,38 @@ def test_la_pizarra_no_le_pide_coordenadas_al_modelo():
     )
 
 
-def test_check_answer_le_dice_al_modelo_que_no_calcule_el():
-    """La aritmética no la valida un modelo. Tiene que estar dicho en el tool."""
-    for nombre in ("check_answer", "verify_arithmetic"):
+def test_ninguna_herramienta_deja_que_el_modelo_se_juzgue_a_si_mismo():
+    """La regla dura, dicha en las TRES herramientas de verificar.
+
+    Era «tú no calculas» y solo en dos, porque la regla se había escrito
+    pensando en aritmética. El 22/08 se vio lo que eso costaba del otro lado: en
+    una sesión de sílabas el tutor no tenía con qué comprobar, juzgó él, y le
+    dijo «¡Perfecto!» a un «prim-o». La regla nunca fue sobre las cuentas — es
+    sobre que el modelo no se dé la razón a sí mismo.
+    """
+    for nombre in ("check_answer", "verify_arithmetic", "verify_language"):
         tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == nombre)
-        assert "tú no calculas" in tool["description"]
+        assert re.search(r"tú no \w+", tool["description"]), (
+            f"{nombre} no le dice al modelo que no juzgue él"
+        )
+        assert "SIEMPRE" in tool["description"], f"{nombre} no dice que es obligatoria"
         assert "tal cual" in tool["parameters"]["properties"]["respuesta_nino"]["description"]
+
+
+def test_las_tres_herramientas_de_verificar_se_distinguen():
+    """Que el modelo sepa CUÁL usar, que es donde falló.
+
+    En ses_50d5fa00b5d8 llamó seis veces a `verify_arithmetic` en una sesión de
+    lectura y ni una a `check_answer`. Las descripciones de las dos hablaban de
+    números, así que en lectura eligió a ciegas.
+    """
+    por_nombre = {t["name"]: t["description"] for t in DECLARACIONES_TOOLS}
+    assert "BANCO" in por_nombre["check_answer"].upper()
+    assert "CUENTAS" in por_nombre["verify_arithmetic"].upper()
+    assert "verify_language" in por_nombre["verify_arithmetic"], (
+        "verify_arithmetic no manda a la de lenguaje cuando no es una cuenta"
+    )
+    assert "LECTURA" in por_nombre["verify_language"].upper()
 
 
 def test_las_descripciones_de_los_tools_no_hablan_en_voseo():

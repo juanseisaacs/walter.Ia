@@ -755,3 +755,96 @@ O sea: el niño viendo gallinas, el tutor creyendo que hay puntos. **Exactamente
 el bug del 21/08 que los emojis venían a resolver**, reintroducido por el
 arreglo. Lo que no se le dice al tutor, se lo inventa — y ahora había más que
 decirle.
+
+---
+
+## Media aplicación sin la regla dura (22/08, tarde)
+
+Auditando `ses_50d5fa00b5d8` apareció en los logs algo que ningún test miraba:
+en una sesión de **lectura**, el tutor llamó **seis veces a
+`verify_arithmetic`** y **ni una a `check_answer`**. La herramienta de cuentas
+no sabe nada de sílabas: le devolvió «no puedo juzgar esto» las seis veces. Y
+entonces el modelo juzgó él.
+
+Lo cazó el niño, no nosotros:
+
+> «De pronto podría revisar una forma de calificar mejor, porque te dije
+>  "primo" en vez de "primo" y me calificaste bien.»
+
+Había separado *prim-o* y el tutor le dijo «¡Perfecto!».
+
+> **La regla dura nunca fue sobre la aritmética.** Es sobre que el modelo no se
+> dé la razón a sí mismo. Estaba escrita como «la aritmética jamás la valida un
+> modelo», y con ese nombre nadie notó que al entrar lectura y escritura la
+> mitad de la aplicación se quedaba sin ella.
+
+Se sumó `verify_language`, el gemelo de `verify_arithmetic`. Y el test que
+faltaba: **toda tool declarada en Python tiene que tener quien la atienda en
+TypeScript**. Una tool sin handler no falla ruidosamente — el modelo la llama,
+el navegador cae en el `default`, y el tutor se queda esperando con el niño
+mirando la pantalla.
+
+### Las descripciones también son contrato
+
+`check_answer` no se llamó ni una vez porque su descripción decía *«entiende
+números dichos en palabras»*. En una sesión de sílabas, el modelo eligió a
+ciegas entre dos herramientas que hablaban las dos de números. Cambiar el texto
+de una tool cambia qué hace el producto, y hasta ese día ningún test lo miraba.
+
+---
+
+## El turno que nadie cerraba (22/08, `ses_6b430731226f`)
+
+Sesión de 81 segundos con todo el camino de la imagen roto:
+
+```
+nino: [le muestra al tutor un dibujo que hizo]
+nino: Ya la envié. Hola.              <- tuvo que insistir
+tutor: ¡Uy, ya la veo! Te quedó súper bien
+```
+
+La letra estaba mal a propósito.
+
+**El tutor nunca la miró: le contestó a la voz.** El micrófono manda audio sin
+parar, también en silencio, y para el VAD del servidor ese flujo mantiene
+ABIERTO el turno del niño — así que el `turnComplete` que viaja con la imagen no
+dispara nada. Recién cuando el niño habló, el VAD cerró el turno y el modelo
+contestó… a las palabras, no al dibujo.
+
+> Mandar un turno completo no alcanza si otro canal sigue abierto. En una API
+> full-duplex, **«ya terminé de hablar» no lo dice quien manda el mensaje: lo
+> decide el servidor mirando todo lo que le llega.**
+
+El micrófono ahora se calla mientras el tutor mira, con un piso de 2 segundos
+para reabrirlo pase lo que pase: un niño mudo es peor que un tutor callado.
+
+---
+
+## El verificador de visión llevaba meses sin correr (22/08)
+
+`scripts/verificar_vision.py` —el que comprueba si el tutor VE o completa lo que
+esperaba— moría con un `ValueError`: los casos declaraban cuatro campos y el
+bucle desempaquetaba tres. El cuarto eran justamente **las palabras que delatan
+al que adivina**, agregadas y nunca conectadas.
+
+Y el error saltaba DESPUÉS de imprimir el encabezado, así que en pantalla
+parecía que había arrancado.
+
+### Lo que casi pasa al arreglarlo
+
+Con el detector recién conectado, el script reprobó los tres casos. Las
+respuestas eran estas:
+
+> «Veo el número siete. **No es** una torta partida en cuatro pedazos.»
+> «**No veo ningún** dibujo de una torta, veo 8 + 5 y 12 − 7.»
+
+Eso es ver perfecto — el test le mete la expectativa en la cabeza a propósito
+para ver si la contradice. El detector buscaba la palabra a secas y contaba las
+menciones **negadas** como alucinaciones.
+
+> Un test que busca una palabra sin mirar si está afirmada o negada **reprueba
+> al que acierta**. Y ese veredicto, creído, manda a arreglar algo que funciona
+> — que es la forma más cara de perder una tarde: no un bug, un bug inventado.
+
+Con el detector corregido: **3 de 3 por el camino que usa el producto.** La
+visión no era el problema; el turno colgado sí.

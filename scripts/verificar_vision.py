@@ -148,6 +148,35 @@ async def _decir(sesion, limite: float = 30.0) -> str:
     return "".join(dicho).strip()
 
 
+# Palabras con las que el modelo NIEGA. Van antes de la delatora, no después.
+_NIEGA = ("no ", "ningun", "ningún", "tampoco", "en vez de", "no es", "sino")
+
+
+def _lo_afirma(dicho: str, delatora: str) -> bool:
+    """¿Dijo la palabra delatora AFIRMÁNDOLA, o negándola?
+
+    Es toda la diferencia entre las dos respuestas posibles a este test. El
+    PERSONA le mete la expectativa en la cabeza —«le pediste una torta en cuatro
+    pedazos»— y se le muestra un 7. Entonces:
+
+        «una torta partida en cuatro»            -> adivinó, es lo que esperaba
+        «un siete. NO es una torta en cuatro»    -> vio, y encima contradijo
+
+    Buscar la palabra a secas da las dos por alucinación, y la segunda es
+    exactamente lo que queremos que pase. Con el detector ingenuo este script
+    reprobaba al modelo por acertar — y ese veredicto habría mandado a arreglar
+    una visión que funciona.
+    """
+    i = dicho.find(delatora)
+    while i != -1:
+        # Se mira el trozo de frase anterior: si ahí no hay negación, lo afirmó.
+        desde = dicho.rfind(".", 0, i) + 1
+        if not any(n in dicho[desde:i] for n in _NIEGA):
+            return True
+        i = dicho.find(delatora, i + 1)
+    return False
+
+
 async def preguntar(cliente, imagen: str, via: str) -> str:
     config = {
         "responseModalities": ["AUDIO"],
@@ -188,15 +217,29 @@ async def main() -> int:
     print("=" * 74)
 
     fallos = 0
-    for nombre, hacer, pistas in CASOS:
+    for nombre, hacer, pistas, delatoras in CASOS:
         imagen = hacer()
         print(f"\n  {nombre}")
         for via, etiqueta in (("realtime", "canal de video "), ("turno", "dentro del turno")):
             dicho = await preguntar(cliente, imagen, via)
-            acerto = any(p in dicho.lower() for p in pistas)
-            marca = "ok" if acerto else "NO"
+            bajo = dicho.lower()
+            acerto = any(p in bajo for p in pistas)
+            # `delatoras` estaba declarada en CASOS y el bucle nunca la leía:
+            # desempaquetaba tres campos de cuatro y moría con un ValueError
+            # DESPUÉS de imprimir el encabezado, así que parecía que arrancaba.
+            # Este script —el que comprueba si el tutor VE o completa— llevaba
+            # sin correr desde que se le agregó ese campo.
+            # La delatora solo condena a QUIEN NO DESCRIBIÓ. Si acertó lo que
+            # hay en la imagen, ya demostró que la vio, y mencionar la tarea
+            # («vas bien, pero faltan los cuatro pedazos») es tutoría correcta,
+            # no alucinación. Lo que se busca acá es el que, en vez de mirar,
+            # completa la figura que esperaba.
+            invento = [] if acerto else [d for d in delatoras if _lo_afirma(bajo, d)]
+            marca = "ok" if (acerto and not invento) else "NO"
             print(f"    [{marca}] {etiqueta}: {dicho[:150]}")
-            if via == "turno" and not acerto:
+            if invento:
+                print(f"         INVENTO: dijo {invento}, y eso NO esta en la imagen")
+            if via == "turno" and (not acerto or invento):
                 fallos += 1
 
     print("\n" + "=" * 74)

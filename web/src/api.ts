@@ -122,6 +122,26 @@ export const api = {
       body: JSON.stringify({ operacion, respuesta_nino: respuestaNino }),
     }),
 
+  /** Para lectura y escritura fuera del banco. El gemelo de verifyArithmetic.
+      Acá SÍ vuelve lo correcto, pero solo cuando el niño ya se equivocó: la
+      corrección de un silabeo no arruina el ejercicio, y sin ella el tutor la
+      inventa — le dijo "¡Perfecto!" a un "prim-o" (ses_50d5fa00b5d8). */
+  verifyLanguage: (palabra: string, que: string, respuestaNino: string, palabra2 = "") =>
+    pedir<{
+      correcto: boolean;
+      veredicto: string;
+      valor_interpretado: string | null;
+      lo_correcto: string | null;
+    }>("/tools/verify_language", {
+      method: "POST",
+      body: JSON.stringify({
+        palabra,
+        que,
+        respuesta_nino: respuestaNino,
+        palabra2,
+      }),
+    }),
+
   getNextProblem: (sesionId: string, habilidadId?: string) =>
     pedir<{
       ejercicio: Ejercicio | null;

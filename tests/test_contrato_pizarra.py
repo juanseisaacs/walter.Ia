@@ -240,3 +240,33 @@ def test_las_anclas_que_el_tutor_no_puede_pedir_siguen_siendo_las_conocidas():
 def test_los_enums_no_llegaron_vacios(conjunto: set[str], nombre: str):
     """Sin esto, un enum vacío haría pasar todas las comparaciones de arriba."""
     assert len(conjunto) >= 4, f"{nombre}: solo {len(conjunto)}. ¿Se vació el enum?"
+
+
+def test_toda_tool_declarada_tiene_quien_la_atienda():
+    """El contrato que faltaba: declarada en Python, atendida en TypeScript.
+
+    `test_estan_declarados_los_tools` comprueba la LISTA, no que alguien las
+    conteste. Y una tool declarada sin handler no falla ruidosamente: el modelo
+    la llama, el navegador cae en el `default`, y el tutor se queda esperando
+    una respuesta que no llega — con el niño mirando la pantalla.
+
+    Lo que lo hizo falta: el 22/08 el tutor llamó seis veces a
+    `verify_arithmetic` en una sesión de LECTURA porque no existía una
+    herramienta de lenguaje. Al agregarla había que tocar cinco archivos en dos
+    lenguajes, y ningún compilador cruza esa frontera.
+    """
+    fuente = (RAIZ / "web/src/voz/useTutor.ts").read_text(encoding="utf-8")
+    atendidas = set(re.findall(r'case\s+"([a-z_]+)"\s*:', fuente))
+    assert atendidas, (
+        "cero `case` encontrados en useTutor.ts. Este test NO puede pasar sin "
+        "haber leído nada."
+    )
+
+    declaradas = {t["name"] for t in DECLARACIONES_TOOLS}
+    # `escalate_safety` es la excepción y está razonada: no la atiende el
+    # navegador con un `case`, va por su propio camino a la alarma.
+    huerfanas = declaradas - atendidas - {"escalate_safety"}
+    assert not huerfanas, (
+        f"declaradas en voice.py y sin `case` en useTutor.ts: {sorted(huerfanas)}. "
+        "El modelo las va a llamar y nadie va a contestar."
+    )

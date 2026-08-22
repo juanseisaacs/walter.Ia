@@ -18,6 +18,7 @@ Módulo puro: no toca red, ni disco, ni base. Como `pedagogy` y `tools`.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -404,6 +405,42 @@ def tipo_de_silaba(silaba: str) -> str:
     return "mixta" if cierre else "directa"
 
 
+NOMBRE_DE_LETRA = {
+    "a": "a", "be": "b", "ce": "c", "de": "d", "e": "e", "efe": "f", "ge": "g",
+    "hache": "h", "i": "i", "jota": "j", "ka": "k", "ele": "l", "eme": "m",
+    "ene": "n", "enie": "ñ", "enye": "ñ", "o": "o", "pe": "p", "cu": "q",
+    "ku": "q", "erre": "r", "ere": "r", "ese": "s", "te": "t", "u": "u",
+    "uve": "v", "ve": "v", "equis": "x", "ye": "y", "zeta": "z", "seta": "z",
+    "che": "ch", "elle": "ll", "eye": "ll", "doble erre": "rr", "erre doble": "rr",
+    "i griega": "y", "ve corta": "v", "be larga": "b", "be grande": "b",
+    "uve doble": "w", "doble ve": "w", "doble u": "w",
+}
+"""Cómo un niño NOMBRA una letra cuando habla.
+
+Vive acá, con el resto del español, y no en `tools`: lo necesitan los DOS
+caminos de verificación —el del banco y el que el tutor improvisa— y tenerlo en
+uno solo fue justamente el problema. `check_answer` entendía «eme» y
+`verify_language` no, así que la misma respuesta del mismo niño valía o no
+según por dónde entrara."""
+
+
+def nombre_a_letra(texto: str) -> str | None:
+    """La letra que el niño nombró, o None si no nombró ninguna."""
+    limpio = " ".join(
+        p for p in re.split(r"[^a-zñáéíóúü]+", _sin_tilde(texto.lower())) if p
+    )
+    if not limpio:
+        return None
+    if limpio in NOMBRE_DE_LETRA:
+        return NOMBRE_DE_LETRA[limpio]
+    palabras = limpio.split()
+    for n in (2, 1):  # «doble erre» antes que «erre»
+        for i in range(len(palabras) - n + 1):
+            if (trozo := " ".join(palabras[i : i + n])) in NOMBRE_DE_LETRA:
+                return NOMBRE_DE_LETRA[trozo]
+    return None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # El puente con el banco de ejercicios
 # ─────────────────────────────────────────────────────────────────────────────
@@ -470,6 +507,16 @@ _COMPARACIONES = {
 }
 """Las de dos: `rima(gato,pato)` da sí o no; `tilde(cancion,canción)`, lo mismo."""
 
+COMPROBACIONES = (
+    "silabas", "separar", "sonidos", "fonemas", "letras",
+    "inicial", "final", "arranque", "tonica", "clase", "rima",
+)
+"""Lo que se puede comprobar, en el orden en que se le ofrece al tutor.
+
+Una sola lista para los tres que la necesitan: el generador del banco, la
+declaración de la herramienta y el verificador. Tres copias de esto es tres
+oportunidades de que digan cosas distintas."""
+
 _POR_SONIDO = frozenset({"inicial", "final", "sonidos", "arranque"})
 """Las que se contestan con lo que se OYE, no con lo que se escribe."""
 
@@ -497,6 +544,23 @@ def _igual(a: str, b: str) -> bool:
     return _comparable(a) == _comparable(b)
 
 
+def _cortes(texto: str) -> str:
+    """La palabra con sus cortes marcados igual, venga como venga.
+
+    `ca-lle`, `ca lle` y `ca, lle` son la misma respuesta; `prim-o` y `pri-mo`
+    NO lo son, y esa es toda la pregunta cuando se separa en sílabas.
+
+    Existe porque `_comparable` —que ignora separadores para poder aceptar
+    «/s/ /o/ /l/» y «s-o-l» como iguales— daba `separar(primo)` por bueno con
+    «prim-o». Es exactamente el error del que se quejó un niño de siete años:
+    «te dije primo mal separado y me calificaste bien». La comparación laxa
+    servía para los sonidos y arruinaba las sílabas.
+    """
+    limpio = _sin_tilde(texto.strip().lower())
+    trozos = [p for p in re.split(r"[^a-zñü]+", limpio) if p]
+    return "|".join(trozos)
+
+
 def verificar(expresion: str, respuesta: str) -> str | None:
     """Comprueba un ejercicio de lenguaje. Devuelve el motivo del rechazo, o None.
 
@@ -521,6 +585,17 @@ def verificar(expresion: str, respuesta: str) -> str | None:
         if len(args) != 1:
             return f"'{nombre}' se aplica a UNA palabra, y llegaron {len(args)}"
         real = _COMPROBACIONES[nombre](args[0])
+
+        # Separar en sílabas se juzga por DÓNDE cae el corte, no por las letras.
+        if nombre == "separar":
+            if _cortes(real) != _cortes(respuesta):
+                return f"NO CIERRA: {exp} = '{real}', pero el ejercicio dice '{respuesta}'"
+            return None
+
+        # A una letra el niño la NOMBRA: dice «eme», no «m».
+        if nombre in ("inicial", "final") and (letra := nombre_a_letra(respuesta)):
+            if a_sonido(letra) == a_sonido(real):
+                return None
         # Estas preguntan por el SONIDO, no por la letra: a «¿con qué sonido
         # empieza casa?» se contesta /k/ y está bien, aunque se escriba con c;
         # y los sonidos de «pez» son /p/ /e/ /s/, porque acá la z sesea. Los

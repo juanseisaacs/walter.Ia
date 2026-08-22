@@ -34,7 +34,11 @@
   nombre: "El número pelado"
   rival: su_mundo
 
-  aplica_a: []
+  # Solo matemáticas. Estaba en `[]` —«con todas»— y el motor la activaba en
+  # sesiones de lectura: el prompt le decía al tutor «nada de historias, el
+  # ejercicio es la cuenta, 47 más 28» mientras el niño trabajaba rimas. El
+  # campo existía y decía lo contrario de lo que el texto de abajo hace.
+  aplica_a: [suma, resta, multiplicacion, division, fracciones, numeros]
 
   como_ensena: |
     Nada de historias. El ejercicio es la cuenta, sin envoltorio: "cuánto es

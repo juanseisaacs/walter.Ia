@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
 
 from . import config as cfg
+from .lengua import COMPROBACIONES as COMPROBACIONES_LENGUA
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parámetros de audio (verificados — ver ARCHITECTURE.md §10)
@@ -175,9 +176,10 @@ DECLARACIONES_TOOLS: list[dict] = [
     {
         "name": "check_answer",
         "description": (
-            "Verifica si la respuesta del niño es correcta. Úsalo SIEMPRE antes de "
-            "decirle si acertó: tú no calculas, esta herramienta calcula. "
-            "Entiende números dichos en palabras."
+            "Verifica la respuesta a un ejercicio QUE SALIÓ DEL BANCO. Úsalo SIEMPRE "
+            "antes de decirle si acertó, sea de matemáticas, de lectura o de "
+            "escritura: tú no juzgas, esta herramienta juzga. Entiende números y "
+            "letras dichos en palabras ('cuarenta y dos', 'eme')."
         ),
         "parameters": {
             "type": "object",
@@ -194,7 +196,8 @@ DECLARACIONES_TOOLS: list[dict] = [
     {
         "name": "verify_arithmetic",
         "description": (
-            "Verifica una cuenta que propusiste tú, fuera del banco de ejercicios. "
+            "SOLO PARA CUENTAS. Verifica una operación que propusiste tú, fuera del "
+            "banco de ejercicios. Para lectura o escritura usa verify_language. "
             "Úsalo SIEMPRE antes de decir si acertó, si está cerca o si le falta poco: "
             "tú no calculas, esta herramienta calcula. Entiende números en palabras. "
             "Devuelve si acertó y qué tan lejos quedó, nunca el resultado."
@@ -212,6 +215,43 @@ DECLARACIONES_TOOLS: list[dict] = [
                 },
             },
             "required": ["operacion", "respuesta_nino"],
+        },
+    },
+    {
+        "name": "verify_language",
+        "description": (
+            "Verifica una respuesta de LECTURA o ESCRITURA que propusiste tú, fuera "
+            "del banco. Úsalo SIEMPRE antes de decirle si acertó: tú no cuentas las "
+            "sílabas, esta herramienta las cuenta. Entiende cómo habla un niño: los "
+            "sonidos como '/s/ /o/ /l/' y las letras por su nombre ('eme'). "
+            "Si no puede comprobarlo te lo dice, y entonces lo trabajas hablando."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "palabra": {"type": "string", "description": "La palabra por la que preguntaste"},
+                "que": {
+                    "type": "string",
+                    "enum": list(COMPROBACIONES_LENGUA),
+                    "description": (
+                        "Qué le preguntaste. silabas=cuántas · separar=cómo se parte "
+                        "(pri-mo) · sonidos=uno por uno · fonemas=cuántos sonidos · "
+                        "inicial/final=con qué sonido empieza o termina · "
+                        "arranque=las consonantes pegadas del principio (pl de plato) · "
+                        "tonica=qué sílaba suena más fuerte · clase=aguda/grave/esdrujula · "
+                        "rima=si rima con `palabra2`"
+                    ),
+                },
+                "respuesta_nino": {
+                    "type": "string",
+                    "description": "Lo que dijo el niño, tal cual, sin interpretar",
+                },
+                "palabra2": {
+                    "type": "string",
+                    "description": "Solo para `rima`: la segunda palabra",
+                },
+            },
+            "required": ["palabra", "que", "respuesta_nino"],
         },
     },
     {

@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **587 tests** de Python · **85** del front · **evals 45/45** (los 3 casos
+- **589 tests** de Python · **94** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **62 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
@@ -270,6 +270,37 @@ Tres cosas que hay que MIRAR la primera vez, y que ningún test cubre:
 - **Si `esc.grafia.trazo_de_letras` tiene sentido por voz.** El niño tendría que
   trazar y mostrar por cámara. La visión funciona desde el 21/08, pero este
   nodo nunca se probó y es el más dudoso de los 24.
+
+### Al motor de técnicas le faltan lectura y escritura
+
+Hay 6 técnicas = 3 pares rivales: **1 par de matemáticas** (concreto ↔
+estructura) y **2 genéricos**. **Cero de lectura, cero de escritura** — y ya hay
+24 habilidades de lenguaje. En una sesión de rimas o de párrafo siempre cae en
+`el_explica`, que es la genérica.
+
+Buscando eso apareció que `numero_puro` decía `aplica_a: []` («con todas») y su
+texto es puro aritmético —*«nada de historias, el ejercicio es la cuenta, 47 más
+28»*—: el motor podía activarla en una sesión de lectura. Ya está acotada a
+matemáticas.
+
+Lo que falta escribir son 3-4 pares nuevos con su bloque de evidencia. En
+lectura inicial existe el cuerpo de evidencia más fuerte de toda la primaria
+—fónica sistemática contra lenguaje integral—, que es exactamente la forma de
+par rival que este motor necesita. **RBH quedó de mandar la investigación**
+(22/08); hasta entonces no se inventa nada.
+
+### Dos preguntas de plata sin responder
+
+**¿Una sesión que se abre y se cierra sin hablar, paga?** Hay 25 de 66 así. Si
+el prompt se manda al conectar, cada una costó ~16.000 tokens por nada — serían
+~$4 de los $10 de la primera recarga. Se mide en dos minutos: abrir una sesión,
+cerrarla sin decir nada, mirar la factura.
+
+**¿El costo por minuto se mantiene plano en sesiones largas?** El modelo de
+costos —16.234 fijos + 779/min— se ajustó con sesiones de 0,4 a 17,4 minutos, y
+**solo hay UNA de más de 10**. Con eso se proyectó que 30 min diarios salen
+~$11,88/niño/mes, pero el contexto se acumula, así que el costo por minuto
+podría crecer. Una sola sesión de verdad de 25-30 minutos lo resuelve.
 
 ### Lo demás, chico
 

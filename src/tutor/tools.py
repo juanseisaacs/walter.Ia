@@ -15,6 +15,9 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from .lengua import COMPROBACIONES as COMPROBACIONES_LENGUA
+from .lengua import NOMBRE_DE_LETRA
+from .lengua import nombre_a_letra as _a_letra
 from .models import Ejercicio, Habilidad
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,43 +157,12 @@ def _normalizar_texto(texto: str) -> str:
     return " ".join(palabras)
 
 
-NOMBRE_DE_LETRA = {
-    "a": "a", "be": "b", "ce": "c", "de": "d", "e": "e", "efe": "f", "ge": "g",
-    "hache": "h", "i": "i", "jota": "j", "ka": "k", "ele": "l", "eme": "m",
-    "ene": "n", "enie": "ñ", "enye": "ñ", "o": "o", "pe": "p", "cu": "q",
-    "ku": "q", "erre": "r", "ere": "r", "ese": "s", "te": "t", "u": "u",
-    "uve": "v", "ve": "v", "equis": "x", "ye": "y", "zeta": "z", "seta": "z",
-    # Dígrafos: para el niño son una letra.
-    "che": "ch", "elle": "ll", "eye": "ll", "doble erre": "rr", "erre doble": "rr",
-    "i griega": "y", "ve corta": "v", "be larga": "b", "be grande": "b",
-    "uve doble": "w", "doble ve": "w", "doble u": "w",
-}
-"""Cómo un niño NOMBRA una letra cuando habla.
 
-Es el gemelo de `palabras_a_numero`: nadie de seis años contesta «m» a «¿con
-qué sonido empieza mesa?». Dice **eme**, o *«con la eme»*, o el sonido a secas.
+"""Los nombres de las letras viven en `lengua`, con el resto del español.
 
-Sin esto, el nodo de sonido inicial y final le decía INCORRECTO a todos los
-niños que acertaban. El proyecto ya tiene escrito por qué eso es lo más caro
-que puede pasar: confundir un acierto con un error le enseña al niño que
-responder bien no sirve."""
-
-
-def _a_letra(texto: str) -> str | None:
-    """La letra que el niño nombró, o None si no dijo el nombre de una letra."""
-    limpio = _normalizar_texto(texto)
-    if not limpio:
-        return None
-    if limpio in NOMBRE_DE_LETRA:
-        return NOMBRE_DE_LETRA[limpio]
-    # «con la eme», «empieza con che»: se busca el nombre entre lo que dijo.
-    palabras = limpio.split()
-    for n in (2, 1):  # los de dos palabras primero: «doble erre» antes que «erre»
-        for i in range(len(palabras) - n + 1):
-            trozo = " ".join(palabras[i : i + n])
-            if trozo in NOMBRE_DE_LETRA:
-                return NOMBRE_DE_LETRA[trozo]
-    return None
+Estuvieron acá un rato, y en ese rato `check_answer` entendía «eme» y
+`verify_language` no: la misma respuesta del mismo niño valía o no según por
+dónde entrara. Dos verificadores con reglas distintas son peor que uno."""
 
 
 # Cuántos dígitos de más hacen sospechar de la transcripción y no del niño.
@@ -501,3 +473,72 @@ class AlertaSeguridad(BaseModel):
 
 def escalate_safety(motivo: str, evidencia: str | None = None) -> AlertaSeguridad:
     return AlertaSeguridad(motivo=motivo, evidencia=evidencia)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# verify_language — el gemelo de verify_arithmetic, para lectura y escritura
+# ─────────────────────────────────────────────────────────────────────────────
+# El 22/08, en una sesión de sílabas trabadas, el tutor llamó SEIS veces a
+# `verify_arithmetic` y ni una a `check_answer`. La herramienta de aritmética
+# le devolvió REQUIERE_JUICIO las seis —no sabe nada de sílabas— y entonces el
+# modelo juzgó él. A un niño que separó "prim-o" le dijo "¡Perfecto!".
+#
+# Lo notó el niño, no nosotros:
+#
+#   «De pronto podría revisar una forma de calificar mejor, porque te dije
+#    "primo" en vez de "primo" y me calificaste bien.»
+#
+# El argumento es idéntico al que creó `verify_arithmetic` y está escrito arriba:
+# no se le prohíbe improvisar, se hace que lo improvisado también pase por
+# código. La regla dura no era sobre la aritmética: era sobre que **el modelo no
+# se juzgue a sí mismo**. Media aplicación se había quedado sin ella.
+
+
+class ResultadoLengua(BaseModel):
+    """Lo que sabe el código sobre una respuesta de lenguaje."""
+
+    veredicto: Veredicto
+    valor_interpretado: str | None = None
+    lo_correcto: str | None = None
+    """Solo cuando el niño YA se equivocó, para que el tutor no invente la
+    corrección. Nunca se manda antes de que conteste."""
+
+
+def verify_language(
+    palabra: str, que: str, respuesta_nino: str, palabra2: str = ""
+) -> ResultadoLengua:
+    """Verifica una respuesta de lenguaje que el tutor improvisó. ~1ms, sin modelo.
+
+    `que` es qué le preguntó: cuántas sílabas, con qué sonido empieza, si dos
+    palabras riman. La cuenta la hace `tutor.lengua`, que no adivina — y cuando
+    no puede saber, lo dice en vez de inventar.
+    """
+    from .lengua import verificar
+
+    tipo = (que or "").strip().lower()
+    if tipo not in COMPROBACIONES_LENGUA:
+        return ResultadoLengua(veredicto=Veredicto.REQUIERE_JUICIO)
+    if not palabra.strip() or not respuesta_nino.strip():
+        return ResultadoLengua(veredicto=Veredicto.NO_SE_ENTENDIO)
+
+    args = f"{palabra.strip()},{palabra2.strip()}" if palabra2.strip() else palabra.strip()
+    motivo = verificar(f"{tipo}({args})", respuesta_nino)
+
+    if motivo is None:
+        return ResultadoLengua(
+            veredicto=Veredicto.CORRECTO, valor_interpretado=respuesta_nino.strip()
+        )
+    # Una expresión que el verificador no entiende NO es un error del niño: es
+    # que no supimos comprobarlo. Decirlo, y que el tutor lo trabaje hablando.
+    if "NO CIERRA" not in motivo:
+        return ResultadoLengua(veredicto=Veredicto.REQUIERE_JUICIO)
+
+    # Lo correcto se extrae de lo que ya calculó el verificador, no se recalcula.
+    correcto = None
+    if (m := re.search(r"= '([^']*)'", motivo)) or (m := re.search(r"es (sí|no),", motivo)):
+        correcto = m.group(1)
+    return ResultadoLengua(
+        veredicto=Veredicto.INCORRECTO,
+        valor_interpretado=respuesta_nino.strip(),
+        lo_correcto=correcto,
+    )
