@@ -183,17 +183,16 @@ def test_limpiar_se_atiende_antes_de_llegar_a_la_pizarra():
 # El contrato de las anclas (señalar y tachar)
 # ─────────────────────────────────────────────────────────────────────────────
 
-ANCLAS_SIN_USO_CONOCIDAS = {
-    # La pantalla sabe rodear la fila de arriba y la de abajo de la cuenta, y
-    # el tutor NO las puede pedir: no están en el enum de `senalar` ni en el de
-    # `tachar`. Son dos platos que la cocina sabe hacer y no están en el menú.
-    #
-    # Se dejan anotadas en vez de borradas porque son útiles ("mirá el primer
-    # número") y el arreglo natural es agregarlas al enum, no quitar el código.
-    # Lo que este test impide es que la lista CREZCA sin que nadie lo note.
-    "primero",
-    "segundo",
-}
+ANCLAS_SIN_USO_CONOCIDAS: set[str] = set()
+"""Anclas que la pizarra sabe ubicar y el tutor no puede pedir.
+
+Estaba en `{"primero", "segundo"}` — las dos filas de la cuenta, que la pizarra
+dibujaba desde siempre y nadie podía invocar. Se cerraron el 22/08 agregándolas
+al enum de `senalar`, que era el arreglo natural: el código servía, lo que
+faltaba era dárselo al tutor.
+
+Queda en vacío a propósito. Que vuelva a llenarse significa que alguien agregó
+una posición a la pizarra y se olvidó del otro lado."""
 
 
 def test_cada_ancla_que_el_tutor_puede_senalar_tiene_lugar_en_pantalla():

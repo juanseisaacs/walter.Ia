@@ -248,6 +248,18 @@ ajustado contra el sentido común pedagógico —un chico que aprendió a contar
 hasta 100 no lo pierde en dos semanas— y tiene tests de calibración absoluta.
 No está validado contra estos niños, porque todavía no hay estos niños.
 
+### El histórico no se puede retocar
+
+Cada veredicto del Analista queda anotado en un registro append-only encadenado
+por SHA-256. Editar una auditoría vieja —para que el porcentaje de abajo se vea
+mejor— rompe la cadena, y `python -m scripts.verificar_cadena` dice en qué
+eslabón. Las 41 que existían antes de que hubiera cadena están ancladas.
+
+Lo que **no** garantiza: que el veredicto original fuera correcto (para eso
+están los evals), y como la cadena vive en el mismo disco, quien la reescriba
+entera desde cero puede fabricar una consistente. Contra eso hace falta
+publicar el último hash fuera de casa, y eso todavía no está.
+
 ### Y la auditoría nos pilla a nosotros
 
 De las 41 sesiones auditadas hasta hoy, el Analista marcó que **el tutor regaló

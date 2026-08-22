@@ -508,3 +508,36 @@ def test_dentro_de_la_hora_la_recarga_sigue_funcionando(orq):
 
     a_tiempo = AHORA + timedelta(minutes=5)
     assert orq.recargar_ejercicios(a.sesion_id, a_tiempo), "una sesión en hora recarga normal"
+
+
+def test_el_navegador_recibe_los_dos_techos_de_tiempo(orq):
+    """`MAX_MINUTOS_SESION = 45` existía desde la fase 5 y no cortaba nada.
+
+    El backend es quien fija el límite, pero el único que puede cerrar a tiempo
+    es el navegador — igual que con los tokens. Un tope que el cliente no
+    conoce no es un tope.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    assert a.max_minutos > 0
+    assert 0 < a.avisar_minutos < a.max_minutos, "hay que avisar ANTES de cortar"
+
+
+def test_el_navegador_de_verdad_corta_por_tiempo():
+    """Que el front use los dos números, no solo que viajen.
+
+    Mismo antipatrón que la apertura y que el enum de la pizarra: declarado de
+    un lado, consumido del otro, en dos lenguajes. Acá el síntoma de que falle
+    es una sesión que no termina nunca.
+    """
+    from pathlib import Path
+
+    hook = (
+        Path(__file__).resolve().parent.parent / "web" / "src" / "voz" / "useTutor.ts"
+    ).read_text(encoding="utf-8")
+
+    assert "avisar_minutos" in hook, "el front ignora el aviso de tiempo"
+    assert "max_minutos" in hook, "el front ignora el corte por tiempo"
+    assert "relojesRef" in hook and "clearTimeout" in hook, (
+        "los relojes tienen que limpiarse al cerrar: uno que sobrevive corta la "
+        "sesión siguiente a destiempo"
+    )

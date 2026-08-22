@@ -200,11 +200,11 @@ cruzado con `inicio`/`fin`, no hace falta código nuevo para averiguarlo.
 
 ### Lo demás, chico
 
-- **El navegador no corta por duración.** El backend ya manda `max_minutos` y
-  `avisar_minutos` (21/08) y deja de recargar ejercicios pasada la hora, pero
-  falta el corte en `useTutor.ts` con el mismo patrón que ya usa el techo de
-  tokens: avisar al 90% para que el tutor cierre él, cortar al 100%. Son ~15
-  líneas, y necesitan una sesión real para probarse.
+- **El último hash de la cadena no se publica en ningún lado.** La cadena de
+  veredictos impide retocar el histórico, pero vive en el mismo disco: quien la
+  reescriba ENTERA desde cero puede fabricar una consistente. El cierre es
+  anclarlo afuera — el hash del extremo en el correo semanal al papá, por
+  ejemplo. Cuesta poco y convierte la garantía en verificable por un tercero.
 - **La verificación del reporte solo mira números.** Una afirmación cualitativa
   sin respaldo pasa. Verificarlo pediría un segundo modelo, y la regla del
   proyecto es que la verificación es código.

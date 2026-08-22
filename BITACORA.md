@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Cinco de las once entradas de abajo son la misma falla con distinta cara:
+Seis de las doce entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -384,4 +384,50 @@ todo salga junto en la última llamada.
 Verificado con el e2e antes y después: `0 bytes` → `tutor: ¡Hola! Yo soy
 Walter. Vamos a estudiar juntos y te voy a acompañar un buen rato, no solo hoy.
 Oye, ¿a ti te gustan los dinosaurios?`
+
+---
+
+## Lección aprendida (la cadena de veredictos, 22/08)
+
+Último de los cinco puntos que se trajeron del peritaje. El panel le dice al
+papá que el método se sostuvo en tal porcentaje de las sesiones, y hasta hoy ese
+número se apoyaba en que nosotros lo dijéramos: las auditorías eran archivos
+sueltos que cualquiera con acceso al disco podía editar, y no había forma de
+notarlo.
+
+Ahora cada veredicto queda anotado en un registro append-only encadenado por
+SHA-256. Se sembró con las 41 auditorías que ya existían, en el orden real en
+que ocurrieron las sesiones, y se verificó rompiendo una de verdad: cambiar
+`regalo_la_respuesta` de `false` a `true` en una auditoría real dio *«eslabón 37
+(ses_020cfb503d5f): veredicto_alterado»* y exit 1.
+
+1. **La cadena certifica los archivos, no los reemplaza.** El panel sigue
+   leyendo los JSON de siempre; el eslabón guarda la huella, no el contenido.
+   Cambiar el almacenamiento para meter hashes habría tocado el panel, el
+   reporte y el pipeline — todo lo que ya funciona — a cambio de nada.
+2. **Se hashea el TEXTO, no el objeto parseado.** Así la huella también atrapa
+   una edición que deje los mismos valores con otro formato, y sobre todo no
+   depende de cómo Pydantic serialice mañana: un cambio de librería no puede
+   invalidar la cadena entera.
+3. **Sembrar no puede probar el pasado, y lo dice.** El comando avisa que deja
+   constancia de lo que hay HOY. Una cadena que fingiera cubrir lo anterior
+   sería exactamente el tipo de garantía falsa que esto viene a reemplazar.
+4. **Lo que NO garantiza va escrito al lado de lo que sí.** La cadena vive en el
+   mismo disco: quien la reescriba entera desde cero puede fabricar una
+   consistente. El cierre es publicar el último hash afuera, y está anotado en
+   `PENDIENTE.md` en vez de dejarlo implícito.
+
+Y de la misma tanda, dos pendientes chicos que llevaban días:
+
+**Las anclas `primero` y `segundo`** —las dos filas de la cuenta— las dibujaba
+la pizarra desde siempre y el tutor no las podía pedir: faltaban en el enum. Las
+encontró el test de contrato el día que se escribió, y el arreglo natural era el
+que se hizo: dárselas al tutor, no borrar el código que servía.
+
+**El corte por duración.** `MAX_MINUTOS_SESION = 45` existía desde la fase 5 con
+test propio y cero llamadores — la misma falla que la retención, en otro
+archivo. Ahora el navegador tiene los dos relojes, con el mismo criterio que el
+techo de tokens: avisar al 90% para que el tutor cierre él, cortar al 100%. Y
+los relojes se limpian al cerrar, porque uno que sobrevive corta la sesión
+siguiente a destiempo.
 

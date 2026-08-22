@@ -363,8 +363,20 @@ DECLARACIONES_TOOLS: list[dict] = [
                 },
                 "senalar": {
                     "type": "string",
-                    "enum": ["unidades", "decenas", "centenas", "llevada", "resultado"],
-                    "description": "Rodea con el marcador la parte que estás nombrando",
+                    # `primero` y `segundo` son las dos filas de la cuenta. La
+                    # pizarra sabía rodearlas desde siempre y el tutor no podía
+                    # pedirlas: faltaban acá. Lo encontró el test de contrato
+                    # entre este enum y `Pizarra.caja()` — código que se leía
+                    # igual que el vivo y no corría nunca.
+                    "enum": [
+                        "unidades", "decenas", "centenas", "llevada",
+                        "resultado", "primero", "segundo",
+                    ],
+                    "description": (
+                        "Rodea con el marcador la parte que estás nombrando. "
+                        "`primero` y `segundo` son las dos filas de la cuenta, "
+                        "para cuando dices «mira el número de arriba»"
+                    ),
                 },
                 "tachar": {
                     "type": "string",

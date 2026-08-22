@@ -116,6 +116,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
   enum declarado de un lado y consumido del otro se separa sin que nada avise:
   el compilador no puede verlo porque son dos lenguajes. Ver
   `tests/test_contrato_pizarra.py`.
+- **Los veredictos del método se encadenan.** Cada auditoría queda anotada en
+  `data/audits/cadena.jsonl` con el hash de la anterior. Editar un veredicto
+  viejo rompe la cadena y `verificar_cadena` dice dónde. Es lo que convierte el
+  porcentaje del panel en algo que el papá puede **verificar**, no creer.
 
 ---
 
@@ -160,6 +164,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 |---|---|---|
 | `pytest` | 415 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
+| `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
 | `cd web && npm test` | 73 tests del front: audio, micrófono, pizarra | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |

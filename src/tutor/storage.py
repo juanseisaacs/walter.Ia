@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from .cadena import GENESIS, Eslabon, leer_cadena
 from .models import (
     AuditoriaCumplimiento,
     Calendario,
@@ -654,10 +655,28 @@ class RepositorioSQLite(Repositorio):
     def _ruta_auditoria(self, sesion_id: str) -> Path:
         return self.ruta_auditorias / f"{Path(sesion_id).name}.json"
 
+    @property
+    def ruta_cadena(self) -> Path:
+        """El registro encadenado de veredictos. Append-only, nunca se reescribe."""
+        return self.ruta_auditorias / "cadena.jsonl"
+
     def guardar_auditoria(self, sesion_id: str, cumplimiento: AuditoriaCumplimiento) -> None:
-        self._ruta_auditoria(sesion_id).write_text(
-            cumplimiento.model_dump_json(indent=2), encoding="utf-8"
+        contenido = cumplimiento.model_dump_json(indent=2)
+        self._ruta_auditoria(sesion_id).write_text(contenido, encoding="utf-8")
+        self._encadenar(sesion_id, contenido)
+
+    def _encadenar(self, sesion_id: str, contenido: str) -> None:
+        """Anota el veredicto en la cadena. Ver `huella_de` para el porqué."""
+        eslabones = leer_cadena(self.ruta_cadena)
+        ultimo = eslabones[-1] if eslabones else None
+        nuevo = Eslabon.forjar(
+            seq=(ultimo.seq + 1) if ultimo else 1,
+            sesion_id=sesion_id,
+            contenido=contenido,
+            anterior=ultimo.hash if ultimo else GENESIS,
         )
+        with self.ruta_cadena.open("a", encoding="utf-8") as f:
+            f.write(nuevo.model_dump_json() + "\n")
 
     def obtener_auditoria(self, sesion_id: str) -> AuditoriaCumplimiento | None:
         ruta = self._ruta_auditoria(sesion_id)

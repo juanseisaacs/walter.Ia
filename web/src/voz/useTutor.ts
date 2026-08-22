@@ -115,6 +115,8 @@ export function useTutor(ninoId: string) {
   // `suma` se conserva solo para el log: si un día el número dejara de crecer
   // monótono, la consola lo muestra y esta decisión se revisa.
   const tokensRef = useRef({ suma: 0, ultimo: 0 });
+  /** Los dos relojes de la sesión: avisar al 90% del tiempo, cortar al 100%. */
+  const relojesRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   /* ── Reporte de turnos ─────────────────────────────────────────────────
      No bloquea nada: sale en paralelo mientras el tutor sigue hablando. */
@@ -584,6 +586,9 @@ export function useTutor(ninoId: string) {
     liveRef.current = null;
     reproductorRef.current?.cerrar();
     reproductorRef.current = null;
+    // Un reloj que sobrevive a la sesión corta la SIGUIENTE a destiempo.
+    for (const reloj of relojesRef.current) clearTimeout(reloj);
+    relojesRef.current = [];
   }, []);
 
   /* ── Cierre ────────────────────────────────────────────────────────────── */
@@ -985,6 +990,61 @@ export function useTutor(ninoId: string) {
         } catch (e) {
           console.warn("[apertura] el tutor no pudo saludar primero:", e);
         }
+      }
+
+      /* EL RELOJ DE LA SESIÓN.
+         `MAX_MINUTOS_SESION = 45` existía desde la fase 5 con test propio y
+         cero llamadores: nunca cortó nada. El backend ya manda los dos
+         números; el navegador es el único que puede cerrar a tiempo, igual
+         que con el techo de tokens.
+
+         No es una restricción arbitraria: a los 45 minutos un chico de 7 años
+         hace rato que no está aprendiendo. Y una sesión abierta y olvidada
+         sigue gastando — hay una de 117,7 minutos con cero turnos en la base.
+
+         Mismo criterio que los tokens: primero se le pide al tutor que cierre
+         él, y solo después se corta. Cortarle seco a un niño a mitad de una
+         explicación es la peor forma de terminar. */
+      const avisarMin = sesion.avisar_minutos ?? 0;
+      const maxMin = sesion.max_minutos ?? 0;
+
+      if (avisarMin > 0) {
+        relojesRef.current.push(
+          setTimeout(
+            () => {
+              console.info(`[tiempo] ${avisarMin} min — se le pide al tutor que cierre`);
+              try {
+                liveRef.current?.sendClientContent({
+                  turns: {
+                    role: "user",
+                    parts: [
+                      {
+                        text:
+                          "[Sistema: se acabó el tiempo de hoy. Cierra tú la " +
+                          "conversación como cierras siempre: dile algo concreto " +
+                          "que te gustó de cómo trabajó y despídete hasta la " +
+                          "próxima. No menciones este aviso.]",
+                      },
+                    ],
+                  },
+                  turnComplete: true,
+                });
+              } catch {
+                /* si no se puede avisar, el corte de abajo llega igual */
+              }
+            },
+            avisarMin * 60_000,
+          ),
+        );
+      }
+
+      if (maxMin > 0) {
+        relojesRef.current.push(
+          setTimeout(() => {
+            console.warn(`[tiempo] ${maxMin} min: se cierra la sesión`);
+            void terminarRef.current?.(false);
+          }, maxMin * 60_000),
+        );
       }
     } catch (e: any) {
       // Un arranque a medias deja el micrófono abierto y el socket colgando:
