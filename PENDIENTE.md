@@ -198,19 +198,18 @@ durante el desarrollo, el navegador abriendo sesión antes de que el niño toque
 el botón, o sesiones que mueren al conectar. Lo dice el log del servidor
 cruzado con `inicio`/`fin`, no hace falta código nuevo para averiguarlo.
 
-### El motor de técnicas funciona y el papá no lo ve
+### El motor cerró el círculo — falta que un niño lo recorra
 
-El ciclo cierra —se asigna, se mide, se abandona, entra la rival— pero todo eso
-vive en la base. El papá no se entera de que su hijo cambió de método ni de por
-qué, y **ese es el argumento del producto**: poder contestar *«¿por qué cambió
-de método?»* con *«se probó una, se midió, no movió el nivel, se pasó a la
-siguiente»*.
+El papá ya lo ve: el reporte semanal y el panel cuentan qué método se usa y, si
+cambió, la razón exacta redactada en código. La verificación estricta del
+reporte no lo tumba (tiene test propio) y sin técnicas medidas no se afirma nada.
 
-Falta llevarlo al reporte semanal y al panel. Es aditivo —`MetricasReporte` ya
-se calcula en código y `elegir()` ya devuelve el `porque` redactado— pero toca
-el reporte, que tiene verificación estricta contra las métricas: hay que
-comprobar que `verificar_reporte` no tumbe un reporte correcto por mencionar
-una técnica. Va con evals detrás.
+Lo que falta es lo de siempre: **nadie ha recorrido el ciclo entero todavía**.
+Hacen falta al menos 4 sesiones seguidas del mismo niño en la misma habilidad
+para que el motor llegue a abandonar una técnica y probar la rival. Con 62
+sesiones repartidas entre 5 niños y temas distintos, hoy no hay ninguna cadena
+así. Hasta que la haya, el «se probó, se midió, se cambió» es un mecanismo
+verificado en simulación, no en un niño.
 
 ### Las 6 técnicas no tienen efecto verificado
 

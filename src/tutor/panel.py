@@ -61,6 +61,8 @@ def render_panel(
     metodo_sostenido: float | None,
     dias: int,
     reporte_narrativo: str | None = None,
+    metodo_actual: str | None = None,
+    porque_cambio: str | None = None,
     sugerencia_para_casa: str | None = None,
     generado_en: datetime | None = None,
 ) -> str:
@@ -91,6 +93,23 @@ def render_panel(
             '<p class="metodo-txt">de las sesiones el tutor guió con preguntas '
             "sin darle la respuesta. Lo revisa un auditor independiente, sesión a sesión.</p>"
         )
+
+    # CÓMO se le está enseñando. Va en su propia tarjeta y no dentro de la
+    # prosa porque contesta una pregunta distinta: el resumen dice qué avanzó,
+    # esto dice que el sistema se está adaptando a ÉL. Es el argumento del
+    # producto y en un párrafo se pierde.
+    como_ensena_html = ""
+    if metodo_actual:
+        cambio = (
+            f'<p class="porque">{escape(porque_cambio)}</p>' if porque_cambio else ""
+        )
+        etiqueta = "Se cambió la forma de enseñarle" if porque_cambio else "Cómo se le enseña"
+        como_ensena_html = f"""
+        <section class="card metodo-actual">
+          <h2>{etiqueta}</h2>
+          <p class="metodo-nombre">{escape(metodo_actual)}</p>
+          {cambio}
+        </section>"""
 
     narrativo = ""
     if reporte_narrativo:
@@ -199,6 +218,8 @@ def render_panel(
     background: var(--linea); padding: 6px 12px; border-radius: 999px; font-size: 0.88rem;
   }}
   .narrativo p {{ margin: 0 0 10px; }}
+  .metodo-nombre {{ font-size: 1.3rem; font-weight: 600; margin: 4px 0 6px; }}
+  .porque {{ color: var(--tenue); margin: 0; line-height: 1.5; }}
   .para-casa {{
     margin-top: 14px; padding: 14px 16px; border-radius: 12px;
     background: color-mix(in srgb, var(--verde) 12%, transparent);
@@ -233,6 +254,7 @@ def render_panel(
       <h2>¿Le está dando las respuestas?</h2>
       {metodo_html}
     </section>
+    {como_ensena_html}
     {narrativo}
 
     <div class="cols">

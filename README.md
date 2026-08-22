@@ -217,6 +217,13 @@ decide es la ganancia medida.
 socrático entra antes en el prompt y no se negocia; hay un test que rechaza
 cualquier técnica que lo contradiga.
 
+**Y el papá lo ve.** El reporte semanal y el panel le cuentan qué método se
+está usando y, si cambió, la razón exacta — *«con «Empezar por lo concreto» el
+nivel no se movió en 3 sesiones, así que se pasó a «Empezar por la
+estructura»»*. Esa frase la redacta el código a partir de las sesiones medidas,
+no la infiere el modelo: si dependiera del modelo, un reporte podría atribuir el
+cambio a un motivo que no fue.
+
 Para verlo funcionando sin gastar nada: `python -m scripts.demo_tecnicas`.
 
 ---

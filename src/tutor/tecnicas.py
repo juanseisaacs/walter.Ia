@@ -324,3 +324,57 @@ def bloque_para_prompt(tecnica: Tecnica) -> str:
     incumbe al niño.
     """
     return f"# Cómo enseñas hoy\n\n{tecnica.como_ensena.strip()}"
+
+
+class CambioDeMetodo(BaseModel):
+    """Lo que se le cuenta al papá sobre CÓMO se le enseñó en el período.
+
+    Los tres campos van calculados en código y llegan hechos al redactor: la
+    frase que contesta *«¿por qué cambió de método?»* es la promesa del
+    producto, y no puede depender de que un modelo la infiera bien.
+
+    Todo en `None` cuando no hay nada que decir. Es la lección de la fase 6:
+    "no lo medimos" se dice, no se completa con un default que parece un dato.
+    """
+
+    actual: str | None = None
+    anterior: str | None = None
+    porque: str | None = None
+
+
+def cambio_de_metodo(
+    biblioteca: Biblioteca, sesiones: list[tuple[str | None, float, float]]
+) -> CambioDeMetodo:
+    """Qué método se usó en el período, y si cambió, por qué.
+
+    `sesiones` viene en orden cronológico, como `medir()`: cada una es
+    `(tecnica_id, dominio_al_abrir, dominio_al_cerrar)`.
+
+    Función pura. Se le pasan nombres al papá, no ids: "Empezar por lo
+    concreto", no `concreto_primero`.
+    """
+    usadas = [t for t, _, _ in sesiones if t is not None and biblioteca.existe(t)]
+    if not usadas:
+        return CambioDeMetodo()
+
+    actual_id = usadas[-1]
+    actual = biblioteca.obtener(actual_id).nombre
+
+    # El anterior es el último distinto del actual, mirando hacia atrás.
+    anterior_id = next((t for t in reversed(usadas) if t != actual_id), None)
+    if anterior_id is None:
+        return CambioDeMetodo(actual=actual)
+
+    anterior = biblioteca.obtener(anterior_id).nombre
+    intento = medir(sesiones).get(anterior_id)
+    if intento is None:  # no debería pasar, pero no se inventa una razón
+        return CambioDeMetodo(actual=actual, anterior=anterior)
+
+    return CambioDeMetodo(
+        actual=actual,
+        anterior=anterior,
+        porque=(
+            f"con «{anterior}» el nivel no se movió en {intento.sesiones} "
+            f"sesiones, así que se pasó a «{actual}»"
+        ),
+    )

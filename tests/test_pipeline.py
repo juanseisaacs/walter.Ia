@@ -1309,3 +1309,87 @@ def test_sin_grafo_el_atado_se_comporta_como_antes():
 
     assert atadas[0]["habilidad_id"] == HAB
     assert atadas[1]["habilidad_id"] == "mat.inventada", "sin grafo no sabe que es falso"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El cambio de método, en el reporte del papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _con_cambio() -> dict:
+    """Los campos de método, para pasárselos sueltos a `_reporte`.
+
+    Devuelve un dict y no un `MetricasReporte` a propósito: `_reporte` arma las
+    métricas él, y pasarle un objeto lo metía como campo desconocido — Pydantic
+    lo ignoraba en silencio y el test medía las métricas por defecto. Pasó al
+    escribirlo, y es exactamente el descarte mudo que este repo persigue.
+    """
+    return dict(
+        sesiones=4,
+        minutos_totales=60,
+        metodo_actual="Empezar por la estructura",
+        metodo_anterior="Empezar por lo concreto",
+        porque_cambio=(
+            "con «Empezar por lo concreto» el nivel no se movió en 3 sesiones, "
+            "así que se pasó a «Empezar por la estructura»"
+        ),
+    )
+
+
+def test_un_reporte_que_cuenta_bien_el_cambio_no_se_tumba():
+    """EL riesgo de conectar el motor al reporte, y por eso este test existe.
+
+    La verificación compara los números del texto contra las métricas. La frase
+    del porqué trae un "3 sesiones" que no está en ninguna métrica numérica, y
+    sin cuidado tumbaría un reporte perfectamente correcto — la falla de la
+    fase 6 al revés: un verificador que rechaza lo válido deja al papá sin nada.
+    """
+    reporte = _reporte(
+        "Juan tuvo 4 sesiones. Con «Empezar por lo concreto» el nivel no se movió "
+        "en 3 sesiones, así que se pasó a «Empezar por la estructura».",
+        **_con_cambio(),
+    )
+    assert verificar_reporte(reporte) == []
+
+
+def test_el_reporte_sigue_sin_poder_inventar_numeros():
+    """Aflojar para el porqué no puede aflojar para todo lo demás."""
+    reporte = _reporte(
+        "Juan tuvo 4 sesiones y resolvió 47 ejercicios con el método nuevo.",
+        **_con_cambio(),
+    )
+    problemas = verificar_reporte(reporte)
+    assert any("47" in p for p in problemas), "dejó pasar un número inventado"
+
+
+def test_las_metricas_traen_como_se_le_enseno(tmp_path):
+    """Que el dato llegue hasta el reporte, no solo que se calcule."""
+    repo = _repo_con_semana(tmp_path)
+    sesiones = repo.sesiones_de("n1", AHORA - timedelta(days=7), AHORA + timedelta(days=1))
+    for s in sesiones:
+        s.tecnica_id = "concreto_primero"
+        s.dominio_inicial = 0.2
+        repo.actualizar_sesion(s)
+
+    m = calcular_metricas(
+        repo.obtener_nino("n1"),
+        repo.sesiones_de("n1", AHORA - timedelta(days=7), AHORA + timedelta(days=1)),
+        [],
+        GRAFO,
+        AHORA,
+    )
+    assert m.metodo_actual == "Empezar por lo concreto"
+    assert m.porque_cambio is None, "no hubo cambio: no se inventa una razón"
+
+
+def test_sin_tecnicas_el_reporte_no_afirma_nada_del_metodo(tmp_path):
+    """Las 62 sesiones anteriores al motor están en NULL."""
+    repo = _repo_con_semana(tmp_path)
+    m = calcular_metricas(
+        repo.obtener_nino("n1"),
+        repo.sesiones_de("n1", AHORA - timedelta(days=7), AHORA + timedelta(days=1)),
+        [],
+        GRAFO,
+        AHORA,
+    )
+    assert m.metodo_actual is None and m.porque_cambio is None

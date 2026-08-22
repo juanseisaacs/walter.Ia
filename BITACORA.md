@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Seis de las trece entradas de abajo son la misma falla con distinta cara:
+Seis de las catorce entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -475,4 +475,53 @@ su esquema no se toca. Dos columnas aditivas en `sesiones` (`tecnica_id`,
 
 Y una de método, de las tres veces que se aplazó esto: **la respuesta correcta a
 «es muy caro» no siempre es esperar. A veces es preguntar qué parte es la cara.**
+
+---
+
+## Lección aprendida (el backspace invisible, 22/08)
+
+Conectar el motor de técnicas al reporte del papá tenía un riesgo previsto:
+`verificar_reporte` compara los números del texto contra las métricas, y la
+frase del porqué trae un *«no se movió en 3 sesiones»* cuyo 3 no está en ninguna
+métrica numérica. Sin cuidado, tumbaría un reporte correcto — la falla de la
+fase 6 al revés.
+
+El arreglo era una línea: añadir a los números plausibles los que aparecen en
+`porque_cambio`, que es texto redactado en código y por lo tanto ya verificado.
+Se escribió, se leyó bien en pantalla, y **el test siguió fallando**.
+
+Media hora de razonar sin mirar: ¿estará el `.pyc` viejo? ¿habrá dos
+definiciones de la función? ¿el módulo se cargará de otro sitio? Todo comprobado
+y todo correcto. `inspect.getsource` mostraba exactamente el código esperado.
+
+La causa apareció con `cat -A`:
+
+    plausibles |= {int(n) for n in re.findall(r"^H\d+^H", m.porque_cambio)}
+
+Esos `^H` son **caracteres de retroceso** (0x08). Al escribir el archivo desde
+un heredoc de Python, el `^H` que iba a ser parte del regex se interpretó como
+el escape de backspace y quedó el byte crudo en el fuente. El patrón buscaba
+«retroceso, dígitos, retroceso» y no coincidía nunca.
+
+1. **Se veía perfecto en todas partes.** El editor, `grep`, `sed` e incluso
+   `inspect.getsource` mostraban `r"\d+"`: la terminal renderiza el backspace
+   como nada. El único que lo delató fue `cat -A`, que imprime los caracteres de
+   control.
+2. **Cinco hipótesis y ninguna era.** Todas plausibles, todas descartables con
+   una comprobación, y ninguna cierta. Lo que cortó la sangría fue dejar de
+   razonar y poner un `print` dentro de la función: `plausibles` no tenía el 3
+   aunque el `if` entraba. De ahí a los bytes hubo un paso.
+3. **Es la lección de siempre, con disfraz nuevo.** «Mirá el dato» ya está
+   escrita cuatro veces en este archivo, y aun así se pierde media hora
+   razonando sobre código que se lee bien. La versión nueva es más incómoda:
+   **a veces el dato es el archivo, no lo que el archivo parece decir.**
+
+4. **Y la ironía, que quedó registrada:** al escribir esta misma entrada volvió
+   a colarse el byte. Contar el bug en la bitácora exigía mostrar el `^H`
+   literal, y el heredoc lo convirtió otra vez en un retroceso de verdad. Lo
+   atrapó el mismo `grep -rlP` del párrafo de abajo, corrido por costumbre.
+   Un barrido que solo se hace cuando uno sospecha no sirve de nada.
+
+Se barrió el repo entero buscando más (`grep -rlP "^H"`): solo estaban esos
+dos, ambos de la línea nueva.
 

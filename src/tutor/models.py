@@ -424,6 +424,26 @@ class MetricasReporte(BaseModel):
         "todavía no se auditó ninguna: nunca se midió NO es lo mismo que salió bien.",
     )
 
+    metodo_actual: str | None = Field(
+        default=None,
+        description=(
+            "Cómo se le está enseñando ahora, en palabras del papá. `None` si "
+            "todavía no hay ninguna técnica medida — no se afirma nada."
+        ),
+    )
+    metodo_anterior: str | None = Field(
+        default=None,
+        description="El que se abandonó, si se cambió de método en este período.",
+    )
+    porque_cambio: str | None = Field(
+        default=None,
+        description=(
+            "La razón del cambio, calculada en código a partir de la ganancia "
+            "medida. Es la frase que contesta «¿por qué cambió de método?», y "
+            "el reporte NO puede inventarla: llega hecha."
+        ),
+    )
+
     grado_de_trabajo: int = Field(
         description="En qué grado está trabajando de verdad, según lo que domina"
     )

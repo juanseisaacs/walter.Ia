@@ -597,3 +597,41 @@ def test_sin_correo_registrado_la_alerta_igual_sale():
     viejo = Nino(id="n_viejo", nombre="Ana", edad=7, grado=2)
 
     assert _email_del_papa(viejo) == "papa+n_viejo@pendiente.local"
+
+
+def test_el_panel_le_cuenta_al_papa_como_se_le_ensena(cliente):
+    """El motor decide y el papá tiene que verlo. Elegir bien y no contarlo es
+    exactamente no tener motor — el argumento del producto es poder contestar
+    «¿por qué cambió de método?»."""
+    from datetime import datetime, timedelta
+
+    from tutor.models import ModoSesion, Sesion
+
+    repo = api._repo
+    ahora = datetime.now()
+    for i, (tid, ini) in enumerate(
+        [("concreto_primero", 0.20), ("concreto_primero", 0.20), ("estructura_primero", 0.20)]
+    ):
+        s = Sesion(
+            id=f"ses_m{i}", nino_id="n1", modo=ModoSesion.GUIADO,
+            inicio=ahora - timedelta(days=3 - i), fin=ahora - timedelta(days=3 - i),
+            habilidades_trabajadas=["mat.numeros.conteo_hasta_100"],
+            tecnica_id=tid, dominio_inicial=ini,
+        )
+        repo.crear_sesion(s)
+        repo.actualizar_sesion(s)
+
+    token = _token_para(cliente, "n1")
+    html = cliente.get(f"/panel/n1?token={token}").text
+
+    assert "Empezar por la estructura" in html, "el panel no dice cómo se le enseña"
+    assert "Se cambió la forma de enseñarle" in html
+    assert "Empezar por lo concreto" in html, "no dice de qué método venía"
+
+
+def test_sin_tecnicas_el_panel_no_habla_de_metodo(cliente):
+    """Las sesiones anteriores al motor están en NULL: no se inventa nada."""
+    token = _token_para(cliente, "n1")
+    html = cliente.get(f"/panel/n1?token={token}").text
+    assert "Se cambió la forma de enseñarle" not in html
+    assert "Cómo se le enseña" not in html

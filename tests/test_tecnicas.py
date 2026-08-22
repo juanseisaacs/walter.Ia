@@ -17,6 +17,7 @@ from tutor.tecnicas import (
     Evidencia,
     Tecnica,
     bloque_para_prompt,
+    cambio_de_metodo,
     cargar_biblioteca,
     elegir,
     medir,
@@ -263,3 +264,56 @@ def test_al_prompt_va_el_metodo_y_nada_mas():
     assert "concreto" not in bloque.replace("así enseña concreto", ""), "se coló el id"
     assert "abstracto" not in bloque, "se coló el rival"
     assert "evidencia" not in bloque.lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lo que se le cuenta al papá
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_sin_tecnicas_no_se_le_afirma_nada_al_papa():
+    """`None`, no una frase vaga. Es la lección de la fase 6: 'no lo medimos'
+    se dice, no se completa con un default que parece un dato."""
+    c = cambio_de_metodo(_par(), [(None, 0.2, 0.3), (None, 0.3, 0.4)])
+    assert c.actual is None and c.anterior is None and c.porque is None
+
+
+def test_con_una_sola_tecnica_se_dice_cual_y_nada_de_cambios():
+    c = cambio_de_metodo(_par(), [("a", 0.2, 0.3), ("a", 0.3, 0.4)])
+    assert c.actual == "a"
+    assert c.anterior is None
+    assert c.porque is None, "no hubo cambio: no se inventa una razón"
+
+
+def test_cuando_cambia_de_metodo_la_razon_llega_redactada():
+    """LA frase del producto: «¿por qué cambió de método?».
+
+    Llega hecha desde el código, no la infiere el modelo. Si dependiera del
+    modelo, un reporte podría decir que cambió por un motivo que no fue.
+    """
+    tres_malas_y_un_cambio = [("a", 0.3, 0.3)] * 3 + [("b", 0.3, 0.4)]
+    c = cambio_de_metodo(_par(), tres_malas_y_un_cambio)
+
+    assert c.actual == "b"
+    assert c.anterior == "a"
+    assert c.porque and "no se movió" in c.porque
+    assert "3 sesiones" in c.porque, "tiene que decir cuántas se probó antes de cambiar"
+
+
+def test_se_le_habla_al_papa_con_nombres_no_con_ids():
+    b = Biblioteca(
+        [
+            _tecnica("concreto_primero", "estructura_primero"),
+            _tecnica("estructura_primero", "concreto_primero"),
+        ]
+    )
+    # `_tecnica` pone el id como nombre; acá se comprueba que lee el NOMBRE.
+    c = cambio_de_metodo(b, [("concreto_primero", 0.2, 0.3)])
+    assert c.actual == b.obtener("concreto_primero").nombre
+
+
+def test_una_tecnica_que_ya_no_existe_no_revienta_el_reporte():
+    """Si alguien borra un YAML, las sesiones viejas siguen apuntando a él. El
+    reporte del papá no puede caerse por eso."""
+    c = cambio_de_metodo(_par(), [("borrada_hace_meses", 0.2, 0.3)])
+    assert c.actual is None

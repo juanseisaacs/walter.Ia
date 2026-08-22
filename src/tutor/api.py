@@ -28,7 +28,7 @@ from .curriculum import cargar_grafo
 from .models import Ejercicio, ModoSesion, Nino
 from .notificaciones import Notificador, aviso_de_alerta, notificador_por_defecto
 from .panel import render_error, render_panel
-from .pedagogy import adelanto, esta_dominada, grado_de_trabajo
+from .pedagogy import adelanto, esta_dominada, grado_de_trabajo, nivel_efectivo
 from .pipeline import (
     FichaInicial,
     cliente_por_defecto,
@@ -40,6 +40,7 @@ from .pipeline import (
 )
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
+from .tecnicas import cambio_de_metodo, cargar_biblioteca
 from .tools import Veredicto, check_answer, verify_arithmetic
 from .voice import emisor_por_defecto
 
@@ -68,8 +69,11 @@ app = FastAPI(title="RBH Tutor", version="0.1.0", lifespan=_ciclo_de_vida)
 # Se arman una vez al arrancar, no por request.
 _repo = RepositorioSQLite(cfg.DB, cfg.DATOS)
 _grafo = cargar_grafo()
+# Se carga una vez: la usan el orquestador (para elegir) y el panel (para
+# contarle al papá qué se eligió y por qué).
+_tecnicas = cargar_biblioteca()
 _emisor = emisor_por_defecto()
-_orquestador = Orquestador(_repo, _grafo, _emisor)
+_orquestador = Orquestador(_repo, _grafo, _emisor, tecnicas=_tecnicas)
 _notificador: Notificador = notificador_por_defecto()
 
 # El Analista corre offline con este cliente. Sin ANTHROPIC_API_KEY es un
@@ -481,6 +485,21 @@ def cumplimiento(nino_id: str, dias: int = 30, autorizado: str = Depends(papa_au
     }
 
 
+def _nivel_al_cerrar(nino, sesion, ahora: datetime) -> float:
+    """En qué nivel quedó la habilidad que esa sesión trabajó.
+
+    Igual que en el reporte: solo la primera habilidad declarada. Atribuirle a
+    la técnica el movimiento de todo lo que se tocó la premiaría por trabajo
+    que no hizo.
+    """
+    if not sesion.habilidades_trabajadas:
+        return sesion.dominio_inicial or 0.0
+    registro = nino.dominio.get(sesion.habilidades_trabajadas[0])
+    if registro is None:
+        return sesion.dominio_inicial or 0.0
+    return nivel_efectivo(registro, sesion.fin or ahora)
+
+
 def _veredictos_de(sesiones: list) -> list:
     """Los veredictos del método que existen para estas sesiones.
 
@@ -531,6 +550,17 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
     veredictos = _veredictos_de(sesiones)
     reporte = _repo.ultimo_reporte(nino_id)
 
+    # CÓMO se le está enseñando. Se calcula acá y no se lee del reporte porque
+    # el panel se abre cuando el papá quiere: el reporte puede tener una semana
+    # y el método haber cambiado ayer.
+    metodo = cambio_de_metodo(
+        _tecnicas,
+        [
+            (s.tecnica_id, s.dominio_inicial or 0.0, _nivel_al_cerrar(nino, s, ahora))
+            for s in sesiones
+        ],
+    )
+
     html = render_panel(
         nombre=nino.nombre,
         grado_escolar=nino.grado,
@@ -545,6 +575,8 @@ def panel_papa(nino_id: str, token: str = Query(...), dias: int = 30):
         sesiones_auditadas=len(veredictos),
         metodo_sostenido=_metodo_sostenido(veredictos),
         dias=dias,
+        metodo_actual=metodo.actual,
+        porque_cambio=metodo.porque,
         reporte_narrativo=reporte.contenido if reporte else None,
         sugerencia_para_casa=reporte.sugerencia if reporte else None,
         generado_en=ahora,

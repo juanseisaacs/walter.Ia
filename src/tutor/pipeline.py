@@ -41,8 +41,10 @@ from .pedagogy import (
     adelanto,
     esta_dominada,
     grado_de_trabajo,
+    nivel_efectivo,
 )
 from .storage import Repositorio
+from .tecnicas import Biblioteca, cambio_de_metodo, cargar_biblioteca
 from .voice import cargar_prompt
 
 T = TypeVar("T", bound=BaseModel)
@@ -828,12 +830,31 @@ def vigilante_para_sesion(cliente: ClienteLLM | None = None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _dominio_al_cerrar(
+    nino: Nino, sesion: Sesion, grafo: GrafoHabilidades, ahora: datetime
+) -> float:
+    """En qué nivel quedó la habilidad que se trabajó en esa sesión.
+
+    Se mira SOLO la habilidad que la sesión declara haber trabajado: si en una
+    sesión se tocaron dos temas, atribuirle a la técnica el movimiento de ambos
+    la premiaría por trabajo que no hizo.
+    """
+    if not sesion.habilidades_trabajadas:
+        return sesion.dominio_inicial or 0.0
+    hid = sesion.habilidades_trabajadas[0]
+    registro = nino.dominio.get(hid)
+    if registro is None or not grafo.existe(hid):
+        return sesion.dominio_inicial or 0.0
+    return nivel_efectivo(registro, sesion.fin or ahora)
+
+
 def calcular_metricas(
     nino: Nino,
     sesiones: list[Sesion],
     cumplimientos: list[AuditoriaCumplimiento],
     grafo: GrafoHabilidades,
     ahora: datetime | None = None,
+    tecnicas: Biblioteca | None = None,
 ) -> MetricasReporte:
     """Los HECHOS, en código. El agente redacta a partir de esto y no puede
     afirmar nada que no esté acá.
@@ -857,12 +878,26 @@ def calcular_metricas(
         nombre = grafo.habilidad(hid).nombre.es
         (dominadas if esta_dominada(registro, ahora) else en_progreso).append(nombre)
 
+    # CÓMO se le enseñó, no solo qué aprendió. Sale de las sesiones ya cerradas
+    # y llega redactado: la frase que contesta "¿por qué cambió de método?" es
+    # la promesa del producto y no puede depender de que el modelo la infiera.
+    metodo = cambio_de_metodo(
+        tecnicas or cargar_biblioteca(),
+        [
+            (s.tecnica_id, s.dominio_inicial or 0.0, _dominio_al_cerrar(nino, s, grafo, ahora))
+            for s in sesiones
+        ],
+    )
+
     return MetricasReporte(
         sesiones=len(sesiones),
         minutos_totales=minutos,
         habilidades_dominadas=sorted(dominadas),
         habilidades_en_progreso=sorted(en_progreso),
         cumplimiento_metodo=(cumplidas / len(cumplimientos)) if cumplimientos else None,
+        metodo_actual=metodo.actual,
+        metodo_anterior=metodo.anterior,
+        porque_cambio=metodo.porque,
         grado_de_trabajo=grado_de_trabajo(nino, grafo, ahora),
         adelanto_grados=adelanto(nino, grafo, ahora),
     )
@@ -911,6 +946,18 @@ def generar_reporte(
         f"Grado de trabajo real: {metricas.grado_de_trabajo}°",
         f"Adelanto sobre su grado: {metricas.adelanto_grados:+d}",
     ]
+    # CÓMO se le enseñó. Va con la frase del porqué ya redactada: el modelo la
+    # usa, no la infiere. Es la respuesta a "¿por qué cambió de método?", que es
+    # lo que el producto promete poder contestar.
+    if metricas.metodo_actual:
+        contexto.append(f"Cómo se le está enseñando: «{metricas.metodo_actual}»")
+    if metricas.porque_cambio:
+        contexto.append(
+            f"Cambió de método en este período, y la razón exacta es: "
+            f"{metricas.porque_cambio}. Cuéntasela — es lo que más le importa "
+            f"a un papá que se pregunta si esto se adapta a su hijo."
+        )
+
     if nino.perfil.intereses:
         contexto.append(f"Le interesa: {', '.join(nino.perfil.intereses)}")
 
@@ -1202,6 +1249,18 @@ def verificar_reporte(reporte: ReporteParaPapa) -> list[str]:
         reporte.desde.day,
         reporte.hasta.day,
     }
+
+    # Los números de `porque_cambio` también son de la fuente: esa frase la
+    # redacta `tecnicas.cambio_de_metodo` en CÓDIGO, a partir de las sesiones
+    # medidas. No es relajar la verificación — es reconocer que ese texto ya
+    # pasó por ella.
+    #
+    # Sin esto, la verificación tumbaba un reporte correcto por decir "no se
+    # movió en 3 sesiones", que es exactamente la falla de la fase 6 al revés:
+    # un verificador que rechaza lo válido deja al papá sin nada, que es el
+    # resultado que quería evitar.
+    if m.porque_cambio:
+        plausibles |= {int(n) for n in re.findall(r"\d+", m.porque_cambio)}
     for n in numeros:
         if n not in plausibles and n > 1:
             problemas.append(f"número '{n}' no aparece en las métricas")
