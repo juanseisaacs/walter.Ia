@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Seis de las catorce entradas de abajo son la misma falla con distinta cara:
+Siete de las quince entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -524,4 +524,45 @@ el escape de backspace y quedó el byte crudo en el fuente. El patrón buscaba
 
 Se barrió el repo entero buscando más (`grep -rlP "^H"`): solo estaban esos
 dos, ambos de la línea nueva.
+
+---
+
+## Lección aprendida (los dinosaurios que nadie mencionó, 22/08)
+
+Corriendo el e2e con voz para oír el saludo nuevo, el tutor le preguntó al niño
+de prueba si le gustaban los dinosaurios. Dos corridas, la misma pregunta — a un
+chico cuya ficha estaba **completamente vacía**.
+
+No estaba afirmando saberlo (preguntaba, no decía "sé que te gustan"), así que
+no violaba ninguna regla. Pero tampoco era casual: `tutor_persona.es.md` trae
+ese ejemplo literal para enseñar a preguntar en vez de lucirse —
+*✓ «Oye, ¿a ti te gustan los dinosaurios?»*— y el modelo lo estaba copiando
+palabra por palabra.
+
+**La prueba descartó la hipótesis obvia, y menos mal.** Lo fácil era concluir
+que el ejemplo del prompt pesaba más que el dato, y borrarlo. Se probó primero:
+se corrió el mismo e2e con la ficha poblada, y preguntó por el fútbol. El modelo
+**sí usa lo que sabe**. El ejemplo nunca fue el problema.
+
+El problema era otro, y estaba en `resumen_para_prompt`: con `madurez_vinculo`
+en cero se emitía siempre *«Todo lo de arriba te lo contó su familia. **Úsalo
+para preguntar**»*, incluso cuando arriba no había nada personal — solo el grado
+y el tema del día. Una orden de usar algo que no existe.
+
+1. **Un hueco en las instrucciones lo llena el modelo, y lo llena con lo que
+   tenga cerca.** Es la lección de visión del 21/08 con otra cara: *lo que no se
+   le dice, se lo inventa*. Ahí fue un tool que devolvía `{ok: true}` en vez de
+   qué quedó en pantalla; acá es una instrucción que da por supuesto un
+   contenido que no llegó.
+2. **Nombrar el ejemplo para prohibirlo es lo que lo desactiva.** El texto nuevo
+   dice literalmente «no le preguntes por dinosaurios, ni fútbol, ni nada que se
+   te ocurra, porque no te lo contó nadie». Quitar la palabra del prompt habría
+   dejado el hueco intacto y el modelo habría elegido otro tema cualquiera.
+3. **La verificación barata existía y hubo que construirla igual.** Distinguir
+   las dos hipótesis pedía correr el e2e con una ficha poblada, y el script solo
+   sabía crear un niño vacío. Se le agregó `--intereses`. Media hora de más que
+   ahorró borrar algo que funcionaba.
+
+Verificado después del arreglo, contra Gemini real y con la ficha vacía:
+*«Oye, ¿y a ti qué te gusta hacer? Cuéntame un poquito.»*
 

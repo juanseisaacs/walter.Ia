@@ -719,3 +719,49 @@ def test_el_tutor_llega_sabiendo_lo_que_el_nino_le_conto():
     texto = resumen_para_prompt(nino, grafo, AHORA)
     assert "color favorito: rojo" in texto
     assert "Kira" in texto
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El hueco que el modelo rellena solo
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_con_la_ficha_vacia_se_le_dice_que_no_sabe_nada():
+    """Verificado con dos sesiones reales el 22/08: el tutor le preguntaba al
+    niño si le gustaban los dinosaurios — el ejemplo literal que trae
+    `tutor_persona.es.md` — a un chico del que no sabía absolutamente nada.
+
+    No era que el ejemplo dominara: con la ficha poblada preguntó por lo que de
+    verdad le gustaba. Era que el resumen le ordenaba «úsalo para preguntar» y
+    no había nada que usar. Un hueco en las instrucciones lo llena el modelo.
+    """
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+    assert nino.perfil.madurez_vinculo == 0
+
+    resumen = resumen_para_prompt(nino, cargar_grafo())
+
+    assert "NO SABES NADA" in resumen
+    assert "Úsalo para preguntar" not in resumen, (
+        "le dice que use algo que no tiene: ahí es donde inventa un tema"
+    )
+    assert "dinosaurios" in resumen, "tiene que nombrar el ejemplo para prohibirlo"
+
+
+def test_con_algo_en_la_ficha_si_se_le_pide_que_lo_use():
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+    nino.perfil.intereses = ["el fútbol"]
+
+    resumen = resumen_para_prompt(nino, cargar_grafo())
+
+    assert "Le gusta: el fútbol" in resumen
+    assert "Úsalo para preguntar" in resumen
+    assert "NO SABES NADA" not in resumen
+
+
+def test_un_solo_dato_suelto_ya_cuenta_como_saber_algo():
+    """Cualquier campo del perfil sirve, no solo los intereses: si el papá contó
+    que le cuesta concentrarse, ya hay de qué agarrarse."""
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+    nino.perfil.frustraciones = ["que le apuren"]
+
+    assert "NO SABES NADA" not in resumen_para_prompt(nino, cargar_grafo())

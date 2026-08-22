@@ -121,8 +121,12 @@ def _esperar_backend(puerto: int, segundos: int = 30) -> bool:
     return False
 
 
-def _sembrar_nino(datos: Path) -> str:
+def _sembrar_nino(datos: Path, intereses: str = "") -> str:
     """Un niño de 2° en la base desechable. Devuelve su id.
+
+    `intereses` deja poblarle la ficha para ver qué hace el tutor con ella. Sin
+    eso solo se puede probar el caso vacío, que es donde el modelo rellena los
+    huecos con los ejemplos del prompt.
 
     Se crea con el mismo camino que usa el onboarding real —`crear_nino_desde
     _ficha`— y no escribiendo la fila a mano: si el alta cambia, esta prueba se
@@ -135,6 +139,7 @@ def _sembrar_nino(datos: Path) -> str:
         "from tutor import config as cfg;"
         "f=FichaInicial(nombre_nino='Prueba', edad=7, grado=2, email_papa='e2e@ejemplo.test');"
         "n=crear_nino_desde_ficha(f,'n_e2e');"
+        f"n.perfil.intereses = {[i.strip() for i in intereses.split(',') if i.strip()]!r};"
         "RepositorioSQLite(cfg.DB, cfg.DATOS).guardar_nino(n);"
         "print(n.id)"
     )
@@ -371,6 +376,12 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Prueba de punta a punta de la pantalla del niño.")
     p.add_argument("--sin-voz", action="store_true", help="No abre sesión: no gasta cuota")
     p.add_argument("--ver", action="store_true", help="Muestra el navegador")
+    p.add_argument(
+        "--intereses",
+        default="",
+        help="Puebla la ficha del niño de prueba, separados por coma. Sirve para "
+        "ver si el tutor usa lo que sabe o rellena con los ejemplos del prompt.",
+    )
     args = p.parse_args()
     con_voz = not args.sin_voz
 
@@ -393,8 +404,9 @@ def main() -> int:
     backend = None
 
     try:
-        nino_id = _sembrar_nino(datos)
-        res.dato("niño de prueba", nino_id)
+        nino_id = _sembrar_nino(datos, args.intereses)
+        res.dato("niño de prueba", f"{nino_id}"
+                 + (f" · le gusta: {args.intereses}" if args.intereses else " · ficha VACÍA"))
         res.dato("datos desechables", str(datos))
 
         backend = _levantar_backend(datos, puerto)

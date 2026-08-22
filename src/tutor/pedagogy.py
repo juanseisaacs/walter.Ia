@@ -574,13 +574,36 @@ def resumen_para_prompt(
     # como alguien que inventa — que es exactamente lo que la regla quería
     # evitar. La distinción ya existía en el código (`madurez_vinculo=0` al
     # crear desde la ficha); faltaba que llegara al prompt.
-    if p.madurez_vinculo == 0:
+    # ¿Hay algo PERSONAL que usar, o solo el grado y el tema del día? La
+    # diferencia decide qué se le dice al tutor, y la diferencia importa.
+    sabe_algo_de_el = any(
+        (p.datos_suyos, p.intereses, p.motivadores, p.frustraciones,
+         p.estilo_comunicacion, p.contexto_escolar, p.notas)
+    )
+
+    if p.madurez_vinculo == 0 and sabe_algo_de_el:
         lineas.append(
             "PRIMERA VEZ que hablan. Todo lo de arriba te lo contó su papá o su "
             "mamá, no él: no digas que te lo contó él. Úsalo para preguntar, no "
             "para demostrar que ya lo sabes. Si te pregunta cómo lo sabes, dile "
             "la verdad con naturalidad — que su familia te contó para que se "
             "conocieran más rápido."
+        )
+    elif p.madurez_vinculo == 0:
+        # Sin esto el tutor recibía "úsalo para preguntar" y NO TENÍA QUÉ, así
+        # que rellenaba el hueco con el ejemplo del prompt: preguntaba por
+        # dinosaurios —el ejemplo literal de `tutor_persona.es.md`— a un niño
+        # del que no sabía nada. Verificado el 22/08 con dos sesiones reales; y
+        # con la ficha poblada preguntó por lo que de verdad le gustaba, así
+        # que el problema nunca fue el ejemplo: era el hueco.
+        #
+        # Es la lección de visión otra vez: lo que no se le dice, se lo inventa.
+        lineas.append(
+            "PRIMERA VEZ que hablan y NO SABES NADA de él: ni sus gustos, ni a "
+            "qué juega, ni qué se le hace fácil. No des por hecho ningún tema — "
+            "no le preguntes por dinosaurios, ni fútbol, ni nada que se te "
+            "ocurra, porque no te lo contó nadie. Preguntale abierto qué le "
+            "gusta hacer y escuchá: eso es lo que hay que averiguar hoy."
         )
     elif p.madurez_vinculo < 3:
         lineas.append("Todavía lo conoces poco: pregunta y explora.")
