@@ -6,10 +6,12 @@ que está bajo nuestro control.
 """
 
 import logging
+import sys
 from datetime import datetime, timedelta
 
 import pytest
 
+from tutor import config as cfg
 from tutor.curriculum import cargar_grafo
 from tutor.models import (
     AnalisisSesion,
@@ -41,6 +43,7 @@ from tutor.pipeline import (
     _SalidaReporte,
     analizar_sesion,
     aplicar_analisis,
+    aplicar_retencion,
     calcular_metricas,
     clasificar_senales,
     crear_nino_desde_ficha,
@@ -610,6 +613,91 @@ def test_una_semana_sin_sesiones_no_genera_reporte(tmp_path):
 
     assert generar_reporte_del_periodo(repo, GRAFO, "n1", cliente, AHORA) is None
     assert cliente.llamadas == [], "ni siquiera se llamó al modelo"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retención
+# ─────────────────────────────────────────────────────────────────────────────
+# `borrar_transcripciones_anteriores_a` tenía seis tests propios y ningún
+# llamador fuera de una demo: la regla dura de datos de menores no se ejecutaba
+# nunca. Estos tests cubren la función Y el hecho de que alguien la llame.
+
+
+def test_la_retencion_borra_lo_vencido_y_respeta_lo_reciente(tmp_path):
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    edades = [("vieja", AHORA - timedelta(days=40)), ("nueva", AHORA - timedelta(days=2))]
+    for sid, cuando in edades:
+        s = Sesion(id=sid, nino_id="n1", modo=ModoSesion.GUIADO, inicio=cuando, analizada=True)
+        repo.crear_sesion(s)
+        repo.actualizar_sesion(s)
+        repo.guardar_transcripcion(sid, "nino: hola")
+
+    r = aplicar_retencion(repo, ahora=AHORA, dias=30)
+
+    assert r.borradas == 1
+    assert repo.obtener_transcripcion("vieja") is None
+    assert repo.obtener_transcripcion("nueva") is not None, "lo de esta semana no se toca"
+
+
+def test_el_modo_seco_no_borra_nada(tmp_path):
+    """Poder mirar qué se va a perder antes de perderlo."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    repo.crear_sesion(Sesion(id="s1", nino_id="n1", modo=ModoSesion.GUIADO,
+                             inicio=AHORA - timedelta(days=40)))
+    repo.guardar_transcripcion("s1", "nino: hola")
+
+    r = aplicar_retencion(repo, ahora=AHORA, dias=30, seco=True)
+
+    assert r.borradas == 1, "reporta lo que borraría"
+    assert repo.obtener_transcripcion("s1") is not None, "pero no lo borró"
+
+
+def test_avisa_cuando_se_pierde_una_sesion_sin_analizar(tmp_path, caplog):
+    """La retención manda —es legal, no una preferencia— pero perder el trabajo
+    de un niño antes de leerlo no puede pasar en silencio."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    repo.crear_sesion(Sesion(id="s1", nino_id="n1", modo=ModoSesion.GUIADO,
+                             inicio=AHORA - timedelta(days=40)))  # analizada=False
+    repo.guardar_transcripcion("s1", "nino: cuarenta y dos")
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pipeline"):
+        r = aplicar_retencion(repo, ahora=AHORA, dias=30)
+
+    assert r.sin_analizar == ("s1",)
+    assert "sin haberse analizado" in caplog.text
+    assert "s1" in r.diagnostico()
+
+
+def test_retencion_corre_de_verdad(tmp_path, monkeypatch, capsys):
+    """EL test de este bloque: que el script la llame.
+
+    Entra por `main()`, que es por donde entra quien corre la tarea. Un test de
+    la función sola no prueba que la función se use — que es exactamente cómo
+    esto se quedó sin llamador durante fases (`BITACORA.md`, 21/08).
+    """
+    import scripts.procesar_pendientes as script
+
+    monkeypatch.setattr(cfg, "DB", tmp_path / "t.db")
+    monkeypatch.setattr(cfg, "DATOS", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["procesar_pendientes"])
+
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_nino(_nino())
+    vieja = Sesion(id="s1", nino_id="n1", modo=ModoSesion.GUIADO,
+                   inicio=datetime.now() - timedelta(days=999), analizada=True)
+    repo.crear_sesion(vieja)
+    repo.actualizar_sesion(vieja)  # cola vacía: la retención igual tiene que correr
+    repo.guardar_transcripcion("s1", "nino: hola")
+
+    assert script.main() == 0
+    assert repo.obtener_transcripcion("s1") is None, (
+        "la transcripción venció hace 969 días y el script la dejó ahí: "
+        "la retención volvió a quedarse sin llamador"
+    )
+    assert "RETENCIÓN" in capsys.readouterr().out
 
 
 def test_un_reporte_que_inventa_un_numero_no_llega_al_papa(tmp_path):

@@ -703,6 +703,85 @@ def procesar_pendientes(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Retención: que la regla dura de datos de menores de verdad se ejecute
+# ─────────────────────────────────────────────────────────────────────────────
+# `storage.borrar_transcripciones_anteriores_a` existía desde hace fases, bien
+# escrita, con seis tests propios y contemplando hasta los archivos huérfanos.
+# Su único llamador era una demo. `DIAS_RETENCION_TRANSCRIPCION` no lo leía
+# nadie. O sea: la regla dura decía "las transcripciones se borran a los N
+# días" y no se borraba ninguna, nunca.
+#
+# Es la quinta pieza del mismo patrón (`BITACORA.md`, 21/08) y la más cara,
+# porque acá lo que se acumula son conversaciones de menores. Esta función es
+# la que le pone un llamador de verdad, y `test_retencion_corre_de_verdad`
+# entra por donde entra el usuario para que no vuelva a quedarse sin llamador.
+
+
+class Retencion(NamedTuple):
+    """Qué borró la purga, y qué se llevó por delante."""
+
+    borradas: int
+    corte: datetime
+    sin_analizar: tuple[str, ...] = ()
+    """PERDIDAS. Sesiones cuya transcripción venció antes de que el Analista la
+    leyera: su trabajo ya no se puede recuperar. La retención igual manda —es
+    legal, no una preferencia— pero tiene que verse."""
+
+    def diagnostico(self) -> str:
+        if not self.borradas:
+            return f"nada que borrar (corte: {self.corte:%Y-%m-%d})"
+        texto = f"{self.borradas} transcripción(es) borrada(s), anteriores al {self.corte:%Y-%m-%d}"
+        if self.sin_analizar:
+            texto += f" · {len(self.sin_analizar)} SIN ANALIZAR: {', '.join(self.sin_analizar)}"
+        return texto
+
+
+def aplicar_retencion(
+    repo: Repositorio,
+    ahora: datetime | None = None,
+    dias: int | None = None,
+    seco: bool = False,
+) -> Retencion:
+    """Borra las transcripciones vencidas. El activo es la ficha, no la charla.
+
+    Se corre DESPUÉS de drenar la cola del Analista, nunca antes: al revés se
+    borraría el insumo de una sesión que estaba a punto de analizarse.
+
+    Con `seco=True` calcula y reporta sin borrar, para poder mirar antes.
+    """
+    ahora = ahora or datetime.now()
+    dias = cfg.DIAS_RETENCION_TRANSCRIPCION if dias is None else dias
+    corte = ahora - timedelta(days=dias)
+
+    # Se mira ANTES de borrar: después ya no hay forma de saber qué se perdió.
+    en_riesgo = tuple(
+        sorted(
+            s.id
+            for s in repo.sesiones_sin_analizar()
+            if s.inicio < corte and repo.obtener_transcripcion(s.id)
+        )
+    )
+
+    if seco:
+        return Retencion(borradas=len(en_riesgo), corte=corte, sin_analizar=en_riesgo)
+
+    borradas = repo.borrar_transcripciones_anteriores_a(corte)
+    resultado = Retencion(borradas=borradas, corte=corte, sin_analizar=en_riesgo)
+
+    if en_riesgo:
+        _log.warning(
+            "retención: %d sesión(es) perdieron su transcripción sin haberse "
+            "analizado — %s",
+            len(en_riesgo),
+            ", ".join(en_riesgo),
+        )
+    elif borradas:
+        _log.info("retención: %s", resultado.diagnostico())
+
+    return resultado
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Agente: Vigilante  (en vivo, en paralelo)
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -155,6 +155,25 @@ sesión, así que además pesa contra el techo. Arreglarlo toca la salida del
 Analista — la operación que la fase 7 dejó marcada como la más cara — así que
 va con evals detrás, no de paso.
 
+### Una de cada tres sesiones se abre y se cierra sin un solo turno
+
+Medido el 22/08 sobre los datos reales: **19 de 62 sesiones tienen la
+transcripción en 0 bytes**. Se abrió la sesión, se emitió el token efímero, se
+cerró y nadie dijo una palabra. Salió a la luz investigando por qué 21 sesiones
+no tenían auditoría — no la tienen porque no hay nada que auditar, y eso es
+correcto; el problema es el 31 %.
+
+Cada una de esas sesiones **gasta un token de Gemini y cuenta contra
+`MAX_SESIONES_DIA = 3`**, así que un niño puede quedarse sin su tercera sesión
+del día por dos recargas de página. Y una de ellas duró **117,7 minutos con
+cero turnos**: una pestaña abierta y olvidada, que es el mismo agujero que el
+corte por duración de abajo.
+
+Antes de arreglarlo hay que saber cuál de las tres es: recargas de la página
+durante el desarrollo, el navegador abriendo sesión antes de que el niño toque
+el botón, o sesiones que mueren al conectar. Lo dice el log del servidor
+cruzado con `inicio`/`fin`, no hace falta código nuevo para averiguarlo.
+
 ### Lo demás, chico
 
 - **El navegador no corta por duración.** El backend ya manda `max_minutos` y
