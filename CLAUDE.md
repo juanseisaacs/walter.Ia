@@ -158,10 +158,11 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 398 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 411 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `cd web && npm test` | 73 tests del front: audio, micrófono, pizarra | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
+| _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
 | `python -m scripts.demo_persistencia` | El ciclo completo, de la sesión al dominio | no |
 | `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
@@ -223,7 +224,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado |
 | Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
-| Tests | **398** de Python + **73** del front, en verde. Lint en cero |
+| Tests | **411** de Python + **73** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 
