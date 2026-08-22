@@ -198,19 +198,16 @@ durante el desarrollo, el navegador abriendo sesión antes de que el niño toque
 el botón, o sesiones que mueren al conectar. Lo dice el log del servidor
 cruzado con `inicio`/`fin`, no hace falta código nuevo para averiguarlo.
 
-### Las cinco fichas viejas no tienen correo del papá
+### Hay dos Felipe, y uno sobra
 
-`email_papa` nunca se persistió hasta la migración v5, así que los cinco niños
-de la base lo tienen en `None`. Consecuencias hoy:
+`n_hPPbkPYr` y `n_drlyRRIU` son el mismo niño: el onboarding corrió dos veces.
+Las sesiones están todas en el primero (20 sesiones contra 0), así que el
+segundo es una ficha huérfana.
 
-- **No pueden abrir el panel**: el enlace mágico solo va al correo registrado, y
-  no hay ninguno.
-- **Una alerta de seguridad de esos niños no le llegaría a nadie.**
-
-Son fichas de prueba y se arregla escribiendo el correo en la base, o dándolos
-de alta de nuevo por el onboarding —que ya lo exige y ahora sí lo guarda—. Lo
-que **no** hay que hacer es rellenarlo con un valor inventado para que deje de
-molestar: es justo el default que parece un dato de la fase 6.
+Borrarlo es una línea, pero **`ON DELETE CASCADE` se lleva su dominio y sus
+sesiones**, así que antes hay que mirar que de verdad no tenga nada — no
+después. Es el tipo de limpieza que conviene hacer con la base a la vista, no
+en un script que se corre a ciegas.
 
 ### El motor cerró el círculo — falta que un niño lo recorra
 
