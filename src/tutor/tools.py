@@ -154,6 +154,45 @@ def _normalizar_texto(texto: str) -> str:
     return " ".join(palabras)
 
 
+NOMBRE_DE_LETRA = {
+    "a": "a", "be": "b", "ce": "c", "de": "d", "e": "e", "efe": "f", "ge": "g",
+    "hache": "h", "i": "i", "jota": "j", "ka": "k", "ele": "l", "eme": "m",
+    "ene": "n", "enie": "ñ", "enye": "ñ", "o": "o", "pe": "p", "cu": "q",
+    "ku": "q", "erre": "r", "ere": "r", "ese": "s", "te": "t", "u": "u",
+    "uve": "v", "ve": "v", "equis": "x", "ye": "y", "zeta": "z", "seta": "z",
+    # Dígrafos: para el niño son una letra.
+    "che": "ch", "elle": "ll", "eye": "ll", "doble erre": "rr", "erre doble": "rr",
+    "i griega": "y", "ve corta": "v", "be larga": "b", "be grande": "b",
+    "uve doble": "w", "doble ve": "w", "doble u": "w",
+}
+"""Cómo un niño NOMBRA una letra cuando habla.
+
+Es el gemelo de `palabras_a_numero`: nadie de seis años contesta «m» a «¿con
+qué sonido empieza mesa?». Dice **eme**, o *«con la eme»*, o el sonido a secas.
+
+Sin esto, el nodo de sonido inicial y final le decía INCORRECTO a todos los
+niños que acertaban. El proyecto ya tiene escrito por qué eso es lo más caro
+que puede pasar: confundir un acierto con un error le enseña al niño que
+responder bien no sirve."""
+
+
+def _a_letra(texto: str) -> str | None:
+    """La letra que el niño nombró, o None si no dijo el nombre de una letra."""
+    limpio = _normalizar_texto(texto)
+    if not limpio:
+        return None
+    if limpio in NOMBRE_DE_LETRA:
+        return NOMBRE_DE_LETRA[limpio]
+    # «con la eme», «empieza con che»: se busca el nombre entre lo que dijo.
+    palabras = limpio.split()
+    for n in (2, 1):  # los de dos palabras primero: «doble erre» antes que «erre»
+        for i in range(len(palabras) - n + 1):
+            trozo = " ".join(palabras[i : i + n])
+            if trozo in NOMBRE_DE_LETRA:
+                return NOMBRE_DE_LETRA[trozo]
+    return None
+
+
 # Cuántos dígitos de más hacen sospechar de la transcripción y no del niño.
 # Tres: "729" contra "7102191" son cuatro de más. Un niño que se equivoca de
 # orden suele irse uno o dos ("7290"), y eso SÍ se corrige.
@@ -212,6 +251,15 @@ def check_answer(
     esperado = _normalizar_texto(ejercicio.respuesta)
     if not dicho:
         return ResultadoVerificacion(veredicto=Veredicto.NO_SE_ENTENDIO)
+
+    # Cuando lo que se espera es una letra, el niño la NOMBRA: dice «eme», no
+    # «m». Se traduce lo que dijo antes de comparar — igual que con los números.
+    if esperado in NOMBRE_DE_LETRA.values() and (letra := _a_letra(dicho)):
+        return ResultadoVerificacion(
+            veredicto=Veredicto.CORRECTO if letra == esperado else Veredicto.INCORRECTO,
+            valor_interpretado=letra,
+        )
+
     return ResultadoVerificacion(
         veredicto=Veredicto.CORRECTO if dicho == esperado else Veredicto.INCORRECTO,
         valor_interpretado=dicho,

@@ -7,6 +7,7 @@
  * vacío es mucho mejor que uno con una cuenta rota adelante de un niño.
  */
 
+import { dibujoDe } from "./emojis";
 import { MAX_PALABRAS } from "./escenas";
 import type { Anotacion, Cuadro, Escena } from "./escenas";
 
@@ -202,10 +203,21 @@ export function describir(cuadro: Cuadro): string {
       return `la cuenta ${e.a} ${e.op} ${e.b}${
         e.resultado === undefined ? " sin resultado, abierta para él" : ` = ${e.resultado}`
       }, escrita en columna con el signo en naranja`;
-    case "grupos":
-      return `${e.grupos} ${e.nombre ?? "grupos"} con ${e.porGrupo} en cada uno${
-        e.porGrupo > 12 ? " (el número escrito adentro, no puntos)" : " (puntos para contar)"
-      }`;
+    case "grupos": {
+      // CON QUÉ está dibujado, no solo cuántos. Desde que hay emojis, el niño
+      // puede estar viendo gallinas de verdad — y si el tutor cree que son
+      // puntos, vuelve exactamente el problema que los emojis venían a
+      // resolver: el niño preguntando «¿los puntos naranjas son las galletas?».
+      // Lo que no se le dice al tutor, se lo inventa.
+      const dibujo = dibujoDe(e.nombre);
+      const con =
+        e.porGrupo > 12
+          ? " (el número escrito adentro, no dibujos)"
+          : dibujo
+            ? ` (dibujados como ${dibujo}, para contarlos)`
+            : " (puntos para contar)";
+      return `${e.grupos} ${e.nombre ?? "grupos"} con ${e.porGrupo} en cada uno${con}`;
+    }
     case "recta":
       return `una recta del ${e.desde} al ${e.hasta}${
         e.marca !== undefined ? `, marcado el ${e.marca}` : ""

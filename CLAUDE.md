@@ -138,6 +138,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar la escalera de pistas | `knowledge/prompts/socratic_playbook.es.md` |
 | Cambiar los valores que el tutor vive | `knowledge/prompts/valores.es.md` |
 | Agregar una habilidad al currículum | `knowledge/curriculum/*.yaml` |
+| Cambiar qué del español se verifica en código | `src/tutor/lengua.py` |
+| Cambiar cómo se escriben los ejercicios de lenguaje | `knowledge/prompts/exercise_generator_lengua.es.md` |
+| Cambiar con qué materia arranca un niño nuevo | `pedagogy.ORDEN_DE_MATERIAS` |
+| Agregar un dibujito a la pizarra | `web/src/pizarra/emojis.ts` |
 | Agregar o cambiar una **forma de enseñar** | `knowledge/tecnicas/*.yaml`. Van de a pares rivales, y ninguna entra sin bloque de evidencia |
 | Cambiar cómo se calcula el dominio | `src/tutor/pedagogy.py` |
 | Agregar un tool del tutor | `src/tutor/tools.py` |
@@ -169,7 +173,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 415 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 587 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
 | `cd web && npm test` | 83 tests del front: audio, micrófono, pizarra | no |
@@ -236,9 +240,9 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 
 | | |
 |---|---|
-| Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado |
-| Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
-| Tests | **415** de Python + **83** del front, en verde. Lint en cero |
+| Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
+| Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
+| Tests | **587** de Python + **85** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

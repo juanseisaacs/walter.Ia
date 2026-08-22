@@ -7,7 +7,7 @@ falla, algo cambió en la pedagogía — no en el código.
 from datetime import datetime, timedelta
 
 from tutor.curriculum import cargar_grafo
-from tutor.models import Calendario, Nino, RegistroDominio
+from tutor.models import Calendario, Materia, Nino, RegistroDominio
 from tutor.pedagogy import (
     REGISTRO_POR_GRADO,
     UMBRAL_DOMINIO,
@@ -158,10 +158,15 @@ def test_sin_prerequisitos_solo_estan_las_raices():
     `prerrequisito_satisfecho`."""
     g = cargar_grafo()
     disponibles = habilidades_disponibles(_nino(grado=1), g, AHORA)
-    # La raíz es contar hasta 20 desde el 20/08. Antes lo era "hasta 100",
+    # Una raíz por materia desde el 22/08, cuando entró `lenguaje.yaml`. En
+    # matemáticas es contar hasta 20 desde el 20/08 — antes era "hasta 100",
     # porque no había nada debajo: a un niño que empieza 1° se le ofrecía contar
     # hasta 100 como primera cosa del año.
-    assert [h.id for h in disponibles] == ["mat.numeros.conteo_hasta_20"]
+    assert sorted(h.id for h in disponibles) == [
+        "esc.grafia.trazo_de_letras",
+        "lec.fonologia.rimas_y_silabas",
+        "mat.numeros.conteo_hasta_20",
+    ]
 
 
 def test_dominar_algo_abre_lo_que_depende_de_ello():
@@ -346,7 +351,10 @@ def test_un_nino_nuevo_arranca_por_la_raiz():
     """
     g = cargar_grafo()
     h = siguiente_habilidad(_nino(grado=1), g, AHORA)
-    assert h.id == "mat.numeros.conteo_hasta_20"
+    # Con tres materias hay tres raíces y el planificador desempata por id. Lo
+    # que este test vigila es que arranque EN UNA RAÍZ, no en mitad del grafo:
+    # cuál de las tres es una decisión aparte (ver `PENDIENTE.md`).
+    assert not h.prerequisitos, f"arrancó en {h.id}, que no es raíz de nada"
 
 
 def test_sin_nada_por_hacer_devuelve_none():
@@ -765,3 +773,142 @@ def test_un_solo_dato_suelto_ya_cuenta_como_saber_algo():
     nino.perfil.frustraciones = ["que le apuren"]
 
     assert "NO SABES NADA" not in resumen_para_prompt(nino, cargar_grafo())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# No elegir lo que no se puede enseñar
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_no_elige_una_habilidad_sin_ejercicios():
+    """El grafo puede crecer más rápido que el banco, y ahí se rompe todo.
+
+    Sin ejercicios el tutor abre la sesión sin nada que darle al niño,
+    improvisa, y lo que improvisa no queda atado a ningún nodo: la sesión no
+    escribe dominio. Ya pasó en `ses_88be006b825f`.
+    """
+    g = cargar_grafo()
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+
+    sin_filtro = siguiente_habilidad(nino, g)
+    assert sin_filtro is not None
+
+    # El banco tiene de todo MENOS la que habría elegido.
+    con_banco = {h.id for h in g} - {sin_filtro.id}
+    elegida = siguiente_habilidad(nino, g, con_ejercicios=con_banco)
+
+    assert elegida is not None
+    assert elegida.id != sin_filtro.id, "eligió la que no tiene ejercicios"
+    assert elegida.id in con_banco
+
+
+def test_sin_ninguna_con_banco_elige_igual_pero_avisa(caplog):
+    """Quedarse sin sesión es peor que una improvisada — pero hay que verlo.
+
+    Es la regla del proyecto sobre el descarte silencioso: cuando el código
+    decide seguir adelante con algo peor, esa rama necesita una salida.
+    """
+    import logging
+
+    g = cargar_grafo()
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+
+    with caplog.at_level(logging.WARNING, logger="tutor.pedagogy"):
+        elegida = siguiente_habilidad(nino, g, con_ejercicios=set())
+
+    assert elegida is not None, "sin banco igual tiene que dar algo que hacer"
+    assert "banco vacío" in caplog.text or "improvisar" in caplog.text
+
+
+def test_sin_el_filtro_se_comporta_como_siempre():
+    """`con_ejercicios=None` es el comportamiento de antes: nada cambia para
+    quien no le pase la lista."""
+    g = cargar_grafo()
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+    assert siguiente_habilidad(nino, g) == siguiente_habilidad(nino, g, con_ejercicios=None)
+
+
+def test_el_repaso_tambien_respeta_el_banco():
+    """Lo olvidado tiene prioridad, pero no si no hay con qué repasarlo."""
+    from datetime import timedelta
+
+    g = cargar_grafo()
+    nino = Nino(id="n1", nombre="Ana", edad=7, grado=2)
+    olvidada = next(iter(g)).id
+    nino.dominio[olvidada] = RegistroDominio(
+        habilidad_id=olvidada, nivel=0.9, aciertos=3,
+        ultima_practica=datetime.now() - timedelta(days=120),
+    )
+    assert olvidada in {h.id for h in habilidades_para_repasar(nino, g)}
+
+    # Con banco de todo menos la olvidada, no la puede elegir.
+    elegida = siguiente_habilidad(nino, g, con_ejercicios={h.id for h in g} - {olvidada})
+    assert elegida.id != olvidada
+
+
+class TestEquilibrioEntreMaterias:
+    """Que el niño no pase todos los días en la misma materia.
+
+    Esta clase existe porque el día que entraron lectura y escritura el
+    planificador mandó a TODOS a escritura, con la suite entera en verde: el
+    desempate final era `h.id`, «esc.» le gana a «lec.» y a «mat.» en el
+    alfabeto, y hasta ese día el grafo tenía una sola materia, así que ese
+    desempate no había desempatado nunca.
+    """
+
+    def test_el_primer_dia_no_arranca_en_trazar_letras(self):
+        # `esc.grafia.trazo_de_letras` ganaba por alfabeto y era lo primero que
+        # veía un niño de 1° — la habilidad más difícil de trabajar hablando.
+        grafo = cargar_grafo()
+        elegida = siguiente_habilidad(Nino(id="a", nombre="Ana", edad=6, grado=1), grafo)
+        assert elegida is not None
+        assert elegida.id != "esc.grafia.trazo_de_letras"
+
+    def test_las_tres_materias_salen_en_la_primera_semana(self):
+        grafo = cargar_grafo()
+        nino = Nino(id="b", nombre="Juan", edad=7, grado=2)
+        hoy = datetime.now()
+        vistas = []
+        for dia in range(6):
+            cuando = hoy + timedelta(days=dia)
+            h = siguiente_habilidad(nino, grafo, ahora=cuando)
+            assert h is not None
+            vistas.append(h.materia)
+            nino.dominio[h.id] = RegistroDominio(
+                habilidad_id=h.id, nivel=0.75, intentos=6, aciertos=5, ultima_practica=cuando
+            )
+        assert set(vistas) == set(Materia), f"seis sesiones y solo se vio {set(vistas)}"
+
+    def test_no_repite_materia_dos_dias_seguidos_si_hay_otra(self):
+        grafo = cargar_grafo()
+        nino = Nino(id="c", nombre="Sofía", edad=8, grado=3)
+        hoy = datetime.now()
+        anterior = None
+        for dia in range(6):
+            cuando = hoy + timedelta(days=dia)
+            h = siguiente_habilidad(nino, grafo, ahora=cuando)
+            assert h is not None
+            assert h.materia != anterior, f"día {dia + 1}: {h.materia} otra vez"
+            anterior = h.materia
+            nino.dominio[h.id] = RegistroDominio(
+                habilidad_id=h.id, nivel=0.75, intentos=6, aciertos=5, ultima_practica=cuando
+            )
+
+    def test_la_materia_no_le_gana_al_repaso(self):
+        # Lo olvidado bloquea lo que se apoya en ello, y eso sigue mandando
+        # sobre el equilibrio: rotar de materia no puede saltarse un repaso.
+        grafo = cargar_grafo()
+        nino = Nino(id="d", nombre="Leo", edad=9, grado=4)
+        hace_mucho = datetime.now() - timedelta(days=90)
+        nino.dominio["mat.numeros.conteo_hasta_20"] = RegistroDominio(
+            habilidad_id="mat.numeros.conteo_hasta_20",
+            nivel=0.9,
+            intentos=10,
+            aciertos=9,
+            primera_practica=hace_mucho,
+            ultima_practica=hace_mucho,
+        )
+        pendientes = habilidades_para_repasar(nino, grafo)
+        if pendientes:  # si el olvido aún no lo bajó del umbral, no hay nada que probar
+            elegida = siguiente_habilidad(nino, grafo)
+            assert elegida in pendientes

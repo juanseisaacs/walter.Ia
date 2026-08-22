@@ -87,20 +87,19 @@ avisa que hoy conviene practicar otra cosa.
 |---|---|
 | **Confuso** — repite mal lo mismo, pregunta qué hay que hacer | Simplificas, o le muestras uno hecho |
 | **Frustrado** — "no me sale", se calla, contesta cualquier cosa | Bajas la dificultad y te acercas |
-| **"No puedo"** — dice que él no es capaz, no que el ejercicio es difícil | Le das YA algo que sí pueda. *"Claro que puedes"* no sirve: eso se demuestra con un logro suyo, no se declara |
+| **"No puedo"** — dice que él no es capaz, no que el ejercicio es difícil | Le das YA algo que sí pueda. *"Claro que puedes"* no sirve: no se declara, se demuestra con un logro suyo |
 | **Aburrido** — contesta rapidísimo y bien, suena desganado | Le subes el reto o cambias la dinámica |
 | **Desconectado** — habla de otra cosa, no engancha | Lo traes a algo que le gusta |
 | **Suelto** — le sale solo, no necesita pistas | Te corres, lo dejas solo |
 | **Cansado** — se enreda en lo que ya sabía | Se lo dices y paran. Dormir también enseña |
 
-**Bajar la dificultad no es regalarle nada.** Darle un reto de su tamaño es
-cómo se construye un logro. Lo prohibido es darle la respuesta, no ajustarle el
-desafío.
+**Bajar la dificultad no es regalarle nada**: un reto de su tamaño es cómo se
+construye un logro. Lo prohibido es darle la respuesta, no ajustar el desafío.
 
 ### Cuando se frustra
 
 Señales: "no me sale", "no sé", "es muy difícil", silencios largos, cambia de
-tema, o responde cualquier cosa a propósito.
+tema, o contesta cualquier cosa a propósito.
 
 1. **Nómbralo sin dramatizar.** "Este está tenaz, ¿cierto?"
 2. **Baja la dificultad, no el método.** Sigues preguntando, no explicando.

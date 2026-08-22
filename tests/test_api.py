@@ -39,8 +39,11 @@ def cliente(tmp_path, monkeypatch):
         )
     )
     grafo = cargar_grafo()
-    # Para toda habilidad, como la base real: así el fixture no se rompe cada
-    # vez que el planificador cambia de opinión sobre por dónde empezar.
+    # Para toda habilidad VERIFICABLE EN CÓDIGO, como la base real: un
+    # ejercicio de "leer una oración corrida" con respuesta "42" no existe, y
+    # con él `check_answer` devolvía REQUIERE_JUICIO — correcto por diseño, pero
+    # el test parecía roto. Salió al entrar `lenguaje.yaml`, cuyos nodos de
+    # comprensión y producción no se validan comparando cadenas.
     repo.guardar_ejercicios(
         [
             Ejercicio(
@@ -51,6 +54,7 @@ def cliente(tmp_path, monkeypatch):
                 validado=True,
             )
             for h in grafo
+            if h.verificable_en_codigo
             for i in range(20)
         ]
     )

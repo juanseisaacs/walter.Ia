@@ -1,0 +1,367 @@
+# Grafo de habilidades — Lectura y escritura
+#
+# Los 24 nodos que `FUENTES.md` §7.2 dejó propuestos tras cruzar los DBA de
+# Lenguaje del MEN con la evidencia sobre enseñanza de la lectura en español.
+#
+# ⚠️ LO QUE HAY QUE SABER ANTES DE LEER ESTE ARCHIVO
+#
+# 1. **Los DBA de Lenguaje NO descomponen la decodificación** (`FUENTES.md`
+#    §2.3). No existe un DBA de conciencia fonológica, ni de sílabas directas o
+#    trabadas, ni de correspondencia grafema-fonema. Lo más cerca que llega el
+#    MEN es el DBA 1° #5 ("a partir de la diferenciación de los sonidos que
+#    componen las palabras"), y el DBA 1° #6 ya asume que el niño lee "palabras
+#    sencillas".
+#
+#    Consecuencia: **ocho nodos de este archivo no tienen anclaje DBA, y lo
+#    dicen** — el campo va ausente en vez de citar una referencia plausible.
+#    Es la misma regla que el reporte al papá: lo que no se midió se dice, no se
+#    completa con un default que parece un dato.
+#
+# 2. **Core Knowledge NO sirve como segundo anclaje acá.** Su secuencia de
+#    Language Arts es fonética INGLESA, y no transfiere: el español es de
+#    ortografía transparente y el problema es otro (sílaba antes que fonema,
+#    sílabas trabadas, la eñe, la tilde). Donde el DBA falta, el anclaje que
+#    queda es el EBC por banda, y donde tampoco lo hay, nada.
+#
+# 3. **Estos nodos son criterio nuestro, no del MEN.** La secuencia de
+#    decodificación —vocales, directas, inversas, trabadas— es la que usa la
+#    enseñanza de la lectura en español y la que `FUENTES.md` §7.2 razona, pero
+#    el MEN no la publica así. Va declarado acá para que nadie lo lea como si
+#    fuera oficial.
+#
+# 4. **Sin banco de ejercicios, un nodo no se elige.** El planificador filtra
+#    por `habilidades_con_ejercicios()` desde el 22/08: agregar nodos acá no
+#    puede dejar a un niño en una sesión sin nada que hacer.
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LECTURA — de oír los sonidos a entender para qué fue escrito el texto
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: lec.fonologia.rimas_y_silabas
+  nombre:
+    es: "Rimas y sílabas"
+  descripcion:
+    es: "Oye qué palabras riman y parte una palabra en sílabas: ma-ri-po-sa son cuatro."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos: []
+  alineacion:
+    dba_colombia: "DBA Lenguaje 1° · #5"
+    ebc_colombia: "EBC Lenguaje 1°-3° · «Comprendo textos que tienen diferentes formatos y finalidades»"
+  # En español la SÍLABA va antes que el fonema: es ortografía transparente y el
+  # niño la oye sin esfuerzo. Empezar por el fonema, como hace el material en
+  # inglés, es empezar por lo difícil sin necesidad.
+  verificable_en_codigo: true
+
+- id: lec.fonologia.sonido_inicial_y_final
+  nombre:
+    es: "Con qué sonido empieza y termina"
+  descripcion:
+    es: "Dice con qué sonido empieza una palabra y con cuál termina: 'mesa' empieza con /m/."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.fonologia.rimas_y_silabas
+  alineacion:
+    dba_colombia: "DBA Lenguaje 1° · #5"
+  verificable_en_codigo: true
+
+- id: lec.fonologia.segmentar_fonemas
+  nombre:
+    es: "Separar una palabra en sus sonidos"
+  descripcion:
+    es: "Dice uno por uno los sonidos de una palabra corta: sol es /s/ /o/ /l/."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.fonologia.sonido_inicial_y_final
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  verificable_en_codigo: true
+
+- id: lec.decodificacion.vocales
+  nombre:
+    es: "Las cinco vocales"
+  descripcion:
+    es: "Reconoce y nombra a, e, i, o, u, al verlas y al oírlas."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.fonologia.sonido_inicial_y_final
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  verificable_en_codigo: true
+
+- id: lec.decodificacion.silabas_directas
+  nombre:
+    es: "Sílabas directas"
+  descripcion:
+    es: "Lee sílabas de consonante más vocal (ma, me, mi) y las junta en palabras."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.decodificacion.vocales
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  verificable_en_codigo: true
+
+- id: lec.decodificacion.silabas_inversas
+  nombre:
+    es: "Sílabas inversas"
+  descripcion:
+    es: "Lee sílabas que empiezan por vocal: al, en, is, os — como en 'alto' o 'antes'."
+  materia: lectura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.decodificacion.silabas_directas
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  verificable_en_codigo: true
+
+- id: lec.decodificacion.silabas_trabadas
+  nombre:
+    es: "Sílabas trabadas"
+  descripcion:
+    es: "Lee sílabas con dos consonantes juntas: bra, pla, tri, cre — como en 'brazo' o 'plato'."
+  materia: lectura
+  grado_sugerido: 2
+  prerequisitos:
+    - lec.decodificacion.silabas_inversas
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  # El escalón donde más niños se traban en español, y el que el material
+  # traducido del inglés no trata como problema aparte.
+  verificable_en_codigo: true
+
+- id: lec.decodificacion.palabras_completas
+  nombre:
+    es: "Leer la palabra entera"
+  descripcion:
+    es: "Lee palabras conocidas de un vistazo, sin deletrear sílaba por sílaba."
+  materia: lectura
+  grado_sugerido: 2
+  prerequisitos:
+    - lec.decodificacion.silabas_trabadas
+  alineacion:
+    dba_colombia: "DBA Lenguaje 1° · #6"
+  verificable_en_codigo: true
+
+- id: lec.fluidez.oracion_en_voz_alta
+  nombre:
+    es: "Leer una oración corrida"
+  descripcion:
+    es: "Lee una oración corrida con sentido, respetando el punto y la coma."
+  materia: lectura
+  grado_sugerido: 2
+  prerequisitos:
+    - lec.decodificacion.palabras_completas
+  alineacion:
+    dba_colombia: "DBA Lenguaje 2° · #5"
+  # NO verificable en código: la fluidez se oye. Comparar cadenas no dice si
+  # leyó de corrido o si fue arrastrando cada palabra.
+  verificable_en_codigo: false
+
+- id: lec.comprension.literal
+  nombre:
+    es: "Qué dice el texto"
+  descripcion:
+    es: "Contesta preguntas cuya respuesta está escrita: quién, qué, dónde."
+  materia: lectura
+  grado_sugerido: 2
+  prerequisitos:
+    - lec.fluidez.oracion_en_voz_alta
+  alineacion:
+    dba_colombia: "DBA Lenguaje 2° · #6"
+  verificable_en_codigo: false
+
+- id: lec.comprension.estructura_narrativa
+  nombre:
+    es: "Quién narra y qué pasa primero"
+  descripcion:
+    es: "Reconoce quién cuenta la historia y ordena principio, medio y final."
+  materia: lectura
+  grado_sugerido: 3
+  prerequisitos:
+    - lec.comprension.literal
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #3"
+  verificable_en_codigo: false
+
+- id: lec.comprension.inferencial
+  nombre:
+    es: "Lo que el texto no dice con todas las letras"
+  descripcion:
+    es: "Deduce lo que no está escrito: cómo se siente el personaje, por qué hizo eso."
+  materia: lectura
+  grado_sugerido: 3
+  prerequisitos:
+    - lec.comprension.literal
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #6"
+  verificable_en_codigo: false
+
+- id: lec.comprension.proposito_del_texto
+  nombre:
+    es: "Para qué fue escrito"
+  descripcion:
+    es: "Distingue si el texto busca informar, convencer o entretener."
+  materia: lectura
+  grado_sugerido: 5
+  prerequisitos:
+    - lec.comprension.inferencial
+  alineacion:
+    dba_colombia: "DBA Lenguaje 5° · #6"
+  verificable_en_codigo: false
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ESCRITURA — del trazo de la letra a planear antes de escribir
+# ═══════════════════════════════════════════════════════════════════════════
+
+- id: esc.grafia.trazo_de_letras
+  nombre:
+    es: "Trazar las letras"
+  descripcion:
+    es: "Hace cada letra con el orden y la dirección de trazo correctos."
+  materia: escritura
+  grado_sugerido: 1
+  prerequisitos: []
+  alineacion:
+    sin_anclaje: "Ningún DBA de Lenguaje cubre la grafomotricidad. Core Knowledge Language Arts no transfiere (fonética inglesa). Criterio propio."
+  # NO verificable en código: el trazo se ve, no se compara. La hoja de dibujo
+  # ya deja al niño trazar y al tutor mirarlo.
+  verificable_en_codigo: false
+
+- id: esc.ortografia.sonido_a_letra
+  nombre:
+    es: "La letra que suena"
+  descripcion:
+    es: "Escribe la letra que corresponde a cada sonido que oye."
+  materia: escritura
+  grado_sugerido: 1
+  prerequisitos:
+    - lec.fonologia.segmentar_fonemas
+  alineacion:
+    sin_anclaje: "El MEN no descompone la decodificación: no hay DBA de conciencia fonémica ni de sílabas (FUENTES.md §2.3). Core Knowledge tampoco sirve — su Language Arts es fonética inglesa y no transfiere al español. Secuencia de criterio propio."
+  verificable_en_codigo: true
+
+- id: esc.escritura.palabras
+  nombre:
+    es: "Escribir palabras"
+  descripcion:
+    es: "Escribe palabras que quiere decir, aunque le falte o le sobre una letra."
+  materia: escritura
+  grado_sugerido: 1
+  prerequisitos:
+    - esc.ortografia.sonido_a_letra
+    - esc.grafia.trazo_de_letras
+  alineacion:
+    dba_colombia: "DBA Lenguaje 1° · #8"
+  verificable_en_codigo: true
+
+- id: esc.escritura.oracion_completa
+  nombre:
+    es: "Escribir una oración entera"
+  descripcion:
+    es: "Escribe una oración con sujeto y verbo que se entiende sola."
+  materia: escritura
+  grado_sugerido: 2
+  prerequisitos:
+    - esc.escritura.palabras
+  alineacion:
+    dba_colombia: "DBA Lenguaje 2° · #8"
+  verificable_en_codigo: false
+
+- id: esc.ortografia.mayuscula_y_punto
+  nombre:
+    es: "Mayúscula al empezar, punto al terminar"
+  descripcion:
+    es: "Mayúscula al empezar, punto al terminar, mayúscula en los nombres."
+  materia: escritura
+  grado_sugerido: 2
+  prerequisitos:
+    - esc.escritura.oracion_completa
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #8"
+  verificable_en_codigo: true
+
+- id: esc.ortografia.reglas_frecuentes
+  nombre:
+    es: "Las reglas que más se usan"
+  descripcion:
+    es: "Escribe bien las palabras de todos los días con b/v, c/s/z, ll/y, h muda."
+  materia: escritura
+  grado_sugerido: 3
+  prerequisitos:
+    - esc.ortografia.mayuscula_y_punto
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #8"
+  verificable_en_codigo: true
+
+- id: esc.escritura.parrafo
+  nombre:
+    es: "Un párrafo con una sola idea"
+  descripcion:
+    es: "Junta varias oraciones sobre lo mismo, en orden, sin saltar de tema."
+  materia: escritura
+  grado_sugerido: 3
+  prerequisitos:
+    - esc.escritura.oracion_completa
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #4"
+  verificable_en_codigo: false
+
+- id: esc.escritura.texto_narrativo
+  nombre:
+    es: "Contar algo por escrito"
+  descripcion:
+    es: "Escribe algo que pasó o que imagina, con principio, medio y final."
+  materia: escritura
+  grado_sugerido: 3
+  prerequisitos:
+    - esc.escritura.parrafo
+    - lec.comprension.estructura_narrativa
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #4"
+  verificable_en_codigo: false
+
+- id: esc.ortografia.tilde
+  nombre:
+    es: "Dónde va la tilde"
+  descripcion:
+    es: "Pone la tilde donde va, sabiendo dónde suena más fuerte la palabra."
+  materia: escritura
+  grado_sugerido: 4
+  prerequisitos:
+    - esc.ortografia.reglas_frecuentes
+    - lec.fonologia.rimas_y_silabas
+  alineacion:
+    dba_colombia: "DBA Lenguaje 3° · #8"
+  # Depende de saber partir en sílabas, que se aprende en lectura: por eso el
+  # prerrequisito cruza de una materia a la otra.
+  verificable_en_codigo: true
+
+- id: esc.escritura.adecuacion_al_lector
+  nombre:
+    es: "Escribir según quién va a leer"
+  descripcion:
+    es: "Escribe distinto para un amigo, para la profesora o para un cartel."
+  materia: escritura
+  grado_sugerido: 4
+  prerequisitos:
+    - esc.escritura.texto_narrativo
+  alineacion:
+    dba_colombia: "DBA Lenguaje 4° · #8"
+  verificable_en_codigo: false
+
+- id: esc.escritura.plan_textual
+  nombre:
+    es: "Planear antes de escribir"
+  descripcion:
+    es: "Anota de qué va a hablar y en qué orden antes de escribir."
+  materia: escritura
+  grado_sugerido: 5
+  prerequisitos:
+    - esc.escritura.adecuacion_al_lector
+  alineacion:
+    dba_colombia: "DBA Lenguaje 5° · #8"
+  verificable_en_codigo: false

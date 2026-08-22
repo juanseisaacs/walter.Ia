@@ -65,6 +65,24 @@ class Alineacion(BaseModel):
     dba_colombia: str | None = None
     core_knowledge: str | None = None
 
+    sin_anclaje: str | None = None
+    """POR QUÉ esta habilidad no puede citar un estándar. No es un hueco: es la
+    respuesta escrita a "¿contra qué está alineado?" cuando la respuesta honesta
+    es "contra nada oficial, y estas son las razones".
+
+    Existe porque los DBA de Lenguaje **no descomponen la decodificación**
+    (`FUENTES.md` §2.3): no hay DBA de conciencia fonémica, ni de sílabas
+    trabadas, ni de correspondencia grafema-fonema. Y el segundo anclaje que
+    usa matemáticas tampoco sirve ahí — Core Knowledge Language Arts es
+    fonética INGLESA y no transfiere al español, que es de ortografía
+    transparente y tiene otros problemas (la sílaba antes que el fonema, las
+    trabadas, la eñe, la tilde).
+
+    Dejar el campo vacío habría sido lo fácil y lo peor: un nodo sin anclaje se
+    ve igual que uno al que se le olvidó ponérselo. Con esto, `test_curriculum
+    _real_cita_estandares` sigue exigiendo respuesta a TODA habilidad — solo
+    que admite esta, que obliga a escribir el motivo."""
+
     ebc_colombia: str | None = None
     """Estándar Básico de Competencias del MEN (2006), por banda 1°-3° o 4°-5°.
 

@@ -132,16 +132,23 @@ def test_curriculum_real_cita_estandares():
     §2.4.
     """
     g = cargar_grafo()
-    sin_anclaje = [
+    sin_respuesta = [
         h.id
         for h in g
         if not (
             h.alineacion.dba_colombia
             or h.alineacion.ebc_colombia
             or h.alineacion.core_knowledge
+            # "No hay estándar que citar, y este es el motivo" también es una
+            # respuesta — la única honesta para la decodificación, que el MEN no
+            # descompone y que Core Knowledge solo cubre en fonética inglesa.
+            # Admitirla NO relaja el criterio: obliga a escribir el porqué,
+            # mientras que dejar el campo vacío haría indistinguible un nodo sin
+            # anclaje de uno al que se le olvidó ponérselo.
+            or h.alineacion.sin_anclaje
         )
     ]
-    assert not sin_anclaje, f"habilidades sin alineación curricular: {sin_anclaje}"
+    assert not sin_respuesta, f"habilidades sin alineación curricular: {sin_respuesta}"
 
 
 def test_cadena_de_suma_esta_bien_ordenada():
@@ -240,14 +247,33 @@ def test_el_grafo_entero_se_puede_recorrer_desde_cero():
     assert not inalcanzables, f"nodos que ningún niño puede alcanzar: {inalcanzables}"
 
 
-def test_el_grafo_tiene_una_sola_raiz():
-    """Dos raíces significan dos puntos de entrada, y el planificador elige uno
-    por criterios de desempate — o sea, por azar desde el punto de vista del
-    niño. Con una sola, el primer día es siempre el mismo.
+def test_cada_materia_tiene_una_sola_raiz():
+    """Dos raíces EN LA MISMA MATERIA son dos puntos de entrada, y el
+    planificador elige uno por criterios de desempate — o sea, por azar desde el
+    punto de vista del niño. Con una sola, el primer día es siempre el mismo.
 
     Pasó al agregar los nodos de 1° el 20/08: quedaron "contar hasta 20" y
     "contar hasta 100" sueltas las dos.
+
+    Con tres materias hay tres raíces, y eso NO es el problema que este test
+    vigila: son puntos de entrada distintos a propósito, uno por área. Lo que
+    sigue prohibido es que una materia tenga dos.
     """
+    from collections import defaultdict
+
     g = cargar_grafo()
-    raices = [h.id for h in g if not h.prerequisitos]
-    assert raices == ["mat.numeros.conteo_hasta_20"], f"raíces: {raices}"
+    por_materia = defaultdict(list)
+    for h in g:
+        if not h.prerequisitos:
+            por_materia[h.materia.value].append(h.id)
+
+    dobles = {m: r for m, r in por_materia.items() if len(r) > 1}
+    assert not dobles, f"materias con más de una raíz: {dobles}"
+
+    # Y las raíces son las esperadas: si cambia por dónde empieza un niño en un
+    # área, que sea una decisión y no un efecto de haber agregado un nodo.
+    assert dict(por_materia) == {
+        "matematicas": ["mat.numeros.conteo_hasta_20"],
+        "lectura": ["lec.fonologia.rimas_y_silabas"],
+        "escritura": ["esc.grafia.trazo_de_letras"],
+    }

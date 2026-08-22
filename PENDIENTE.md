@@ -16,13 +16,14 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **415 tests** de Python · **73** del front · **evals 45/45** (los 3 casos
+- **587 tests** de Python · **85** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **62 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
   Live real: `python -m scripts.e2e_voz` (14/14 el 22/08)
-- **54 habilidades** de matemáticas (1° a 5°, el MEN numérico completo) con
-  triple anclaje · **1.408 ejercicios validados**, ninguna habilidad vacía
+- **78 habilidades** (1° a 5°): 54 de matemáticas —el MEN numérico completo—,
+  13 de lectura y 11 de escritura, con triple anclaje · **2.052 ejercicios
+  validados**, ninguna habilidad vacía
 - 5 niños en la base, todos de prueba
 
 ### Cómo levantarlo
@@ -249,6 +250,26 @@ De la sesión del 22/08 quedaron dos cosas sin hacer:
   1.641 ms— sin controlar la red, así que no dan para concluir nada. Lo que
   falta medir es otra cosa: el silencio DENTRO de la conversación, que es lo que
   el niño siente. La consola ya lo imprime desde el 21/08; falta leerlo.
+
+### Lectura y escritura ya tienen banco — falta que un niño las trabaje
+
+Las 24 habilidades de `lenguaje.yaml` tienen sus ~26 ejercicios validados y el
+planificador ya rota entre las tres materias. Lo que no se ha visto es una
+sesión de voz de verdad sobre un nodo de lenguaje.
+
+Tres cosas que hay que MIRAR la primera vez, y que ningún test cubre:
+
+- **Si `check_answer` entiende cómo el niño contesta de verdad.** Se agregó
+  `NOMBRE_DE_LETRA` porque un niño dice «eme», no «m» — pero eso salió de
+  pensarlo, no de oírlo. Las respuestas de lenguaje son mucho más abiertas que
+  un número, y el modo de fallar es el caro: decirle INCORRECTO al que acertó.
+- **Si los nodos abiertos son trabajables.** Los siete sin verificación
+  (comprensión, párrafo, texto narrativo) dependen de que el tutor los sostenga
+  socráticamente sin clave de respuestas. `REQUIERE_JUICIO` está bien resuelto
+  en código; lo que falta es ver qué hace el tutor con eso en una sesión.
+- **Si `esc.grafia.trazo_de_letras` tiene sentido por voz.** El niño tendría que
+  trazar y mostrar por cámara. La visión funciona desde el 21/08, pero este
+  nodo nunca se probó y es el más dudoso de los 24.
 
 ### Lo demás, chico
 

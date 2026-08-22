@@ -114,6 +114,14 @@ class Repositorio(ABC):
     def guardar_ejercicios(self, ejercicios: list[Ejercicio]) -> None:
         """Escribe el banco. Lo llama scripts/build_exercise_bank.py."""
 
+    @abstractmethod
+    def habilidades_con_ejercicios(self) -> set[str]:
+        """Qué habilidades tienen banco validado.
+
+        La usa el planificador para no elegir un nodo sin ejercicios: la sesión
+        abriría con nada que darle al niño y el tutor improvisaría. Es una
+        consulta al abrir, no durante (§9)."""
+
     # ── Transcripciones (archivos) ───────────────────────────────────────────
 
     @abstractmethod
@@ -639,6 +647,15 @@ class RepositorioSQLite(Repositorio):
             )
             for f in filas
         ]
+
+    def habilidades_con_ejercicios(self) -> set[str]:
+        with self._conectar() as con:
+            return {
+                f["habilidad_id"]
+                for f in con.execute(
+                    "SELECT DISTINCT habilidad_id FROM ejercicios WHERE validado = 1"
+                )
+            }
 
     def guardar_ejercicios(self, ejercicios: list[Ejercicio]) -> None:
         with self._conectar() as con:

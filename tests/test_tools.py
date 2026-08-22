@@ -335,3 +335,49 @@ def test_un_error_de_orden_creible_sigue_siendo_un_error():
     """
     assert check_answer(_ejercicio_numerico(), "7290").veredicto == Veredicto.INCORRECTO
     assert check_answer(_ejercicio_numerico(), "72900").veredicto == Veredicto.INCORRECTO
+
+
+class TestLetrasHabladas:
+    """El niño NOMBRA la letra: dice «eme», no «m».
+
+    Es el gemelo de los números hablados, y entró con lectura y escritura. Sin
+    esto, el nodo de sonido inicial y final le decía INCORRECTO a todos los
+    niños que acertaban — el error que este proyecto considera el más caro.
+    """
+
+    def _ej(self, respuesta: str) -> Ejercicio:
+        return Ejercicio(
+            id="ej_letra",
+            habilidad_id="lec.fonologia.sonido_inicial_y_final",
+            enunciado=TextoLocalizado(es="¿Con qué sonido empieza mesa?"),
+            respuesta=respuesta,
+            validado=True,
+        )
+
+    @pytest.mark.parametrize(
+        "dicho", ["eme", "Eme", "la eme", "empieza con eme", "m", "con la eme, creo"]
+    )
+    def test_el_nombre_de_la_letra_vale(self, dicho):
+        assert check_answer(self._ej("m"), dicho).veredicto is Veredicto.CORRECTO
+
+    def test_los_digrafos_tambien(self):
+        assert check_answer(self._ej("ch"), "che").veredicto is Veredicto.CORRECTO
+        assert check_answer(self._ej("ll"), "elle").veredicto is Veredicto.CORRECTO
+
+    def test_una_letra_que_no_es_sigue_siendo_incorrecta(self):
+        # Traducir el nombre no puede volverse un pase libre.
+        assert check_answer(self._ej("m"), "ese").veredicto is Veredicto.INCORRECTO
+        assert check_answer(self._ej("m"), "pe").veredicto is Veredicto.INCORRECTO
+
+    def test_no_se_come_las_respuestas_que_no_son_letras(self):
+        # «aguda» empieza por «a», que es el nombre de una letra. Que eso no
+        # convierta una clasificación en un acierto por accidente.
+        ej = Ejercicio(
+            id="ej_clase",
+            habilidad_id="esc.ortografia.tilde",
+            enunciado=TextoLocalizado(es="¿Canción es aguda o grave?"),
+            respuesta="aguda",
+            validado=True,
+        )
+        assert check_answer(ej, "aguda").veredicto is Veredicto.CORRECTO
+        assert check_answer(ej, "grave").veredicto is Veredicto.INCORRECTO

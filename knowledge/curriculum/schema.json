@@ -3,7 +3,13 @@
   "title": "Nodo del grafo de habilidades",
   "description": "Valida los archivos YAML de knowledge/curriculum/. Cada nodo es una habilidad atómica con prerrequisitos explícitos, anclada a estándares curriculares reconocidos.",
   "type": "object",
-  "required": ["id", "nombre", "descripcion", "materia", "grado_sugerido"],
+  "required": [
+    "id",
+    "nombre",
+    "descripcion",
+    "materia",
+    "grado_sugerido"
+  ],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -20,7 +26,11 @@
       "description": "Qué debe poder hacer el niño cuando domina este nodo"
     },
     "materia": {
-      "enum": ["matematicas", "lectura", "escritura"]
+      "enum": [
+        "matematicas",
+        "lectura",
+        "escritura"
+      ]
     },
     "grado_sugerido": {
       "type": "integer",
@@ -53,6 +63,10 @@
         "ebc_colombia": {
           "type": "string",
           "description": "Estándar Básico de Competencias del MEN (2006), por banda de grados. Ej: 'EBC Matemáticas 1°-3° · pensamiento numérico'. No es redundante con el DBA: el Estándar cubre par/impar, múltiplo, divisible, porcentajes y potenciación, que el DBA no nombra"
+        },
+        "sin_anclaje": {
+          "type": "string",
+          "description": "Por qué esta habilidad no cita un estándar. Obligatorio cuando no hay dba_colombia ni ebc_colombia ni core_knowledge: un nodo sin anclaje tiene que decir por qué, no quedar vacío."
         }
       }
     },
@@ -65,10 +79,15 @@
   "$defs": {
     "textoLocalizado": {
       "type": "object",
-      "required": ["es"],
+      "required": [
+        "es"
+      ],
       "additionalProperties": false,
       "properties": {
-        "es": { "type": "string", "minLength": 1 },
+        "es": {
+          "type": "string",
+          "minLength": 1
+        },
         "en": {
           "type": "string",
           "description": "Vacío hasta la fase de inglés. El campo existe desde el día 1 para evitar refactor"

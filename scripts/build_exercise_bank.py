@@ -32,7 +32,8 @@ load_dotenv()
 
 from tutor import config as cfg  # noqa: E402
 from tutor.curriculum import cargar_grafo  # noqa: E402
-from tutor.models import Ejercicio, Habilidad, TextoLocalizado  # noqa: E402
+from tutor.lengua import verificar as verificar_lengua  # noqa: E402
+from tutor.models import Ejercicio, Habilidad, Materia, TextoLocalizado  # noqa: E402
 from tutor.pipeline import ClienteLLM, cliente_por_defecto  # noqa: E402
 from tutor.storage import RepositorioSQLite  # noqa: E402
 from tutor.voice import cargar_prompt  # noqa: E402
@@ -91,19 +92,46 @@ salieron con "si comés una porción" y "si tenés un tercio"; el prompt no dec�
 nada y nadie los habría mirado antes de que el tutor se los leyera a un niño."""
 
 
-def validar(enunciado: str, respuesta: str, operacion: str | None) -> str | None:
+LARGO_NORMAL = 220
+"""Lo que un niño aguanta escuchar de una vez sin perder el hilo."""
+
+LARGO_CON_TEXTO = 500
+"""Comprensión lectora: hay que leerle un texto ANTES de preguntarle.
+
+Los 220 se pusieron para enunciados de aritmética —«Juan tiene 27 figuritas»— y
+ahí valen. Pero un ejercicio de comprensión es «te leo esto y después te
+pregunto»: son dos momentos, no uno, y el niño escucha el texto sabiendo que
+todavía no le toca contestar. Con el tope de 220 se rechazaban ENTEROS los
+cuatro nodos de comprensión, con ejercicios impecables. Es la misma falla que
+las fracciones en matemáticas y que la rima de «nube/tuve»: un tope mío
+descartando contenido bueno por no saber leerlo."""
+
+
+def validar(
+    enunciado: str,
+    respuesta: str,
+    operacion: str | None,
+    verificacion: str | None = None,
+    largo_maximo: int = LARGO_NORMAL,
+) -> str | None:
     """Devuelve el motivo del rechazo, o None si el ejercicio pasa."""
     if not enunciado.strip():
         return "enunciado vacío"
     if not respuesta.strip():
         return "respuesta vacía"
-    if len(enunciado) > 220:
-        return "demasiado largo para escuchar de una vez"
+    if len(enunciado) > largo_maximo:
+        return f"demasiado largo para escuchar de una vez ({len(enunciado)} > {largo_maximo})"
     if (v := VOSEO.search(enunciado)):
         return f"voseo: '{v.group()}' — el tutor lo lee en voz alta y es colombiano"
 
+    # Lectura y escritura tienen su propia verificación en código. «Mariposa
+    # tiene 4 sílabas» es tan comprobable como «27 + 15 = 42», y por lo tanto no
+    # se le pregunta a un modelo. Ver `tutor.lengua`.
+    if verificacion:
+        return verificar_lengua(verificacion, respuesta)
+
     if not operacion:
-        return None  # habilidades sin cuenta: no hay nada que verificar
+        return None  # habilidades sin cuenta ni comprobación: nada que verificar
 
     calculado = evaluar_cuenta(operacion)
     if calculado is None:
@@ -136,6 +164,7 @@ class _EjercicioCrudo(BaseModel):
     enunciado: str
     respuesta: str
     operacion: str | None = None
+    verificacion: str | None = None
 
 
 class _Tanda(BaseModel):
@@ -155,16 +184,28 @@ def generar(
     if tema:
         contexto.append(f"Tema para ambientar: {tema}")
 
+    # Un ejercicio de sílabas no se escribe con las reglas de uno de sumas, y
+    # sobre todo no se VERIFICA igual: el prompt de matemáticas pide `operacion`
+    # y el de lenguaje pide `verificacion`. Lo dice el campo `materia`, que el
+    # nodo ya trae — no el prefijo del id, que es una convención sin quien la
+    # obligue.
+    de_lengua = habilidad.materia != Materia.MATEMATICAS
     tanda = cliente.extraer(
         cfg.MODELO_GENERADOR,
-        cargar_prompt("exercise_generator"),
+        cargar_prompt("exercise_generator_lengua" if de_lengua else "exercise_generator"),
         "\n".join(contexto),
         _Tanda,
     )
 
     aceptados, rechazos = [], []
     for crudo in tanda.ejercicios:
-        motivo = validar(crudo.enunciado, crudo.respuesta, crudo.operacion)
+        motivo = validar(
+            crudo.enunciado,
+            crudo.respuesta,
+            crudo.operacion,
+            crudo.verificacion,
+            LARGO_CON_TEXTO if "comprension" in habilidad.id else LARGO_NORMAL,
+        )
         if motivo:
             rechazos.append(f"{crudo.enunciado[:50]}... -> {motivo}")
             continue
@@ -188,6 +229,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="Genera el banco de ejercicios")
     p.add_argument("--grado", type=int, help="Generar para todas las habilidades del grado")
     p.add_argument("--habilidad", help="Generar solo para una habilidad")
+    p.add_argument("--materia", choices=["lengua", "matematicas"], help="Todas las de una materia")
     p.add_argument("--cantidad", type=int, default=10, help="Por habilidad (default 10)")
     p.add_argument("--tema", help="Variante temática: futbol, dinosaurios...")
     p.add_argument("--seco", action="store_true", help="No guardar, solo mostrar")
@@ -196,10 +238,16 @@ def main() -> int:
     grafo = cargar_grafo()
     if args.habilidad:
         objetivo = [grafo.habilidad(args.habilidad)]
+    elif args.materia:
+        objetivo = (
+            grafo.por_materia(Materia.MATEMATICAS)
+            if args.materia == "matematicas"
+            else grafo.por_materia(Materia.LECTURA) + grafo.por_materia(Materia.ESCRITURA)
+        )
     elif args.grado:
         objetivo = grafo.por_grado(args.grado)
     else:
-        print("Indicá --grado o --habilidad")
+        print("Indica --grado, --materia o --habilidad")
         return 1
 
     cliente = cliente_por_defecto()

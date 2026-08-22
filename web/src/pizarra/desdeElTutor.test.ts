@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { aCuadro, describir } from "./desdeElTutor";
+import type { Cuadro } from "./escenas";
 
 describe("lo que el tutor pide bien", () => {
   it("arma la cuenta en columna con su llevada", () => {
@@ -256,5 +257,24 @@ describe("lista de palabras: el caso de ses_cdb0b7fae50f", () => {
     expect(dicho).toContain("vaca");
     expect(dicho).toContain("viento");
     expect(dicho).toContain("color");
+  });
+});
+
+describe("el tutor sabe con qué está dibujado", () => {
+  it("le dice que son gallinas cuando el niño ve gallinas", () => {
+    // Los emojis abrieron el mismo agujero que venían a tapar: si el tutor
+    // cree que el niño ve puntos y el niño ve 🐔, vuelve el «¿los puntos
+    // naranjas son las galletas?». Lo que no se le dice, se lo inventa.
+    const dicho = describir({
+      escena: { tipo: "grupos", grupos: 3, porGrupo: 4, nombre: "gallinas" },
+    } as Cuadro);
+    expect(dicho).toContain("🐔");
+  });
+
+  it("sigue diciendo puntos cuando no sabemos dibujarlo", () => {
+    const dicho = describir({
+      escena: { tipo: "grupos", grupos: 3, porGrupo: 4, nombre: "cosas" },
+    } as Cuadro);
+    expect(dicho).toContain("puntos");
   });
 });

@@ -308,7 +308,23 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
         )
         peor = max(peor, len(texto))
 
-    assert peor < 36_000, (
+    # 36.500 desde el 22/08, y el aumento se pagó antes de pedirlo.
+    #
+    # No subió el prompt: subió el CURRÍCULO. El grafo pasó de 54 nodos a 78 al
+    # entrar `lenguaje.yaml`, y el peor caso incluye el nombre y la descripción
+    # de la habilidad que el planificador elige — que con tres materias es otra.
+    # Comprimir prosa no lo baja de forma estable: lo que mande mañana es qué
+    # nodo toque, y raspar caracteres para que quepa una descripción concreta es
+    # atar el techo del prompt a una decisión del planificador.
+    #
+    # Aun así se comprimió PRIMERO, que es la regla: ~1.000 caracteres de prosa
+    # explicativa salieron de `tutor_persona`, `primer_encuentro` y
+    # `socratic_playbook` en la misma tanda — más de lo que subió el techo. Y se
+    # comprobó que comprimir tiene fondo: al recortar el playbook se cayó una
+    # regla ("no se declara") y `test_ninguna_regla_se_cae_al_adelgazar_el_prompt`
+    # la atrapó. Ese test es el que hace que este techo se pueda subir sin que
+    # subirlo sea una excusa para dejar de mirar.
+    assert peor < 36_500, (
         f"el peor caso del prompt de sesión llegó a {peor} caracteres. "
         "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
         "Lo que solo explica el porqué va en knowledge/product/."

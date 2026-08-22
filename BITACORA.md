@@ -666,3 +666,92 @@ literal y un salto de línea al reajustar el párrafo lo tumbaba. Ahora normaliz
 espacios. Un test que depende de dónde cae el corte de línea mide formato, no
 contenido.
 
+
+---
+
+## El verificador que descartaba lo correcto (lenguaje, 22/08)
+
+Entró lectura y escritura, y con ellas `tutor.lengua`: el gemelo de
+`evaluar_cuenta` para el español. Contar sílabas es tan verificable como sumar,
+así que un ejercicio de lenguaje tampoco se le cree a un modelo.
+
+De los 47 rechazos de la primera tanda, **la mayoría eran del verificador, no
+del generador**. El modelo escribía el ejercicio bien y el código lo tumbaba:
+
+- *«¿Nube rima con tuve?»* — sí riman. En español **b y v son el mismo sonido**,
+  y este tutor entra por el oído. El verificador comparaba letras.
+- *«Los sonidos de sol son /s/ /o/ /l/»* — no había con qué comprobarlo. El nodo
+  `segmentar_fonemas` quedó con el banco **vacío**.
+- *«Los sonidos de pez son /p/ /e/ /s/»* — acá la z sesea, y el modelo lo sabía.
+- *«¿Con qué sonido empieza casa?» → /k/* — el nodo se llama sonido inicial, no
+  letra inicial.
+- Los cuatro nodos de comprensión lectora, rechazados **enteros** por un tope de
+  220 caracteres puesto para enunciados de aritmética. Un ejercicio de
+  comprensión es «te leo esto y después te pregunto»: son dos momentos.
+
+Ya iba por la quinta vez —antes fueron las fracciones, el residuo de la división
+y el elogio del dinosaurio— así que la lección ya no es sobre este bug:
+
+> **Un tope propio que rechaza contenido correcto es el modo de fallar más caro
+> de este proyecto**, porque deja al niño sin material y se ve exactamente igual
+> que un validador funcionando. La señal de que pasó no está en la suite: está
+> en la lista de rechazos, que hay que LEER una por una la primera vez que un
+> validador nuevo corre de verdad.
+
+### Y uno del otro lado: el que aprobaba todo
+
+Para aceptar `/s/ /o/ /l/` y `s-o-l` como lo mismo, aflojé la comparación a
+`isalpha()`. Eso tiró los **dígitos**: `"4"` y `"99"` pasaron a compararse los
+dos como cadena vacía, y **cualquier respuesta numérica entraba al banco**.
+`silabas(mariposa) = 99` era válido.
+
+Ningún test se puso rojo. Es el descarte silencioso otra vez, ahora del lado del
+que aprueba: aflojé una comparación para un caso y rompí todos los demás.
+
+> Al relajar una verificación para que acepte un caso nuevo, el test que hace
+> falta no es que el caso nuevo pase — es que **los viejos sigan fallando**.
+
+### El criterio de desempate que nunca había desempatado
+
+El grafo pasó de una materia a tres, y el planificador mandó a **todos** los
+niños a escritura: el último criterio de `prioridad` era `h.id`, y «esc.» le
+gana a «lec.» y a «mat.» en el alfabeto. Un niño de 1° arrancaba en
+`esc.grafia.trazo_de_letras` —trazar letras a mano, con un tutor de voz— y no
+veía un número nunca.
+
+La suite estaba entera en verde, porque hasta ese día ese desempate no había
+desempatado nada.
+
+> **Un criterio de desempate que nunca desempató empieza a decidirlo todo el día
+> que hay con qué empatar.** Es la lección del código sin llamador vista del otro
+> lado: no es código que nunca corre, es código que corre siempre y no hace nada
+> — hasta que hace todo.
+
+Se arregló con `orden_de_materias`: la materia que lleva más tiempo sin tocarse
+va primero. Fórmula sobre datos que ya existían, sin modelo y sin estado nuevo.
+
+### El niño dice «eme», no «m»
+
+`check_answer` entendía números hablados desde hace fases. Con lenguaje empezó a
+llegarle `"m"` como respuesta esperada, y el niño —que tiene seis años y está
+HABLANDO— contesta *«eme»*. Todo el nodo de sonido inicial le decía INCORRECTO
+a los que acertaban.
+
+Es el error que este proyecto ya tenía escrito como el más caro: *confundir un
+acierto con un error le enseña al niño que responder bien no sirve.*
+
+> Cada tipo de respuesta nueva que entra al banco trae su propia forma de
+> decirse en voz alta. `palabras_a_numero` existía; `NOMBRE_DE_LETRA` había que
+> escribirlo, y no se veía venir desde el código — se ve pasando las respuestas
+> del banco nuevo por `check_answer` antes de que las pase un niño.
+
+### Y el bug que me hice yo con los emojis
+
+Los emojis los pidió Juan y son gratis: si el tutor dice «gallinas», salen 🐔.
+Pero `describir()` —lo que el tool le devuelve al tutor sobre qué quedó en
+pantalla— seguía diciendo «(puntos para contar)».
+
+O sea: el niño viendo gallinas, el tutor creyendo que hay puntos. **Exactamente
+el bug del 21/08 que los emojis venían a resolver**, reintroducido por el
+arreglo. Lo que no se le dice al tutor, se lo inventa — y ahora había más que
+decirle.

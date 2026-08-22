@@ -464,6 +464,35 @@ Nodo del grafo → Generador (Haiku) → validación en CÓDIGO → banco
 El validador verifica que la matemática cierre y la respuesta sea correcta antes
 de que un ejercicio toque a un niño.
 
+**Lenguaje tiene su propio validador, y esa es la decisión.** Cuando entró
+lectura y escritura, un ejercicio sin `operacion` pasaba mirándole solo el largo
+y el voseo: el modelo escribía el ejercicio y el modelo decía que estaba bien.
+La regla dura —*la aritmética jamás la valida un modelo*— se había quedado sin
+brazo en la mitad del currículum.
+
+`src/tutor/lengua.py` es el gemelo de `evaluar_cuenta`: silabea, clasifica el
+acento, compara rimas y segmenta fonemas, todo en código puro. «Mariposa tiene 4
+sílabas» es tan verificable como «27 + 15 = 42», y por lo tanto no se le
+pregunta a un modelo.
+
+Dos cosas del diseño importan más que el algoritmo:
+
+1. **Verifica por SONIDO, no por letra.** El tutor entra por el oído: «nube»
+   rima con «tuve» porque b y v son el mismo sonido, «casa» con «caza» por el
+   seseo, «llave» con «suave» por el yeísmo. Un verificador ortográfico habría
+   rechazado ejercicios correctos — y lo hizo, hasta que se corrigió.
+2. **Dice `None` cuando no puede saber.** `tilde_bien_puesta("cancion")` no
+   contesta: sin tilde escrita no hay de dónde sacar la tónica. La primera
+   versión la inferia con la regla general y después comprobaba la regla contra
+   sí misma — siempre decía que sí. Es la lección de la fase 6 aplicada a un
+   validador: *«no lo medimos» se dice; no se completa con un default*.
+
+Lo que exige juicio de verdad —si un párrafo tiene una sola idea, si un final
+cierra la historia— va **sin verificación y se sabe que va sin verificación**,
+que no es lo mismo que creer que se verificó. Siete de los 24 nodos de lenguaje
+están ahí, y el prompt del generador lo dice explícitamente para que el modelo
+no fuerce una comprobación falsa.
+
 **Costo estimado:** ~600 nodos × 50 ejercicios ≈ 30.000 ejercicios ≈ **$13-26 con
 Batch API**. Una sola vez.
 

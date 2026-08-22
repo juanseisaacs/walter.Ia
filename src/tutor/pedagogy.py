@@ -15,16 +15,20 @@ DECISIÓN CLAVE — el decaimiento se calcula al LEER, no al escribir:
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime
 from enum import IntEnum, StrEnum
 
 from .curriculum import GrafoHabilidades
-from .models import Calendario, Habilidad, Nino, RegistroDominio, TipoObservacion
+from .models import Calendario, Habilidad, Materia, Nino, RegistroDominio, TipoObservacion
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parámetros del modelo de aprendizaje
 # ─────────────────────────────────────────────────────────────────────────────
+
+_log = logging.getLogger("tutor.pedagogy")
+"""Sin handler propio: quien corre el proceso decide dónde se imprime."""
 
 UMBRAL_DOMINIO = 0.80
 """A partir de acá la habilidad se considera dominada y desbloquea a las que dependen de ella."""
@@ -218,8 +222,58 @@ def habilidades_disponibles(
     return frontera
 
 
+ORDEN_DE_MATERIAS = (Materia.LECTURA, Materia.ESCRITURA, Materia.MATEMATICAS)
+"""Con qué materia se arranca cuando ninguna se ha trabajado todavía.
+
+Es el orden con que el propio producto se nombra —«lectura, escritura y
+aritmética»—, no un juicio pedagógico inventado acá."""
+
+
+def orden_de_materias(nino: Nino, grafo: GrafoHabilidades) -> dict[Materia, tuple]:
+    """Qué tan abandonada está cada materia. Menor es «va primero».
+
+    El día que entró lectura y escritura, el grafo pasó a tener tres raíces y el
+    planificador mandó a TODOS a escritura: el desempate final era `h.id`, y
+    «esc.» le gana a «lec.» y a «mat.» en el alfabeto. Un niño de 1° arrancaba
+    en `esc.grafia.trazo_de_letras` y no veía un número nunca. No era un empate
+    raro: era el caso de todos los días, y la suite seguía verde porque hasta
+    ese día el grafo tenía una sola materia. Es la lección del código sin
+    llamador otra vez, del otro lado: **un criterio de desempate que nunca
+    desempató empieza a decidirlo todo el día que hay con qué empatar.**
+
+    Se ordena por la última práctica: la materia que lleva más tiempo sin
+    tocarse va primero. Es una fórmula sobre los datos que ya existen
+    —determinista, sin modelo, sin estado nuevo— y hace que la semana cubra las
+    tres en vez de repetir una.
+
+    Esto elige la MATERIA. Qué nodo dentro de ella lo sigue decidiendo el
+    dominio, igual que antes, y sin techo: nada de acá mira el grado.
+    """
+    ultima: dict[Materia, datetime] = {}
+    for hid, registro in nino.dominio.items():
+        if not registro.ultima_practica or hid not in grafo:
+            continue
+        materia = grafo.habilidad(hid).materia
+        if materia not in ultima or registro.ultima_practica > ultima[materia]:
+            ultima[materia] = registro.ultima_practica
+
+    orden: dict[Materia, tuple] = {}
+    for materia in Materia:
+        orden[materia] = (
+            (1, ultima[materia].timestamp())
+            if materia in ultima
+            # Nunca trabajada: va antes que cualquiera que sí, y entre las que
+            # nunca se tocaron manda el orden declarado del producto.
+            else (0, ORDEN_DE_MATERIAS.index(materia))
+        )
+    return orden
+
+
 def siguiente_habilidad(
-    nino: Nino, grafo: GrafoHabilidades, ahora: datetime | None = None
+    nino: Nino,
+    grafo: GrafoHabilidades,
+    ahora: datetime | None = None,
+    con_ejercicios: set[str] | None = None,
 ) -> Habilidad | None:
     """Qué trabajar ahora. Determinístico: mismos datos, misma respuesta.
 
@@ -228,13 +282,41 @@ def siguiente_habilidad(
       2. Frontera, priorizando el grado del niño y el prerrequisito más firme
 
     Devuelve None solo si el niño dominó todo el grafo alcanzable.
+
+    `con_ejercicios` son las habilidades que tienen banco. **Una habilidad sin
+    ejercicios no se elige**: el tutor abriría la sesión sin nada que darle al
+    niño, improvisaría, y nada quedaría atado a un nodo del grafo — así que la
+    sesión no escribiría dominio. Ya pasó (`ses_88be006b825f`), y el día que el
+    grafo crezca más rápido que el banco vuelve a pasar solo.
+
+    Si NINGUNA de las disponibles tiene banco se devuelve la mejor igual, con un
+    aviso: quedarse sin sesión es peor que una sesión improvisada, pero eso hay
+    que verlo pasar en vez de que ocurra en silencio.
     """
     if repasos := habilidades_para_repasar(nino, grafo, ahora):
-        return repasos[0]
+        con_banco = [h for h in repasos if con_ejercicios is None or h.id in con_ejercicios]
+        if con_banco:
+            return con_banco[0]
 
     disponibles = habilidades_disponibles(nino, grafo, ahora)
     if not disponibles:
         return None
+
+    if con_ejercicios is not None:
+        servibles = [h for h in disponibles if h.id in con_ejercicios]
+        if servibles:
+            disponibles = servibles
+        else:
+            _log.warning(
+                "ninguna de las %d habilidades disponibles para %s tiene ejercicios: "
+                "la sesión va a abrir con el banco vacío y el tutor va a improvisar",
+                len(disponibles),
+                nino.id,
+            )
+
+    # Primero la materia más abandonada; el niño trabaja las tres a lo largo de
+    # la semana en vez de repetir la que gane el alfabeto.
+    materias = orden_de_materias(nino, grafo)
 
     def prioridad(h: Habilidad) -> tuple:
         # SIN TECHO: subir de grado no se penaliza nunca. Solo se prefiere no
@@ -250,7 +332,7 @@ def siguiente_habilidad(
         )
         # Avance parcial primero: terminar lo empezado antes de abrir un frente nuevo
         avance = nivel_efectivo(_registro(nino, h.id), ahora)
-        return (distancia_grado, -avance, -firmeza, h.id)
+        return (materias[h.materia], distancia_grado, -avance, -firmeza, h.id)
 
     return min(disponibles, key=prioridad)
 

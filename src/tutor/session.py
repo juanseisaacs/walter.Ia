@@ -269,7 +269,11 @@ class Orquestador:
         self._cerrar_sesiones_activas(nino_id, ahora)
         self._verificar_presupuesto(nino_id, ahora)
 
-        objetivo = siguiente_habilidad(nino, self.grafo, ahora)
+        # Solo habilidades CON banco: una sin ejercicios deja al tutor sin nada
+        # que darle al niño, y lo que improvisa no queda atado a ningún nodo.
+        objetivo = siguiente_habilidad(
+            nino, self.grafo, ahora, con_ejercicios=self.repo.habilidades_con_ejercicios()
+        )
         if objetivo is None:
             raise ErrorSesion(
                 "El niño domina todo el grafo alcanzable. Hay que extender el currículum."

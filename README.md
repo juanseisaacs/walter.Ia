@@ -99,10 +99,10 @@ el niño habla → el tutor usa el banco y check_answer → la sesión cierra
 
 | | |
 |---|---|
-| Habilidades de matemáticas (1° a 5°) | **54**, con triple anclaje verificado contra los documentos primarios |
-| Ejercicios validados en banco | **1.408** — ~26 por habilidad, ninguna vacía |
+| Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura, con triple anclaje verificado contra los documentos primarios |
+| Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
 | Técnicas de enseñanza, en pares rivales | **6** — el motor prueba, mide y cambia |
-| Tests de Python | **415**, en verde |
+| Tests de Python | **587**, en verde |
 | Tests del front | **83**, en verde |
 | Casos de eval en las 4 suites de YC | **48** — la última corrida completa dio 45/45 el 20/08; los 3 casos agregados después no se han corrido |
 | Sesiones de voz corridas | **62** · 71 transcripciones · 41 auditorías del método |
@@ -334,7 +334,7 @@ qué va antes de qué.
   verificable_en_codigo: true
 ```
 
-Las 54 habilidades cubren el **pensamiento numérico del MEN completo** de 1° a
+Las 54 de matemáticas cubren el **pensamiento numérico del MEN completo** de 1° a
 5°. El anclaje cita el DBA **por su número**, que es lo que lo hace
 verificable: una descripción libre no se puede contrastar con nada. Los tres
 anclajes se auditaron uno por uno contra los documentos primarios.
@@ -354,7 +354,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env            # y completar ANTHROPIC_API_KEY y GOOGLE_API_KEY
 
-pytest                          # 415 tests, rápidos, sin red
+pytest                          # 587 tests, rápidos, sin red
 ```
 
 ### Para hablar con el tutor
