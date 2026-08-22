@@ -123,6 +123,17 @@
 .pz-grupo-3 .pz-punto { fill: var(--pizarra-vivo-4); }
 .pz-grupo-4 .pz-punto { fill: var(--pizarra-vivo-5); }
 
+/* El dibujito que reemplaza al punto cuando el tutor nombra algo que sabemos
+   dibujar (gallinas, galletas, carritos). Ver `emojis.ts`.
+   Va sin `fill`: un emoji trae sus propios colores y pintarlo lo apaga. */
+.pz-dibujo {
+  font-size: 15px;
+  text-anchor: middle;
+  /* Que no se pueda seleccionar de un dedazo: el niño está contando, no
+     copiando texto, y una selección azul encima de las galletas confunde. */
+  user-select: none;
+}
+
 .pz-grupo-0 .pz-en-caja { fill: var(--pizarra-vivo-1); }
 .pz-grupo-1 .pz-en-caja { fill: var(--pizarra-vivo-2); }
 .pz-grupo-2 .pz-en-caja { fill: var(--pizarra-vivo-3); }

@@ -234,6 +234,22 @@ cuáles se usan de verdad: con 6 técnicas y 3 sesiones cada una, agotar la
 biblioteca son 18 sesiones, y no tiene sentido verificar la evidencia de una
 que el motor nunca llegue a probar.
 
+### Lo que Juan pidió y todavía no está
+
+De la sesión del 22/08 quedaron dos cosas sin hacer:
+
+- **Dibujar «33 gallinas y 24 patos».** Los emojis ya salen dentro de `grupos`,
+  pero `grupos` es *N grupos de M cosas iguales*: no hay forma de mostrar dos
+  cantidades de cosas DISTINTAS. Es justo lo que el niño pedía cuando dijo «me
+  gustaría poder ver las gallinas y los patos», y hoy el tutor tiene que
+  contestarle que no puede. Sería un tipo nuevo en el enum, con su handler y su
+  test de contrato: medio día, riesgo bajo.
+- **La latencia que él nota.** *«Es que te demoras un poquito a veces en
+  responder.»* Van cuatro medidas del clic a «Te escucho» —2.078, 2.109, 3.250,
+  1.641 ms— sin controlar la red, así que no dan para concluir nada. Lo que
+  falta medir es otra cosa: el silencio DENTRO de la conversación, que es lo que
+  el niño siente. La consola ya lo imprime desde el 21/08; falta leerlo.
+
 ### Lo demás, chico
 
 - **El último hash de la cadena no se publica en ningún lado.** La cadena de

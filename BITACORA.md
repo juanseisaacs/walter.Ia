@@ -11,7 +11,7 @@ razón; `PENDIENTE.md`, **dónde retomar**.
 
 ## El patrón que se repite
 
-Ocho de las dieciséis entradas de abajo son la misma falla con distinta cara:
+Ocho de las diecisiete entradas de abajo son la misma falla con distinta cara:
 **algo dejó de pasar y no había dónde enterarse.** Un `continue` sin rastro, una
 función sin llamador, un test pisado por otro con el mismo nombre, un campo que
 Pydantic descartaba en silencio, una purga de datos de menores que nadie
@@ -617,4 +617,52 @@ Las cinco fichas viejas recibieron uno en la migración v6.
 
 Verificado de punta a punta: `e2e_voz` 15/15 con navegador y voz real, más una
 comprobación nueva que golpea el endpoint sin credencial y exige un 401.
+
+---
+
+## Lección aprendida (la sesión que auditó el niño, 22/08)
+
+Ocho minutos con Juan —más del doble de la mediana histórica— y la sesión da
+para tres cosas: lo que el sistema hizo bien, un bug que el propio Analista
+cazó, y tres sugerencias del niño que apuntaban a un hueco real.
+
+**El Analista detectó el bug antes que nosotros.** `afirmo_algo_falso: true`,
+con las notas exactas: el tutor dijo que la pizarra mostraba `33+24` y mostraba
+`33+33`, luego `24+24`. El niño se lo señaló tres veces. Nadie miró la
+transcripción para saberlo — estaba en `data/audits/` desde el cierre.
+
+1. **`NON_BLOCKING` tiene un costo que no estaba escrito.** El tool devuelve
+   `en_pantalla` desde el 21/08 justo para que el tutor no afirme de memoria.
+   Pero `mostrar_en_pizarra` no bloquea: el modelo sigue hablando sin esperar la
+   respuesta. Cuando dijo *«¡Listo! Ahora sí están las 33 gallinas»*, **todavía
+   no sabía qué había salido**. El dato llega, pero llega tarde, y ninguna de
+   las dos decisiones estaba mal por separado. La regla nueva no le pide que
+   espere: le prohíbe afirmar y le enseña a preguntar *«¿ahora qué ves?»*.
+2. **Prometió lo que no existe.** *«Te puedo ayudar con matemáticas, a leer y
+   escribir»* — solo hay `matematicas.yaml`. Y el niño había pedido leer dos
+   veces seguidas, las dos devuelto a las sumas sin respuesta. Su tercera
+   pregunta fue *«¿y tú eres tutor de qué materias?»*: ya no preguntaba por
+   leer, preguntaba si valía la pena.
+3. **La mejor sugerencia de producto la hizo el niño.** *«Explora la opción de
+   que puedas pintar una especie de dibujitos y no solo cuadros y números. Me
+   gustaría eso a mí como niño.»* Y antes había tenido que preguntar *«¿los
+   puntos naranjas y verdes son las galletas?»* para entender qué miraba. Tenía
+   razón: la pizarra dibuja puntos, y un punto no es una galleta.
+
+   Se resolvió sin tocar el contrato con el modelo ni gastar un token:
+   `emojis.ts` traduce el `nombre` que el tutor ya manda —«gallinas»,
+   «galletas»— al dibujito. Sin coincidencia, el punto de siempre: un mapa
+   incompleto no puede dejar la pizarra en blanco.
+
+**Y el hook nos bloqueó a nosotros, que es para lo que estaba.** Al agregar las
+dos reglas nuevas al prompt, el techo saltó: 35.747 contra 35.000. Es la primera
+vez que el hook del 22/08 atrapa algo real, y atrapó a quien lo escribió. Se
+pagó como manda la regla —comprimiendo otra cosa, no subiendo el techo— y lo que
+se fue fue prosa que explicaba el porqué, no comportamiento: el mensaje del
+propio test lo dice, *«¿qué párrafo cambia lo que el tutor DICE?»*.
+
+De paso apareció un test frágil: buscaba `"tu memoria falla"` como cadena
+literal y un salto de línea al reajustar el párrafo lo tumbaba. Ahora normaliza
+espacios. Un test que depende de dónde cae el corte de línea mide formato, no
+contenido.
 

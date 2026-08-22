@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 
 import "./Pizarra.css";
+import { dibujoDe } from "./emojis";
 import { TrazosDeTexto, anchoEscrito, contarTrazos } from "./Escritura";
 import { ALTO_GLIFO, seEscribeAMano } from "./trazos";
 import {
@@ -237,6 +238,10 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
   const pCols = Math.ceil(Math.sqrt(e.porGrupo));
   const pFilas = Math.ceil(e.porGrupo / pCols);
 
+  // Si el tutor dijo "gallinas", que salgan gallinas. Lo pidió Juan con esas
+  // palabras — ver `emojis.ts`. Sin coincidencia, el punto de siempre.
+  const dibujo = dibujoDe(e.nombre);
+
   return (
     <>
       <Trazo paso={0}>
@@ -253,15 +258,20 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
             <g className={`pz-grupo-${g % 5}`}>
             <rect x={cx} y={cy} width={cajaAncho} height={cajaAlto} rx="8" className="pz-caja" />
             {conPuntos ? (
-              Array.from({ length: e.porGrupo }, (_, p) => (
-                <circle
-                  key={p}
-                  cx={cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1)}
-                  cy={cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1)}
-                  r="6"
-                  className="pz-punto"
-                />
-              ))
+              Array.from({ length: e.porGrupo }, (_, p) => {
+                const px = cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1);
+                const py = cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1);
+                // El emoji se ancla por su centro; el punto, por el suyo. Sin
+                // el `dy` los dibujitos quedan medio renglón por encima de
+                // donde estaban los puntos.
+                return dibujo ? (
+                  <text key={p} x={px} y={py} dy="0.35em" className="pz-dibujo">
+                    {dibujo}
+                  </text>
+                ) : (
+                  <circle key={p} cx={px} cy={py} r="6" className="pz-punto" />
+                );
+              })
             ) : (
               <text x={cx + cajaAncho / 2} y={cy + cajaAlto / 2 + 12} className="pz-en-caja">
                 {e.porGrupo}

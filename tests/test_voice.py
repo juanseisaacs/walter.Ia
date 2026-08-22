@@ -518,7 +518,10 @@ def test_el_primer_encuentro_no_le_ensena_al_nino_a_desconfiar_de_la_memoria():
     estaba desmintiendo con su propia boca. Un niño al que le dicen que a este
     tutor se le olvidan las cosas no le cuenta nada que valga la pena recordar.
     """
-    texto = cargar_prompt("primer_encuentro").lower()
+    # Espacios normalizados: la frase puede quedar partida por un salto de
+    # línea al reajustar el párrafo, y eso es formato, no contenido. Sin esto,
+    # comprimir el prompt tumbaba el test por dónde cayó el corte.
+    texto = " ".join(cargar_prompt("primer_encuentro").lower().split())
     assert "primera vez que hablamos" in texto, "falta la respuesta directa"
     assert "tu memoria falla" in texto, "falta la prohibición de desmentir su memoria"
     assert "tu familia" in texto, "no debe adivinar si fue la mamá o el papá"
