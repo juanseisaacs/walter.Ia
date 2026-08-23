@@ -360,6 +360,14 @@ que **el único que puede mirar el reloj es el navegador, así que lo mira**:
 | `MS_TOPE_TOOL` (8 s) | toda tool contesta, colgada o no — Gemini bloquea el turno hasta recibirla | `web/src/api.ts` |
 | Vigilante de mudez (10 s) | un silencio del tutor se empuja, y si no vuelve se le dice al niño | `web/src/voz/useTutor.ts` |
 | `MARCA_DE_MUDEZ` | el episodio queda en la transcripción, que es lo único que se lee después | idem |
+| `MS_ESPERANDO_MIRADA` (8 s) | el micrófono no le cierra el turno al modelo mientras mira una imagen | idem |
+
+Y una decisión que se revirtió con datos: **ningún tool lleva
+`behavior: NON_BLOCKING`.** Se había puesto en la pizarra y el dibujo para que
+el tutor siguiera hablando mientras se pintan; medido contra la API real el
+22/08, hacía lo contrario — 0 de 8 turnos con tool produjeron audio. Sin el
+flag, el modelo llama la herramienta y habla en el mismo turno. La espera que el
+flag quería evitar no existe: los dos se resuelven en el navegador.
 
 Las dos primeras se cruzan con un test (`web/src/voz/mudez.test.ts`): el tope de
 la tool tiene que vencer **antes** de que el vigilante empuje, o el empujón cae

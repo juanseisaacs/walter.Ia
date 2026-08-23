@@ -15,7 +15,13 @@
 import { describe, expect, it } from "vitest";
 
 import { MS_TOPE_TOOL } from "../api";
-import { AVISO_DE_MUDEZ, EMPUJONES_ANTES_DE_RENDIRSE, MARCA_DE_MUDEZ, MS_MUDEZ } from "./useTutor";
+import {
+  AVISO_DE_MUDEZ,
+  EMPUJONES_ANTES_DE_RENDIRSE,
+  MARCA_DE_MUDEZ,
+  MS_MUDEZ,
+  MS_MUDEZ_TRAS_EMPUJON,
+} from "./useTutor";
 
 describe("cuánto se espera", () => {
   it("le da tiempo de pensar antes de darlo por mudo", () => {
@@ -29,6 +35,22 @@ describe("cuánto se espera", () => {
     // El niño de la sesión aguantó ese silencio preguntando tres veces qué
     // había pasado. Ese es el techo que este número no puede superar.
     expect(MS_MUDEZ).toBeLessThanOrEqual(20_000);
+  });
+
+  it("le da MÁS margen después del empujón que antes", () => {
+    // Medido el 22/08 (`verificar_dibujo`): un modelo trabado que reacciona al
+    // empujón tarda 15,3 s en soltar la primera sílaba, contra 0,9-3,5 s de un
+    // turno sano. Empujarlo otra vez con el reloj corto sería atropellarlo justo
+    // cuando iba a hablar.
+    expect(MS_MUDEZ_TRAS_EMPUJON).toBeGreaterThan(MS_MUDEZ);
+    expect(MS_MUDEZ_TRAS_EMPUJON).toBeGreaterThanOrEqual(16_000);
+  });
+
+  it("no deja al niño más de medio minuto hablándole a nadie", () => {
+    // El peor caso completo: silencio + empujones + rendirse. Es el número que
+    // de verdad vive el niño, y ninguna constante suelta lo muestra.
+    const peor = MS_MUDEZ + EMPUJONES_ANTES_DE_RENDIRSE * MS_MUDEZ_TRAS_EMPUJON;
+    expect(peor).toBeLessThanOrEqual(30_000);
   });
 
   it("intenta recuperarlo antes de cortarle la sesión", () => {

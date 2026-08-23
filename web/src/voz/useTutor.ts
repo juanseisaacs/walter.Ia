@@ -62,11 +62,23 @@ const UMBRAL_BARGE_IN = 0.045;
  */
 /** Cuánto se calla el micro esperando que el tutor mire una imagen.
 
-    Es un PISO de seguridad, no el caso normal: lo normal es que conteste en
-    menos y el micro vuelva ahí mismo. Dos segundos porque el niño que acaba de
-    mandar un dibujo suele quedarse mirando la pantalla — y si igual habla, el
-    VAD lo toma en cuanto vuelve. */
-export const MS_ESPERANDO_MIRADA = 2000;
+    Es un PISO de seguridad: lo normal es que el micro vuelva antes, en cuanto
+    el tutor arranca a hablar.
+
+    Eran 2 segundos, y ese número estaba puesto a ojo. Medido el 22/08 contra la
+    API real (`scripts/verificar_dibujo.py`), lo que tarda el tutor en soltar su
+    primer bloque de audio DESPUÉS de una imagen:
+
+        1.250 ms · 1.328 ms · 3.188 ms      (y 7.328 ms tras un empujón)
+
+    O sea que el micro se reabría A MITAD del procesamiento de la imagen, el
+    audio entrante le cerraba el turno al modelo y el tutor se quedaba con la
+    frase por la mitad — «¡Te quedó muy bien», y nada más. Se vio en dos de tres
+    corridas con micrófono simulado, y es el silencio de `ses_5d101caf627f`.
+
+    Ocho segundos cubre el peor caso medido con margen, y no cuesta lo que
+    parece: el micro no espera los ocho segundos, espera a que el tutor hable. */
+export const MS_ESPERANDO_MIRADA = 8000;
 
 /** Lo que viaja junto al dibujo del niño. Es prompt, y por eso se prueba. */
 export const AVISO_DEL_DIBUJO =
@@ -89,8 +101,21 @@ const MS_PARA_CORTAR = 200;
  */
 export const MS_MUDEZ = 10_000;
 
-/** Cuántos empujones antes de aceptar que no vuelve. */
-export const EMPUJONES_ANTES_DE_RENDIRSE = 2;
+/**
+ * Cuánto se espera DESPUÉS del empujón, que no es lo mismo.
+ *
+ * Medido el 22/08: cuando el modelo se traba y hay que empujarlo, su respuesta
+ * tardó **15.281 ms** en arrancar — cinco veces lo que tarda un turno sano.
+ * Volver a empujarlo a los 10 s sería atropellarlo justo cuando iba a hablar.
+ */
+export const MS_MUDEZ_TRAS_EMPUJON = 18_000;
+
+/** Cuántos empujones antes de aceptar que no vuelve.
+ *
+ * Uno. Con dos, el niño acumula 46 s hablándole a una pantalla antes de que
+ * alguien le diga algo — más de lo que aguanta un chico de 7. Así el peor caso
+ * es 10 s de silencio + un intento + 18 s = 28 s hasta que la pantalla habla. */
+export const EMPUJONES_ANTES_DE_RENDIRSE = 1;
 
 /** El empujón. Es prompt —lo lee el modelo—, y por eso se prueba. */
 export const AVISO_DE_MUDEZ =
@@ -285,7 +310,7 @@ export function useTutor(ninoId: string) {
   }, []);
 
   /** Arranca (o reinicia) la cuenta. La llama todo lo que espera respuesta. */
-  const vigilarMudez = useCallback(() => {
+  const vigilarMudez = useCallback((espera: number = MS_MUDEZ) => {
     if (mudezRef.current) clearTimeout(mudezRef.current);
 
     mudezRef.current = setTimeout(() => {
@@ -318,12 +343,12 @@ export function useTutor(ninoId: string) {
       } catch (e) {
         console.warn("[mudez] no se pudo empujar:", e);
       }
-      vigilarMudezRef.current?.(); // y se sigue mirando el reloj
-    }, MS_MUDEZ);
+      vigilarMudezRef.current?.(MS_MUDEZ_TRAS_EMPUJON); // y se sigue mirando el reloj
+    }, espera);
   }, [cerrarTurnoAcumulado, encolar]);
 
   /** Para llamarse a sí misma sin depender del orden de los closures. */
-  const vigilarMudezRef = useRef<(() => void) | null>(null);
+  const vigilarMudezRef = useRef<((espera?: number) => void) | null>(null);
   vigilarMudezRef.current = vigilarMudez;
 
   /**
@@ -959,11 +984,6 @@ export function useTutor(ninoId: string) {
           onmessage: (mensaje: LiveServerMessage) => {
             const contenido = mensaje.serverContent as any;
 
-            // Contestó: el niño puede volver a hablar. Ver `mostrarleAlTutor`.
-            if (esperandoMiradaRef.current && contenido) {
-              esperandoMiradaRef.current = false;
-            }
-
             const gastados = (mensaje as any).usageMetadata?.totalTokenCount;
             if (gastados) {
               tokensRef.current.suma += gastados;
@@ -1033,6 +1053,14 @@ export function useTutor(ninoId: string) {
                 setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
                 tutorContesto();
+                // Y RECIÉN ACÁ vuelve el micrófono.
+                //
+                // Antes se reabría con CUALQUIER mensaje del servidor —incluida
+                // la transcripción de lo que el propio niño acababa de decir—,
+                // así que en la práctica no esperaba nada: volvía enseguida y le
+                // cortaba el turno al modelo mientras miraba la imagen. El
+                // único mensaje que prueba que el tutor ya contestó es su voz.
+                esperandoMiradaRef.current = false;
                 reproductor.programar(parte.inlineData.data);
               }
             }
@@ -1101,6 +1129,7 @@ export function useTutor(ninoId: string) {
               // tope de `MS_TOPE_TOOL` garantiza que la respuesta sale, así que
               // la cuenta se reinicia recién cuando el modelo vuelva a hablar.
               tutorContesto();
+              esperandoMiradaRef.current = false; // ya reaccionó a la imagen
               void Promise.all(
                 llamadas.map(async (fc: any) => {
                   let respuesta: object;

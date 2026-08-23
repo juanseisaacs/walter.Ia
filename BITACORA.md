@@ -937,3 +937,89 @@ pizarra que dibujaba puntos el 21/08, y esto). **El mejor detector de bugs que
 tiene el producto es el que se sienta a hablar con él**, y eso solo funciona si
 alguien lee las transcripciones después. Las nuestras se leen. Las de un niño
 externo, todavía no las hay.
+
+---
+
+## El flag que le quitaba la voz al tutor (22/08, noche, `ses_5d101caf627f`)
+
+Juan pidió aprender la letra J, el tutor le abrió la hoja, Juan la dibujó y
+preguntó si le había quedado bien. **El tutor no volvió a hablar.** Esta vez
+quedó registrado, porque el vigilante puesto hace una hora dejó su marca:
+
+```
+nino: [le muestra al tutor un dibujo que hizo]
+nino: ¿O bien? Ya la hice, ¿me quedó bien?
+tutor: [el tutor no contestó: se quedó callado]
+nino: Walter, ¿qué te está pasando?
+```
+
+Con el episodio localizado —siempre alrededor de una imagen— se escribió
+`scripts/verificar_dibujo.py`: la conversación entera contra la API real, con el
+prompt de sesión completo, las ocho herramientas y, en una variante, **el
+micrófono mandando ruido de fondo como lo manda el navegador**. Nueve corridas.
+
+### Hallazgo 1: `NON_BLOCKING` hacía lo contrario de lo que decía
+
+| configuración | turnos con tool que produjeron audio |
+|---|---|
+| con `behavior: NON_BLOCKING` | **0 de 8** |
+| sin él | el modelo llama la herramienta **y habla** |
+
+El flag estaba puesto —con su comentario y su test— para que el tutor *siguiera
+hablando mientras el tablero se pinta, como un profesor que escribe y explica a
+la vez*. Medido: **le quitaba la voz en ese turno.**
+
+Y ahí está el silencio de Juan. Le pide ver la letra → el modelo llama a la
+pizarra para mostrársela → ese turno sale mudo. El niño ve aparecer una hoja en
+blanco y no oye a nadie.
+
+> **Un flag de la API no se adopta porque su nombre describa lo que queremos.**
+> Este llevaba días puesto, con un test que exigía su presencia y un comentario
+> que explicaba lo bien que funcionaba. Nadie lo había escuchado.
+
+El miedo que lo justificaba tampoco existía: los dos tools se resuelven EN EL
+NAVEGADOR. La espera que se quería evitar era de microsegundos.
+
+### Hallazgo 2: el micrófono le cortaba la frase al tutor
+
+`MS_ESPERANDO_MIRADA` eran 2 segundos, puestos a ojo el 22/08 por la mañana.
+Medido lo que tarda el tutor en soltar su primera sílaba después de una imagen:
+
+    1.250 ms · 1.328 ms · 3.188 ms      (15.281 ms cuando hay que empujarlo)
+
+O sea que el micrófono volvía **a mitad del procesamiento**, y el audio entrante
+le cerraba el turno al modelo. Se ve en la transcripción del script, con la
+frase cortada donde entró el ruido:
+
+> «¡Uy, Juan, esa J está súper chévere! ... **¡Te quedó muy bien**»  ← y nada más
+
+Peor: se reabría con CUALQUIER mensaje del servidor —incluida la transcripción
+de lo que el propio niño acababa de decir—, así que en la práctica ni siquiera
+esperaba los 2 segundos.
+
+> Un piso de seguridad puesto a ojo **es una medición que nadie hizo**, y se ve
+> igual que una que sí. Los tres números de arriba costaron cuatro minutos de
+> API; el que estaba puesto costó tres sesiones.
+
+Ahora el micro vuelve cuando el tutor **empieza a hablar** —su voz es el único
+mensaje que prueba que contestó— y el piso subió a 8 s, por encima del peor caso
+medido.
+
+### Lo que NO se arregló, y hay que decirlo
+
+Con las dos cosas arregladas, el turno de la imagen contestó **1 de 3 veces** en
+la verificación final. La mudez intermitente sigue ahí y es del lado de Gemini:
+un turno enviado que a veces no dispara generación, también con texto puro.
+
+Lo que sí quedó demostrado es que **se recupera**: en la corrida que falló, el
+empujón del vigilante trajo al tutor de vuelta con la respuesta correcta —
+*«Uy, se me fue el sonido un momentico… ¡Ah, ya veo tu dibujo!»*. Tenemos
+recuperación, no cura, y el número que la hace posible salió de la misma
+medición: el modelo trabado tarda 15 s en arrancar, así que después del empujón
+se le dan 18 y no 10.
+
+> Tres bugs en el mismo camino y ninguno era el que parecía. El primero se
+> "arregló" callando el micrófono, el segundo callándolo mejor, y el tercero
+> resultó ser un flag que decía en su nombre lo contrario de lo que hacía. **Lo
+> único que los distinguió fue medir el camino entero contra la API real**, que
+> es lo que ahora hace `verificar_dibujo` en cuatro minutos.

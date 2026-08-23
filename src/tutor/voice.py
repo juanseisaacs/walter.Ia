@@ -290,14 +290,23 @@ DECLARACIONES_TOOLS: list[dict] = [
     },
     {
         "name": "mostrar_en_pizarra",
-        # NON_BLOCKING es la diferencia entre que esto sirva y que estorbe.
+        # ⚠️ ACÁ IBA `behavior: NON_BLOCKING`, Y HACÍA LO CONTRARIO DE LO QUE DECÍA.
         #
-        # Un tool normal corta el turno: el modelo se calla, espera la respuesta
-        # y arranca de nuevo. Eso es exactamente el silencio del que Felipe se
-        # quejó ("¿te fuiste?"). Con esto el tutor SIGUE HABLANDO mientras el
-        # tablero se pinta, que es lo que hace un profesor de verdad: escribe y
-        # explica a la vez.
-        "behavior": "NON_BLOCKING",
+        # Se puso para que el tutor SIGUIERA HABLANDO mientras el tablero se
+        # pinta —como un profesor que escribe y explica a la vez—. Medido el
+        # 22/08 contra la API real con `scripts/verificar_dibujo.py`:
+        #
+        #   con NON_BLOCKING   8 de 8 turnos con tool salieron MUDOS (0 audio)
+        #   sin NON_BLOCKING   el modelo llama la herramienta Y HABLA
+        #
+        # O sea: el flag no lo dejaba seguir hablando, le quitaba la voz. Y es
+        # el silencio que vivió Juan tres veces: pedía ver la letra, el modelo
+        # llamaba a la pizarra para mostrársela, y ese turno no producía ni una
+        # palabra (`ses_5d101caf627f`).
+        #
+        # El miedo que justificaba el flag —"un tool normal corta el turno"— no
+        # se paga acá: este tool se resuelve EN EL NAVEGADOR, sin backend. La
+        # espera es de microsegundos, no de red.
         "description": (
             "Escribe en la pizarra que el niño ve al lado tuyo, SIN dejar de "
             "hablar. Es tu tablero: cuando el niño pide ver algo, dibujarlo o "
@@ -429,7 +438,9 @@ DECLARACIONES_TOOLS: list[dict] = [
     },
     {
         "name": "pedir_dibujo",
-        "behavior": "NON_BLOCKING",
+        # Sin `behavior`, por la misma medición que `mostrar_en_pizarra`: con
+        # NON_BLOCKING el turno que abre la hoja sale mudo y el niño ve aparecer
+        # una hoja en blanco sin que nadie le diga qué hacer con ella.
         "description": (
             "Abre una hoja en blanco para que el niño dibuje con el dedo o el "
             "mouse, y te la manda cuando termina. Úsala para trazar una letra o "

@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { MS_ESPERANDO_MIRADA, AVISO_DEL_DIBUJO } from "./useTutor";
+import { MS_ESPERANDO_MIRADA, MS_MUDEZ, AVISO_DEL_DIBUJO } from "./useTutor";
 
 describe("el aviso que viaja con el dibujo", () => {
   it("le exige describir ANTES de juzgar", () => {
@@ -42,10 +42,26 @@ describe("el aviso que viaja con el dibujo", () => {
 });
 
 describe("el micrófono que se calla mientras el tutor mira", () => {
-  it("vuelve solo, y pronto", () => {
+  it("vuelve solo, pase lo que pase", () => {
     // Es un PISO de seguridad: si el tutor no contesta, el micro tiene que
     // volver igual. Un niño mudo es peor que un tutor callado.
     expect(MS_ESPERANDO_MIRADA).toBeGreaterThan(0);
-    expect(MS_ESPERANDO_MIRADA).toBeLessThanOrEqual(3000);
+  });
+
+  it("le da tiempo al tutor de mirar la imagen antes de volver", () => {
+    // Este test pedía <= 3000 ms, y ese techo era el bug.
+    //
+    // Medido el 22/08 contra la API real (`scripts/verificar_dibujo.py`), el
+    // tutor tarda entre 1.250 y 3.188 ms en soltar su primera sílaba después de
+    // una imagen. Con el piso en 2.000 el micrófono volvía A MITAD de eso, el
+    // audio entrante le cerraba el turno al modelo, y la frase quedaba por la
+    // mitad: «¡Te quedó muy bien» — y silencio.
+    expect(MS_ESPERANDO_MIRADA).toBeGreaterThanOrEqual(5000);
+  });
+
+  it("pero se rinde antes de que el vigilante empuje", () => {
+    // Si el micro siguiera callado cuando el vigilante manda su empujón, el
+    // niño no podría contestarle al tutor que acaba de volver.
+    expect(MS_ESPERANDO_MIRADA).toBeLessThan(MS_MUDEZ);
   });
 });

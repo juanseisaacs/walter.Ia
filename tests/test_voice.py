@@ -371,20 +371,36 @@ def test_estan_declarados_los_tools():
     }
 
 
-def test_los_tools_de_la_pizarra_no_cortan_el_habla():
-    """LA CONDICIÓN PARA QUE LA PIZARRA SIRVA EN VEZ DE ESTORBAR.
+def test_ningun_tool_es_non_blocking():
+    """EL FLAG QUE LE QUITABA LA VOZ AL TUTOR. Este test daba lo contrario.
 
-    Un tool normal corta el turno: el modelo se calla, espera la respuesta y
-    arranca de nuevo. Es exactamente el silencio del que Felipe se quejó
-    ("¿te fuiste? ¿por qué te quedas callado?", ses_c973ffe7b267).
+    `mostrar_en_pizarra` y `pedir_dibujo` llevaban `behavior: NON_BLOCKING` para
+    que el tutor SIGUIERA HABLANDO mientras el tablero se pinta, y este test
+    exigía el flag. Nadie lo había medido contra la API real.
 
-    Con NON_BLOCKING el tutor sigue hablando mientras el tablero se pinta —
-    escribe y explica a la vez, como un profesor. Sin esto, cada dibujo le
-    devuelve al niño la latencia que costó dos días sacar.
+    Medido el 22/08 con `scripts/verificar_dibujo.py`, misma config del
+    producto, mismo prompt, ocho corridas:
+
+        con NON_BLOCKING   0 de 8 turnos con tool produjeron audio
+        sin NON_BLOCKING   el modelo llama la herramienta Y HABLA
+
+    El flag no lo dejaba seguir hablando: **le quitaba la voz en ese turno.** Y
+    ese es el silencio que Juan vivió tres veces — pedía ver una letra, el
+    modelo llamaba a la pizarra para mostrársela, y el turno salía mudo
+    (`ses_5d101caf627f`).
+
+    El miedo que lo justificaba —"un tool normal corta el turno"— no se paga
+    acá: los dos se resuelven EN EL NAVEGADOR, sin backend ni red.
+
+    Si algún día vuelve a intentarse, que sea con una corrida de
+    `verificar_dibujo` al lado. Un flag de la API no se adopta porque su nombre
+    describa lo que queremos.
     """
-    for nombre in ("mostrar_en_pizarra", "pedir_dibujo"):
-        tool = next(t for t in DECLARACIONES_TOOLS if t["name"] == nombre)
-        assert tool.get("behavior") == "NON_BLOCKING", f"{nombre} cortaría el habla"
+    for tool in DECLARACIONES_TOOLS:
+        assert "behavior" not in tool, (
+            f"{tool['name']} lleva behavior={tool['behavior']!r}: medido el 22/08, "
+            "NON_BLOCKING deja el turno sin audio y el niño no oye nada"
+        )
 
 
 def test_la_pizarra_no_le_pide_coordenadas_al_modelo():
