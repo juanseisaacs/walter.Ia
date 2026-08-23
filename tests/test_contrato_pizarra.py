@@ -295,3 +295,35 @@ def test_abrir_la_hoja_no_borra_lo_que_el_nino_va_a_copiar():
         "pedir_dibujo volvió a borrar la pizarra: el niño pierde el modelo justo "
         "cuando lo va a copiar (ses_445f4c33db41)"
     )
+
+
+def test_los_parametros_de_la_pizarra_los_lee_alguien():
+    """Un parámetro declarado en Python que el traductor no lee es un dibujo que
+    el niño nunca ve.
+
+    `cantidades` entró el 23/08 para poder dibujar «5 + 3 + 6 pollitos», que es
+    lo que Juan pidió dos veces sin que existiera forma de dárselo. Si mañana
+    alguien agrega otro parámetro al tool y se olvida del handler, el modelo lo
+    va a mandar igual —está en el schema— y `aCuadro` lo va a ignorar en
+    silencio: exactamente el descarte silencioso que este archivo persigue.
+
+    Se comprueban los que llevan datos del dibujo. `tipo` no: es el switch.
+    """
+    declarado = set(
+        next(t for t in DECLARACIONES_TOOLS if t["name"] == "mostrar_en_pizarra")["parameters"][
+            "properties"
+        ]
+    ) - {"tipo"}
+    traductor = _texto(DESDE_EL_TUTOR)
+
+    # El traductor acepta `por_grupo` y `porGrupo`, `salta_a` y `saltaA`: basta
+    # con que aparezca una de las dos formas de cada nombre.
+    def _lo_lee(nombre: str) -> bool:
+        camello = re.sub(r"_(.)", lambda m: m.group(1).upper(), nombre)
+        return nombre in traductor or camello in traductor
+
+    faltan = sorted(p for p in declarado if not _lo_lee(p))
+    assert not faltan, (
+        f"el tutor puede mandar {faltan} y desdeElTutor.ts no los lee: el modelo "
+        "cree que dibujó algo y el niño ve otra cosa"
+    )

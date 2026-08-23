@@ -1167,3 +1167,106 @@ después del empujón, *«Uy, se me fue el sonido un momentico, perdóname. ¿En
 
 > Las cuatro salieron de leer una transcripción de cinco minutos. La suite tenía
 > 592 tests en verde mientras las cuatro pasaban.
+
+---
+
+## Auditoría de dos sesiones seguidas (23/08, `ses_eadfa6137a37` y `ses_97d5b112a122`)
+
+Ocho minutos de conversación, cinco hallazgos. Tres los dijo el niño en voz
+alta; los otros dos estaban a la vista de cualquiera que leyera.
+
+### Lo que ya funciona (y conviene anotar, no solo lo roto)
+
+- **No apareció ni un "hágale", ni un "nops", ni una palabra inventada.** El
+  veto por nombre del 22/08 se sostuvo en dos sesiones enteras.
+- **El elogio nombró el trazo**: «veo que hiciste las dos "emes" con sus
+  montañitas y las "aes" redonditas, ¡y hasta le pusiste la rayita arriba a la
+  última!». Eso es reconocimiento específico, que es lo que se pidió.
+- **La visión anda**: le mostró tres dedos a la cámara y el tutor dijo tres.
+- **El vigilante de la mudez hizo su trabajo** las dos veces que hizo falta.
+
+### 1. La pizarra sobrevivía a la sesión
+
+`ses_97d5b112a122` abrió así, antes de que nadie dijera nada:
+
+> nino: «¿Por qué abres esto? De mamá, ¿por qué pones esto? No entiendo.»
+
+Era la pizarra de la sesión anterior, que había terminado con la palabra
+"mamá" escrita. Y el tutor nuevo **no tenía forma de saberlo**: su contexto
+arranca limpio. Adivinó dos veces, mal las dos, y el niño tuvo que dictarle qué
+había en su propia pantalla.
+
+`soltarRecursos()` limpiaba el micrófono, el socket, los relojes y dos
+banderas — todo menos lo único que el niño VE.
+
+> Lo que queda en pantalla no puede sobrevivir a la conversación que lo puso
+> ahí. Y el que paga la confusión no es el que dejó el estado sucio: es el
+> siguiente, que no sabe nada.
+
+### 2. La cámara explicada dos veces
+
+```
+tutor: «...apunta a tu cuaderno y toca el botón. Y ahí me quedo en
+        silencio.¡De una, Juan! ...Toca el botón redondo que se te abrió»
+nino:  «Primero me dijiste ahí se te abre la camarita y luego que toque el
+        botón. Era solo la de que se toque el botón.»
+```
+
+Dos mensajes nuestros le pedían lo mismo: el `que_hacer` que devuelve
+`request_camera` y el `[Sistema: …]` que sale cuando el visor abre de verdad.
+Cada uno estaba bien escrito por su lado.
+
+> **Dos avisos correctos que dicen lo mismo son un aviso incorrecto.** La
+> instrucción al niño va en UN solo lugar — el que sale cuando la cámara ya
+> está abierta, no cuando la pedimos.
+
+### 3. «Ya estoy avisando para que podamos tener las dos opciones»
+
+El niño pidió ver la palabra en letra pegada. La pizarra solo sabe letra
+suelta, y el tutor contestó bien la primera mitad —dijo la verdad de lo que
+puede— y después **inventó una gestión**: que ya estaba avisando para que se
+pudiera. No puede avisarle a nadie. No hay a quién.
+
+Es la familia del videíto de YouTube del 22/08, pero lo ofrecido no era una
+cosa: era un trámite. La regla de los medios no lo cubría, y ahora sí.
+
+*(La letra cursiva, en cambio, es un pedido legítimo y va a `PENDIENTE.md`.)*
+
+### 4. «Borra la hoja» — pedirle al niño lo que hace el tutor
+
+> nino: «¿Por qué me dices que borre la hoja si en teoría eres tú la que lo
+>        reinicia y me da la hoja en blanco?»
+
+Tenía razón: la hoja se cierra al enviarse, y para que dibuje otra vez el que
+tiene que llamar a `pedir_dibujo` es el tutor. El niño terminó explicándole al
+tutor cómo funciona el tutor.
+
+### 5. Y el hallazgo grande: no se podía dibujar una suma
+
+Dos veces en tres minutos:
+
+> «¿Cuánto daría si tengo 6 bolitas + 5 bolitas + 2 bolitas?»
+> «5 + 3 + 6 y no son bolitas, sino son pollitos. ¿Podrías mostrarme los
+>  pollitos?»
+> «Me está mostrando tres cajas cada una con seis puntitos, eso no tiene nada
+>  que ver, así que hay que revisarlo.»
+
+Y tenía razón otra vez. `operacion` escribe la cuenta en columna y **solo
+acepta dos números**; `grupos` dibujaba montones **todos iguales**. Sumar tres
+cantidades distintas contándolas —que es primero de primaria entero— no se
+podía pedir. El modelo forzó lo único parecido que tenía y salió lo que el niño
+describió.
+
+> Cuando el modelo hace algo absurdo con una herramienta, la primera pregunta
+> no es qué le pasa al modelo: es **qué le pedimos que no puede pedir**. Acá
+> estuvo dos sesiones intentando dibujar una suma con la herramienta de
+> multiplicar.
+
+`grupos` acepta ahora `cantidades: [5, 3, 6]`, cada caja decide sola si dibuja o
+escribe el número, y el rótulo pasa a ser la cuenta. Verificado contra la API
+real: el modelo manda `{"nombre": "pollitos", "cantidades": [5,3,6], "tipo":
+"grupos"}` y dice *«ahí te puse un grupo de cinco, otro de tres y otro de seis.
+¿Me ayudas a descubrir cuántos pollitos son en total?»*.
+
+Faltaban también los **pollitos** en `emojis.ts` —estaba `gallina`— y por eso
+salieron puntos.

@@ -43,6 +43,9 @@ const DIBUJOS: Record<string, string> = {
   pizza: "🍕",
 
   gallina: "🐔",
+  // Juan pidió pollitos dos veces en la misma sesión y le salieron puntos:
+  // `gallina` estaba, `pollito` no (ses_97d5b112a122).
+  pollito: "🐤",
   pollo: "🐥",
   pato: "🦆",
   vaca: "🐄",
@@ -97,6 +100,9 @@ const IRREGULARES: Record<string, string> = {
   lapices: "lapiz",
   aviones: "avion",
   balones: "balon",
+  pollitos: "pollito",
+  pollo: "pollito",
+  pollos: "pollito",
   panes: "pan",
   flores: "flor",
   arboles: "arbol",

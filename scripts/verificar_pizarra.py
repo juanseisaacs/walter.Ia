@@ -82,6 +82,10 @@ PEDIDOS = [
         "Hagamos un ejemplo con gallinas y pollitos, sumas y restas. "
         "Pero que me pueda yo ver las gallinas y los pollitos.",
     ),
+    (
+        "la suma de tres montones",
+        "5 + 3 + 6 y no son bolitas, sino son pollitos. ¿Podrías mostrarme los pollitos?",
+    ),
 ]
 
 
@@ -153,7 +157,10 @@ async def main() -> int:
                     turns={"role": "user", "parts": [{"text": _aviso_de_mudez()}]},
                     turn_complete=True,
                 )
-                print(f"   {await escuchar(s)}")
+                rescate = await escuchar(s)
+                print(f"   {rescate}")
+                print(f"   manda: {_resumen(nombre, rescate)}")
+                turno.llamadas.extend(rescate.llamadas)
             for tool, args in turno.llamadas:
                 if tool == "mostrar_en_pizarra":
                     capturado.append({"pidio": nombre, "args": args})

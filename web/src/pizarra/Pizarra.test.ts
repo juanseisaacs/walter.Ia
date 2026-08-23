@@ -90,3 +90,30 @@ describe("la fracción impropia se dibuja con varios enteros", () => {
     expect(svg.match(/class="pz-porcion"/g)?.length).toBe(1);
   });
 });
+
+describe("los montones desiguales llegan al lienzo", () => {
+  it("dibuja una caja por cantidad, con lo suyo adentro", () => {
+    const svg = pintar({
+      escena: { tipo: "grupos", grupos: 3, porGrupo: 6, cantidades: [5, 3, 6], nombre: "pollitos" },
+    });
+    // Tres cajas...
+    expect(svg.match(/class="pz-caja"/g)?.length).toBe(3);
+    // ...y catorce pollitos, que es 5 + 3 + 6. Si el render usara `porGrupo`
+    // saldrían dieciocho, que es exactamente lo que el niño vio y reclamó.
+    expect(svg.match(/🐤/g)?.length).toBe(14);
+  });
+
+  it("el rótulo dice la cuenta, no 'N grupos de M'", () => {
+    const svg = pintar({
+      escena: { tipo: "grupos", grupos: 3, porGrupo: 6, cantidades: [5, 3, 6], nombre: "pollitos" },
+    });
+    expect(svg).toContain("5 + 3 + 6 pollitos");
+  });
+
+  it("cada caja decide sola si dibuja o escribe el número", () => {
+    // 4 se cuenta de un vistazo; 40 es una mancha. Mezclarlos tiene que poder.
+    const svg = pintar({ escena: { tipo: "grupos", grupos: 2, porGrupo: 40, cantidades: [4, 40] } });
+    expect(svg.match(/class="pz-punto"/g)?.length).toBe(4);
+    expect(svg).toContain(">40<");
+  });
+});

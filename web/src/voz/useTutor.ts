@@ -655,12 +655,25 @@ export function useTutor(ninoId: string) {
             );
           });
 
+        // OJO CON LO QUE DICE ACÁ: este texto y el aviso de arriba llegan los
+        // dos, uno detrás del otro, y si los dos le piden lo mismo el tutor lo
+        // dice DOS VECES. Pasó en `ses_eadfa6137a37` y lo cazó el niño:
+        //
+        //   tutor: «...apunta a tu cuaderno y toca el botón. Y ahí me quedo en
+        //           silencio.¡De una, Juan! ...Toca el botón redondo que se te
+        //           abrió para tomarle una foto, ¿listo?»
+        //   nino:  «Primero me dijiste ahí se te abre la camarita y luego que
+        //           toque el botón. Era solo la de que se toque el botón.»
+        //
+        // La instrucción al niño va en UN solo lugar, y es el aviso de arriba:
+        // sale cuando el visor ESTÁ abierto, no cuando lo pedimos. Acá solo se
+        // le dice que espere.
         return medir({
           camara_pedida: true,
           que_hacer:
-            "Se le está abriendo la cámara. Dile que apunte al cuaderno y toque " +
-            "el botón redondo. Si no se le abre, en la pantalla le aparece qué " +
-            "hacer. Sigue hablando mientras acomoda.",
+            "Se está abriendo. NO le digas todavía qué hacer: te aviso yo en " +
+            "cuanto esté abierta y ahí se lo dices UNA vez. Mientras tanto, " +
+            "sigue con lo que estabas diciendo.",
         });
       }
       case "escalate_safety":
@@ -819,6 +832,20 @@ export function useTutor(ninoId: string) {
     relojesRef.current = [];
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
+    // EL TABLERO TAMPOCO SOBREVIVE.
+    //
+    // `ses_97d5b112a122` empezó así, antes de que nadie dijera nada:
+    //   nino: «¿Por qué abres esto? De mamá, ¿por qué pones esto? No entiendo.»
+    // Era la pizarra de la sesión ANTERIOR, que había terminado con la palabra
+    // "mamá" escrita. El tutor nuevo no sabía nada de eso —su contexto arranca
+    // limpio— así que tuvo que adivinar, y adivinó mal dos veces.
+    //
+    // Es el mismo bug que `get_next_problem` ya arreglaba DENTRO de la sesión
+    // (ses_6bccd98babcc, "las siete macetas"), un nivel más arriba: lo que
+    // quedó en pantalla no puede sobrevivir a la conversación que lo puso ahí.
+    setCuadro(null);
+    cuadroRef.current = null;
+    setHoja(null);
     // El vigilante de la mudez tampoco sobrevive: cerraría la sesión siguiente.
     if (mudezRef.current) {
       clearTimeout(mudezRef.current);

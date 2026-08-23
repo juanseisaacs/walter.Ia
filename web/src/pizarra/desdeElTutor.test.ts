@@ -294,6 +294,21 @@ describe("lo que el modelo manda DE VERDAD", () => {
     expect(cuadro?.escena).toEqual({ tipo: "texto", contenido: "w" });
   });
 
+  it("la suma de tres montones, capturada del modelo real", () => {
+    // Verificado el 23/08 con `python -m scripts.verificar_pizarra`, pidiéndole
+    // textualmente lo que Juan pidió: «5 + 3 + 6 y no son bolitas, sino son
+    // pollitos». Esto es lo que mandó, y lo que dijo encima:
+    //
+    //   «Mira, ahí te puse un grupo de cinco, otro de tres y otro de seis.
+    //    ¿Me ayudas a descubrir cuántos pollitos son en total?»
+    const cuadro = aCuadro({ nombre: "pollitos", cantidades: [5, 3, 6], tipo: "grupos" });
+    expect(cuadro?.escena).toMatchObject({
+      tipo: "grupos",
+      cantidades: [5, 3, 6],
+      nombre: "pollitos",
+    });
+  });
+
   it("la fracción, con las claves en el orden en que llegan", () => {
     // Llega `{denominador, numerador, tipo}` — el orden no importa en JS, pero
     // el caso importa: es lo que mandó al pedirle "las pizzas de tres quintos".
@@ -301,5 +316,54 @@ describe("lo que el modelo manda DE VERDAD", () => {
     expect(cuadro?.escena).toMatchObject({ tipo: "fraccion", numerador: 3, denominador: 5 });
     // Cinco partes todavía se leen como torta; con más, la barra gana.
     expect(describir(cuadro!)).toContain("torta");
+  });
+});
+
+describe("la suma dibujada: montones distintos", () => {
+  /* `ses_97d5b112a122`, dos veces en tres minutos:
+
+       nino: «¿Cuánto daría si tengo 6 bolitas + 5 bolitas + 2 bolitas?»
+       nino: «5 + 3 + 6, y no son bolitas, sino pollitos. ¿Podrías mostrarme
+              los pollitos?»
+       nino: «Me está mostrando tres cajas cada una con seis puntitos, eso no
+              tiene nada que ver.»
+
+     Y tenía razón: `operacion` solo acepta dos números y `grupos` dibujaba
+     montones todos iguales. El modelo forzó lo único parecido que tenía. */
+
+  it("dibuja 5 + 3 + 6 como tres montones de distinto tamaño", () => {
+    const cuadro = aCuadro({ tipo: "grupos", cantidades: [5, 3, 6], nombre: "pollitos" });
+    expect(cuadro?.escena).toMatchObject({ tipo: "grupos", cantidades: [5, 3, 6] });
+  });
+
+  it("se lo cuenta al tutor como la CUENTA, no como grupos iguales", () => {
+    // Si le decimos "3 grupos de 6" sobre montones de 5, 3 y 6, el tutor le
+    // habla al niño de algo que no está en la pantalla. Es el bug de los
+    // emojis otra vez: lo que no se le dice, se lo inventa.
+    const dicho = describir(aCuadro({ tipo: "grupos", cantidades: [5, 3, 6], nombre: "pollitos" })!);
+    expect(dicho).toContain("5 + 3 + 6");
+    expect(dicho).toContain("🐤");
+  });
+
+  it("acepta el string suelto, como ya hacía con las palabras", () => {
+    expect(aCuadro({ tipo: "grupos", cantidades: "5, 3, 6" })?.escena).toMatchObject({
+      cantidades: [5, 3, 6],
+    });
+  });
+
+  it("un solo montón no es una suma: cae a los montones iguales", () => {
+    // Con `cantidades: [7]` no hay nada que sumar. Se ignora y manda
+    // grupos/por_grupo, que es lo que el modelo mandó junto.
+    const cuadro = aCuadro({ tipo: "grupos", cantidades: [7], grupos: 2, por_grupo: 4 });
+    expect(cuadro?.escena).toMatchObject({ tipo: "grupos", grupos: 2, porGrupo: 4 });
+    expect((cuadro?.escena as { cantidades?: number[] }).cantidades).toBeUndefined();
+  });
+
+  it("los montones iguales siguen funcionando igual que siempre", () => {
+    expect(aCuadro({ tipo: "grupos", grupos: 3, por_grupo: 4 })?.escena).toMatchObject({
+      tipo: "grupos",
+      grupos: 3,
+      porGrupo: 4,
+    });
   });
 });

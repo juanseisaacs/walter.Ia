@@ -224,19 +224,16 @@ function VistaOperacion({ e }: { e: import("./escenas").Operacion }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
-  const cols = Math.min(e.grupos, 5);
-  const filas = Math.ceil(e.grupos / cols);
+  // Cuántos van en cada caja. Sin `cantidades` son todas iguales, que es la
+  // multiplicación de siempre; con ellas, cada caja lleva lo suyo y la escena
+  // sirve para sumar (ses_97d5b112a122).
+  const cuantos = e.cantidades?.length ? e.cantidades : Array<number>(e.grupos).fill(e.porGrupo);
+  const cols = Math.min(cuantos.length, 5);
+  const filas = Math.ceil(cuantos.length / cols);
   const cajaAncho = Math.min(120, (ANCHO - 60) / cols - 12);
   const cajaAlto = Math.min(90, (ALTO - 110) / filas - 12);
   const x0 = (ANCHO - (cajaAncho + 12) * cols + 12) / 2;
   const y0 = 70;
-
-  // Con pocas cosas por grupo se dibujan los puntos y el niño los cuenta. Con
-  // muchas se escribe el número adentro: 45 puntos apretados en una cajita no
-  // son un dibujo, son una mancha, y nadie cuenta 135.
-  const conPuntos = e.porGrupo <= MAX_PUNTOS_CONTABLES;
-  const pCols = Math.ceil(Math.sqrt(e.porGrupo));
-  const pFilas = Math.ceil(e.porGrupo / pCols);
 
   // Si el tutor dijo "gallinas", que salgan gallinas. Lo pidió Juan con esas
   // palabras — ver `emojis.ts`. Sin coincidencia, el punto de siempre.
@@ -246,19 +243,30 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
     <>
       <Trazo paso={0}>
         <text x={ANCHO / 2} y={44} className="pz-rotulo">
-          {e.grupos} {e.nombre ?? "grupos"} de {e.porGrupo}
+          {/* Con cantidades distintas el rótulo ES la cuenta: "5 + 3 + 6
+              pollitos". Decir "3 grupos de 5" sobre cajas desiguales sería
+              describirle mal lo que tiene delante. */}
+          {e.cantidades?.length
+            ? `${e.cantidades.join(" + ")} ${e.nombre ?? "en total"}`
+            : `${e.grupos} ${e.nombre ?? "grupos"} de ${e.porGrupo}`}
         </text>
       </Trazo>
 
-      {Array.from({ length: e.grupos }, (_, g) => {
+      {cuantos.map((cuantas, g) => {
         const cx = x0 + (g % cols) * (cajaAncho + 12);
         const cy = y0 + Math.floor(g / cols) * (cajaAlto + 12);
+        // Con pocas cosas se dibujan y el niño las cuenta; con muchas va el
+        // número adentro: 45 puntos apretados no son un dibujo, son una mancha.
+        // Se decide POR CAJA, que es lo que permite mezclar 3 con 20.
+        const conPuntos = cuantas <= MAX_PUNTOS_CONTABLES;
+        const pCols = Math.ceil(Math.sqrt(cuantas));
+        const pFilas = Math.ceil(cuantas / pCols);
         return (
           <Trazo key={g} paso={g + 1}>
             <g className={`pz-grupo-${g % 5}`}>
             <rect x={cx} y={cy} width={cajaAncho} height={cajaAlto} rx="8" className="pz-caja" />
             {conPuntos ? (
-              Array.from({ length: e.porGrupo }, (_, p) => {
+              Array.from({ length: cuantas }, (_, p) => {
                 const px = cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1);
                 const py = cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1);
                 // El emoji se ancla por su centro; el punto, por el suyo. Sin
@@ -274,7 +282,7 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
               })
             ) : (
               <text x={cx + cajaAncho / 2} y={cy + cajaAlto / 2 + 12} className="pz-en-caja">
-                {e.porGrupo}
+                {cuantas}
               </text>
             )}
             </g>
@@ -638,7 +646,9 @@ function describir(e: Escena): string {
     case "operacion":
       return `${e.a} ${e.op} ${e.b}${e.resultado !== undefined ? ` = ${e.resultado}` : ""}`;
     case "grupos":
-      return `${e.grupos} grupos de ${e.porGrupo}`;
+      return e.cantidades?.length
+        ? `${e.cantidades.join(" más ")} ${e.nombre ?? "cosas"}`
+        : `${e.grupos} grupos de ${e.porGrupo}`;
     case "recta":
       return `recta numérica del ${e.desde} al ${e.hasta}`;
     case "fraccion":

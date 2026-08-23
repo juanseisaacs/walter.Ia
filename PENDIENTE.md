@@ -106,6 +106,18 @@ vayamos a enseñar a leer.
 - **Limpiar la base.** Hay dos Felipe (el onboarding corrió dos veces) y datos
   de prueba mezclados.
 
+### La letra pegada (cursiva), que el niño pidió y no existe
+
+`ses_eadfa6137a37` (23/08): «me dijeron que en letra pegada, ¿cómo así?». La
+pizarra escribe letra suelta —los 60 glifos de `trazos.ts`— y no hay cursiva.
+
+En Colombia la cursiva se enseña en 1° y 2°, así que no es un capricho: es la
+tarea que le mandaron. Cuesta un juego de glifos nuevo con sus enlaces entre
+letras, que es bastante más que 60 trazos sueltos.
+
+Mientras no exista, el tutor tiene que **decir que no la tiene y seguir** — sin
+prometer que "ya está avisando", que es lo que hizo (ver `BITACORA.md`).
+
 ### La mudez tiene red, pero sigue sin causa
 
 `ses_87aba17c8c6c` (22/08): el tutor se calló a mitad de sesión y no volvió. Se

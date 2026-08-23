@@ -92,15 +92,39 @@ function aEscena(args: any): Escena | null {
     }
 
     case "grupos": {
+      const nombre = typeof args.nombre === "string" ? args.nombre : undefined;
+
+      // Montones DESIGUALES: "5 + 3 + 6 pollitos". Es la suma dibujada, y hasta
+      // el 23/08 no había forma de pedirla — ver `Grupos.cantidades`.
+      //
+      // El modelo manda a veces "5, 3, 6" en un string, igual que con las
+      // palabras de `lista`: se entiende en vez de devolver null.
+      const crudas = Array.isArray(args.cantidades)
+        ? args.cantidades
+        : typeof args.cantidades === "string"
+          ? args.cantidades.split(/[,;+·]/)
+          : null;
+      if (crudas) {
+        const cantidades = crudas
+          .map((c: unknown) => entero(c, 0, MAX_POR_GRUPO))
+          .filter((c: number | undefined): c is number => c !== undefined)
+          .slice(0, MAX_GRUPOS);
+        // Con una sola caja no hay suma que ver, y con ninguna no hay dibujo.
+        if (cantidades.length >= 2) {
+          return {
+            tipo: "grupos",
+            grupos: cantidades.length,
+            porGrupo: Math.max(...cantidades),
+            cantidades,
+            nombre,
+          };
+        }
+      }
+
       const grupos = entero(args.grupos, 1, MAX_GRUPOS);
       const porGrupo = entero(args.por_grupo ?? args.porGrupo, 1, MAX_POR_GRUPO);
       if (grupos === undefined || porGrupo === undefined) return null;
-      return {
-        tipo: "grupos",
-        grupos,
-        porGrupo,
-        nombre: typeof args.nombre === "string" ? args.nombre : undefined,
-      };
+      return { tipo: "grupos", grupos, porGrupo, nombre };
     }
 
     case "recta": {
@@ -210,12 +234,19 @@ export function describir(cuadro: Cuadro): string {
       // resolver: el niño preguntando «¿los puntos naranjas son las galletas?».
       // Lo que no se le dice al tutor, se lo inventa.
       const dibujo = dibujoDe(e.nombre);
+      const cuantos = e.cantidades?.length ? e.cantidades : [e.porGrupo];
       const con =
-        e.porGrupo > 12
-          ? " (el número escrito adentro, no dibujos)"
+        Math.max(...cuantos) > 12
+          ? " (con el número escrito adentro donde no caben los dibujos)"
           : dibujo
             ? ` (dibujados como ${dibujo}, para contarlos)`
             : " (puntos para contar)";
+      // Con cantidades distintas se le dice LA CUENTA, no "N grupos de M": el
+      // tutor tiene que poder hablar de lo que el niño está viendo, y lo que ve
+      // son tres montones diferentes.
+      if (e.cantidades?.length) {
+        return `${e.cantidades.join(" + ")} ${e.nombre ?? "cosas"} en montones separados${con}`;
+      }
       return `${e.grupos} ${e.nombre ?? "grupos"} con ${e.porGrupo} en cada uno${con}`;
     }
     case "recta":

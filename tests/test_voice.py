@@ -793,6 +793,41 @@ def test_el_tutor_no_ofrece_lo_que_no_puede_dar():
         assert medio in persona, f"no le decimos que tiene {medio}"
 
 
+def test_el_tutor_no_promete_gestiones():
+    """`ses_eadfa6137a37` (23/08). El niño pidió ver la palabra en letra pegada
+    —la pizarra solo sabe letra suelta— y el tutor contestó:
+
+        «Por ahora la pizarra solo me deja mostrarla en letra despegada, pero
+         YA ESTOY AVISANDO para que podamos tener las dos opciones juntas.»
+
+    La primera mitad es perfecta: dice la verdad de lo que puede. La segunda es
+    inventada — no puede avisarle a nadie, no hay a quién, y el niño se queda
+    esperando una respuesta que no va a llegar nunca.
+
+    Es la misma familia que el videíto de YouTube (`ses_87aba17c8c6c`): ofrecer
+    lo que no se tiene. Solo que esta vez lo ofrecido no era una cosa, era una
+    GESTIÓN, y por eso la regla de los medios no la cubría.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+    assert "ni prometas" in persona and "gestiones" in persona, "falta la prohibición"
+    assert "no puedes avisarle a nadie" in persona, "falta decir por qué no puede"
+
+
+def test_el_animo_no_se_regala():
+    """`ses_445f4c33db41`: «¡vamos que tú puedes!», «yo sé que tú puedes», «¡Tú
+    puedes!» — tres veces en cinco minutos, ninguna pegada a un logro.
+
+    La regla existía y decía «"tú puedes" solo vale si viene seguido de algo que
+    sí pudo». Redactada así se lee como una condición que el modelo cree cumplir
+    con cualquier cosa. Ahora empieza por la prohibición.
+
+    Es la Constitución: la confianza no se declara, se construye con evidencia.
+    Un "tú puedes" suelto es la versión amable de no ayudarlo.
+    """
+    valores = cargar_prompt("valores").lower()
+    assert 'nunca dices "tú puedes" a secas' in valores, "la regla dejó de ser tajante"
+
+
 def test_lo_que_dice_que_ensena_es_lo_que_el_banco_tiene():
     """La misma sección decía **"solo matemáticas"** con el grafo ya en tres
     materias: 13 habilidades de lectura y 11 de escritura cargadas desde el

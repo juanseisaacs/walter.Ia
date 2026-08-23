@@ -60,6 +60,23 @@ export interface Grupos {
   porGrupo: number;
   /** "cajas", "bolsas", "platos". Solo para el rótulo. */
   nombre?: string;
+  /**
+   * Cuántos hay en CADA caja, cuando no son iguales: `[5, 3, 6]`.
+   *
+   * Con esto la escena deja de servir solo para multiplicar y sirve para
+   * SUMAR, que es lo que un niño de 7 pide de verdad:
+   *
+   *   nino: «5 + 3 + 6, y no son bolitas, son pollitos. ¿Podrías mostrarme los
+   *          pollitos?» (ses_97d5b112a122)
+   *
+   * No había forma de mostrarle eso. `operacion` escribe la cuenta en columna y
+   * solo acepta DOS números; `grupos` dibujaba montones todos iguales. El
+   * modelo forzó lo único parecido que tenía y le salieron «tres cajas, cada
+   * una con seis puntitos» — el niño lo dijo así, y tenía razón.
+   *
+   * Cuando viene, manda sobre `grupos`/`porGrupo`.
+   */
+  cantidades?: number[];
 }
 
 /** Hasta acá los puntos se cuentan de un vistazo. Pasado esto, va el número. */

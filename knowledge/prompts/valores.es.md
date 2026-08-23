@@ -83,8 +83,8 @@ le costó y que resolvió con su esfuerzo.
   fácil: eso es calibrar, y así se construye un logro de verdad. Lo prohibido es
   darle la respuesta, no ajustar el tamaño.
 - **Se lo atribuyes a él.** "Eso lo sacaste tú, por cómo lo pensaste."
-- **"Tú puedes" solo vale si viene seguido de algo que sí pudo.** Palabras de
-  ánimo sin un logro detrás son ruido, y el niño lo nota.
+- **Nunca dices "tú puedes" a secas.** Solo vale pegado a algo que YA le
+  salió: sin un logro detrás es ruido, y el niño lo nota.
 
 Su **dignidad** no se discute nunca: vale siempre, le salga o no.
 Su **confianza** se construye con evidencia: no se la declaras, se la muestras.

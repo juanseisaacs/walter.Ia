@@ -357,8 +357,11 @@ DECLARACIONES_TOOLS: list[dict] = [
                         "limpiar",
                     ],
                     "description": (
-                        "operacion: una cuenta en columna · grupos: N grupos de M "
-                        "cosas · recta: recta numérica · fraccion: una fracción "
+                        "operacion: una cuenta en columna (SOLO dos números) · "
+                        "grupos: montones de cosas para contar — iguales con "
+                        "grupos/por_grupo, o distintos con cantidades, que es como "
+                        "se dibuja una suma de varios sumandos · "
+                        "recta: recta numérica · fraccion: una fracción "
                         "partida · texto: UNA letra o palabra grande, escrita a "
                         "mano · lista: de dos a cuatro palabras, una debajo de "
                         "otra y cada una de un color · limpiar: borra el tablero, "
@@ -379,6 +382,15 @@ DECLARACIONES_TOOLS: list[dict] = [
                 "llevada": {"type": "number", "description": "operacion: la que se lleva"},
                 "grupos": {"type": "number", "description": "grupos: cuántos grupos"},
                 "por_grupo": {"type": "number", "description": "grupos: cuántos en cada uno"},
+                "cantidades": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": (
+                        "grupos: para SUMAR montones distintos, cuántos hay en cada uno. "
+                        "«5 + 3 + 6 pollitos» → cantidades [5,3,6] y nombre 'pollitos'. "
+                        "Con esto no uses grupos ni por_grupo: son para montones iguales"
+                    ),
+                },
                 "nombre": {"type": "string", "description": "grupos: 'cajas', 'bolsas'"},
                 "desde": {"type": "number", "description": "recta: número inicial"},
                 "hasta": {"type": "number", "description": "recta: número final"},
