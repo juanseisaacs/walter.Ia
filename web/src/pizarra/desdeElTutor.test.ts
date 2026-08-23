@@ -278,3 +278,28 @@ describe("el tutor sabe con qué está dibujado", () => {
     expect(dicho).toContain("puntos");
   });
 });
+
+describe("lo que el modelo manda DE VERDAD", () => {
+  /* Capturado con `python -m scripts.verificar_pizarra` (22/08) pidiéndole al
+     modelo real las tres cosas que pidió Juan en `ses_445f4c33db41`.
+
+     No son casos inventados por nosotros para probar nuestro propio traductor:
+     son la forma exacta en que el modelo llama a la pizarra cuando un niño de 7
+     dice "muéstramela". Si un día `aCuadro` deja de entender uno, el niño se
+     queda mirando un tablero vacío mientras el tutor le describe lo que cree
+     haberle mostrado — y eso no lo atrapa ningún test escrito de memoria. */
+
+  it("la letra suelta que pidió el niño", () => {
+    const cuadro = aCuadro({ contenido: "w", tipo: "texto" });
+    expect(cuadro?.escena).toEqual({ tipo: "texto", contenido: "w" });
+  });
+
+  it("la fracción, con las claves en el orden en que llegan", () => {
+    // Llega `{denominador, numerador, tipo}` — el orden no importa en JS, pero
+    // el caso importa: es lo que mandó al pedirle "las pizzas de tres quintos".
+    const cuadro = aCuadro({ denominador: 5, numerador: 3, tipo: "fraccion" });
+    expect(cuadro?.escena).toMatchObject({ tipo: "fraccion", numerador: 3, denominador: 5 });
+    // Cinco partes todavía se leen como torta; con más, la barra gana.
+    expect(describir(cuadro!)).toContain("torta");
+  });
+});

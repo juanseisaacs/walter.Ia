@@ -61,3 +61,15 @@
   background: var(--acento);
   filter: brightness(1.08);
 }
+
+/* El modelo a copiar, arriba de la hoja.
+
+   Alto acotado a propósito: lo que importa es el lienzo donde el niño traza, y
+   el modelo es una referencia — si se lleva media pantalla, deja de ayudar. */
+.hoja-modelo {
+  max-height: 22vh;
+  overflow: hidden;
+  opacity: 0.85;
+  align-self: center;
+  width: min(100%, 320px);
+}

@@ -1084,3 +1084,86 @@ prohibición y escribir en los valores la mitad que faltaba.
 El aumento se pagó comprimiendo: ~250 caracteres de prosa explicativa salieron
 de `valores.es.md` en la misma tanda, y los dos techos del prompt siguieron
 donde estaban. Ninguna regla se cayó — el test que las fija está para eso.
+
+---
+
+## Cuatro cosas de una sesión de cinco minutos (22/08, `ses_445f4c33db41`)
+
+Las cuatro las trajo RBH después de hablar con el tutor. Las cuatro estaban en
+la transcripción, y ninguna la habría encontrado un test.
+
+### 1. «¡Listo, hágale pues!» — el usted que se cuela por el verbo
+
+Dos veces en cinco minutos. El prompt dice desde siempre que al niño se le habla
+de "tú" y **nunca de "usted"**, y el tutor lo cumplía… en los pronombres. El
+imperativo se le escapó igual, porque *hágale* no se siente como usted: se
+siente como una muletilla colombiana.
+
+> Una regla escrita sobre el PRONOMBRE no cubre la forma que se cuela por el
+> VERBO. Se veta por su nombre —*hágale, mire, oiga, dígame, cuénteme*— o no se
+> veta.
+
+### 2. «qué notota», «nops» — palabras de ningún lado
+
+Ninguna de las dos existe. Es el primo del *"¿te tinca?"* chileno que frenó una
+clase, con un agravante: aquel al menos era una palabra de algún lado. La regla
+nueva es corta —*si dudas de que exista, no la usas*— y va con los dos ejemplos
+reales, que es lo que el modelo reconoce.
+
+### 3. Las demoras, medidas por fin
+
+`scripts/verificar_pizarra.py`, contra la API real:
+
+| | tiempo hasta la primera sílaba |
+|---|---|
+| una sola herramienta | ~800 ms después de pedirla |
+| dos encadenadas | **7.109 ms · 13.750 ms** |
+
+Catorce segundos de nada mientras se pinta un dibujo. El niño lo dijo dentro del
+hueco: *«Walter, ¿estás escuchando?»*.
+
+No podemos acelerar al modelo — el arranque sano varía entre 1,5 y 12 s según el
+momento, y eso es de Google. Lo que sí se puede es que el hueco no exista: la
+descripción de los dos tools visuales ahora le pide **decir una frase ANTES de
+llamarlos**. Verificado: *«mira, te lo dibujo en la pizarra»* sale 281 ms antes
+de que pida la herramienta.
+
+> Cuando la latencia no es tuya, lo que se arregla no es el tiempo: es **dónde
+> cae el silencio**. Que caiga mientras el niño mira el tablero, no mientras
+> cree que lo abandonaron.
+
+### 4. «No me sale el tablero»
+
+Lo mejor de la sesión, y lo dijo el niño:
+
+```
+tutor: Mira, ahí te la dibujé en la pizarra, es como una eme al revés.
+       ¿Te animas a intentar trazarla con tu dedo?
+tutor: De una, ahí te abrí la hojita.          <- y la W desapareció
+nino:  A ver, okay, sí, pero NO ME SALE EL TABLERO.
+tutor: ¡Uy, qué pena! Déjame lo mando otra vez.  <- y volvió a pasar
+```
+
+`pedir_dibujo` hacía `setCuadro(null)`, con el comentario *"la hoja toma el
+lugar del tablero"*. Era verdad en el layout y estaba mal en la pedagogía:
+**borraba el modelo justo en el momento en que el niño lo iba a copiar.**
+
+Y el segundo turno es peor que el primero: el tutor no puede ver la pantalla,
+así que ante "no me sale" solo pudo repetir lo mismo. Un fallo que el tutor no
+puede diagnosticar se repite indefinidamente por más que el niño avise.
+
+La hoja ahora conserva arriba lo que había en la pizarra, y el tool le devuelve
+al tutor que está ahí. Con un test de contrato que falla si alguien vuelve a
+"limpiar el tablero" al abrir la hoja.
+
+### Y la traba de la pizza, que sí es de Gemini
+
+Reproducida: pidiendo ver 3/5 y después unas gallinas, el turno se corta tras
+un «¡Claro que sí!» o sale mudo del todo. Ya está documentado arriba (el turno
+que a veces no arranca) y no es nuestro. Lo que sí se comprobó esta vez es que
+**el empujón del vigilante lo recupera también por este camino**: 4.719 ms
+después del empujón, *«Uy, se me fue el sonido un momentico, perdóname. ¿En qué
+íbamos?»*.
+
+> Las cuatro salieron de leer una transcripción de cinco minutos. La suite tenía
+> 592 tests en verde mientras las cuatro pasaban.

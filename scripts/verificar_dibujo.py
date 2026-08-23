@@ -143,11 +143,19 @@ class Turno:
     def __init__(self) -> None:
         self.dicho: list[str] = []
         self.tools: list[str] = []
+        self.llamadas: list[tuple[str, dict]] = []
+        """Nombre Y ARGUMENTOS de cada tool. Los args son la mitad que no se ve:
+        un `mostrar_en_pizarra` con un tipo que el navegador no sabe traducir
+        deja al niño mirando un tablero vacío mientras el tutor se lo describe."""
         self.audio = 0
         self.cerro = False
         self.venció = False
         self.arranco_ms: float | None = None
         """Cuánto tardó el PRIMER bloque de audio. Es lo que el niño siente."""
+        self.pidio_tool_ms: float | None = None
+        """Cuándo pidió la herramienta. Parte la espera en dos: lo que tardó el
+        modelo en decidir, y lo que tardó en hablar DESPUÉS de tener la
+        respuesta. Sin partirla, once segundos no dicen a quién culpar."""
 
     def __str__(self) -> str:
         que = "".join(self.dicho).strip()
@@ -156,6 +164,11 @@ class Turno:
             partes.append(f"tools: {', '.join(self.tools)}")
         arranque = f"{round(self.arranco_ms)} ms" if self.arranco_ms else "nunca"
         partes.append(f"audio: {self.audio} bloques · arrancó a los {arranque}")
+        if self.pidio_tool_ms is not None:
+            desglose = f"pidió el tool a los {round(self.pidio_tool_ms)} ms"
+            if self.arranco_ms:
+                desglose += f", habló {round(self.arranco_ms - self.pidio_tool_ms)} ms después"
+            partes.append(desglose)
         vacios = elogios_vacios(que)
         if vacios:
             partes.append(f"ELOGIO VACÍO: {vacios[0]!r}")
@@ -223,9 +236,13 @@ async def escuchar(sesion, limite: float = 25.0, scheduling: str | None = None) 
     async def leer() -> None:
         async for r in sesion.receive():
             if r.tool_call and r.tool_call.function_calls:
+                if t.pidio_tool_ms is None:
+                    t.pidio_tool_ms = (asyncio.get_event_loop().time() - empezo) * 1000
                 respuestas = []
                 for fc in r.tool_call.function_calls:
                     t.tools.append(fc.name)
+                    print(f"      [tool] {fc.name} id={fc.id!r}")
+                    t.llamadas.append((fc.name, dict(fc.args or {})))
                     respuesta = {
                         "id": fc.id,
                         "name": fc.name,

@@ -233,6 +233,42 @@ def test_la_voz_no_usa_regionalismos_cerrados():
         assert jerga in persona, f"dejó de vetarse la jerga: {jerga}"
 
 
+def test_el_tuteo_no_se_rompe_por_el_imperativo():
+    """PASÓ DE VERDAD, `ses_445f4c33db41` (22/08). Dos veces en cinco minutos:
+
+        «¡Listo, HÁGALE pues! Mira, ahí te la dibujé en la pizarra»
+        «Listo, HÁGALE, pues. Entonces, dime la respuesta de tres quintos»
+
+    El prompt decía —y dice— que al niño se le habla de "tú" y nunca de
+    "usted", y el tutor lo cumplía en los pronombres. El imperativo se le coló
+    igual, porque *hágale* no se siente como "usted": se siente como una muletilla
+    colombiana. Es la misma trampa que el voseo, en el modo verbal en vez de en
+    el pronombre.
+
+    Se veta por su nombre. Una regla que dice "trátalo de tú" no alcanza cuando
+    la forma que se cuela no lleva pronombre.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+    assert "imperativo de usted" in persona, "falta nombrar la forma que se cuela"
+    for forma in ("hágale", "dígame", "cuénteme"):
+        assert forma in persona, f"no veta {forma!r}, que es como aparece de verdad"
+
+
+def test_el_tutor_no_inventa_palabras():
+    """Misma sesión: «¡Fracciones, qué NOTOTA!» y «NOPS, recuerda que aquí yo no
+    te doy las respuestas».
+
+    Ninguna de las dos existe. Un niño de 7 que oye una palabra que no conoce
+    para de aprender y pregunta qué significa — y ya pasó con el "¿te tinca?"
+    chileno: **lo que te obliga a explicar tu propio vocabulario deja de ser
+    tutoría**. La diferencia es que aquel era de otro país y estos son de ningún
+    lado.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+    assert "palabras que no existen" in persona, "falta la regla"
+    assert "nops" in persona, "falta el ejemplo real, que es lo que el modelo reconoce"
+
+
 def test_los_valores_no_invaden_lo_academico():
     """El riesgo del prompt de valores es que el tutor pare una suma para dar una
     lección de liderazgo. Formar es cómo trata al niño, no un tema con turno."""
@@ -425,6 +461,27 @@ def test_ningun_tool_es_non_blocking():
             f"{tool['name']} lleva behavior={tool['behavior']!r}: medido el 22/08, "
             "NON_BLOCKING deja el turno sin audio y el niño no oye nada"
         )
+
+
+def test_los_tools_visuales_le_piden_hablar_antes():
+    """LA DEMORA, MEDIDA. `scripts/verificar_pizarra.py`, 22/08, contra la API real:
+
+        una sola herramienta      el tutor habla ~800 ms después de pedirla
+        dos encadenadas           7.109 ms · 13.750 ms
+
+    Catorce segundos de nada mientras se pinta un dibujo. El niño de
+    `ses_445f4c33db41` lo dijo a mitad del hueco: «Walter, ¿estás escuchando?».
+
+    No podemos acelerar al modelo. Lo que sí se puede es que el hueco no exista:
+    si dice «mira, te lo dibujo» ANTES de llamar la herramienta, el silencio cae
+    donde el niño está mirando el tablero y no donde cree que lo abandonaron.
+
+    Va en la descripción del tool y no en el prompt de sesión a propósito: las
+    descripciones no pagan el techo (`test_el_prompt_de_sesion_no_engorda...`).
+    """
+    for nombre in ("mostrar_en_pizarra", "pedir_dibujo"):
+        d = next(t for t in DECLARACIONES_TOOLS if t["name"] == nombre)["description"]
+        assert "ANTES de llamarla" in d, f"{nombre} no le pide hablar antes"
 
 
 def test_la_pizarra_no_le_pide_coordenadas_al_modelo():
@@ -803,6 +860,8 @@ def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
         "los valores no se predican": "no hay una lección de valores",
         "no ofrece lo que no puede dar": "nunca le ofrezcas lo que este canal no tiene",
         "el elogio nombra qué estuvo bien": "específico y creíble",
+        "no se le escapa el usted": "imperativo de usted",
+        "no inventa palabras": "palabras que no existen",
     }
 
     faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]

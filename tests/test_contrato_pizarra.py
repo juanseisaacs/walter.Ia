@@ -270,3 +270,28 @@ def test_toda_tool_declarada_tiene_quien_la_atienda():
         f"declaradas en voice.py y sin `case` en useTutor.ts: {sorted(huerfanas)}. "
         "El modelo las va a llamar y nadie va a contestar."
     )
+
+
+def test_abrir_la_hoja_no_borra_lo_que_el_nino_va_a_copiar():
+    """`ses_445f4c33db41`: el tutor mostró la W, abrió la hoja para que la
+    trazara, y la hoja borró la W.
+
+        nino: «A ver, okay, sí, pero no me sale el tablero.»
+
+    `pedir_dibujo` llamaba a `setCuadro(null)` con el comentario "la hoja toma
+    el lugar del tablero". Era cierto en el layout y estaba mal en la pedagogía:
+    copiar una letra que ya no está en pantalla es de memoria, no de copia. Y el
+    tutor no puede ver la pantalla — le dijo "déjame lo mando otra vez" y volvió
+    a pasar exactamente lo mismo.
+
+    Se mira el texto del `case` porque el borrado vive en un `useCallback` de
+    React: desde Python esto es lo único que se puede comprobar, y es justo lo
+    que se rompería si alguien "limpia el tablero" otra vez.
+    """
+    texto = _texto(USE_TUTOR)
+    inicio = texto.index('case "pedir_dibujo"')
+    cuerpo = texto[inicio : texto.index("case ", inicio + 10)]
+    assert "setCuadro(null)" not in cuerpo, (
+        "pedir_dibujo volvió a borrar la pizarra: el niño pierde el modelo justo "
+        "cuando lo va a copiar (ses_445f4c33db41)"
+    )

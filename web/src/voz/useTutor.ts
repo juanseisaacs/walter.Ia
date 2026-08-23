@@ -609,10 +609,17 @@ export function useTutor(ninoId: string) {
       }
 
       case "pedir_dibujo": {
-        setCuadro(null); // la hoja toma el lugar del tablero
-        cuadroRef.current = null;
+        // El tablero NO se borra: lo que hay en él es justo lo que el niño va a
+        // copiar. Se lo borrábamos en el momento exacto en que lo necesitaba —
+        // «no me sale el tablero», ses_445f4c33db41— y el tutor, que no ve la
+        // pantalla, no tenía cómo entender qué le estaba pasando.
         setHoja(String(args?.consigna ?? "Dibújame lo que estás pensando"));
-        return { hoja_abierta: true };
+        return {
+          hoja_abierta: true,
+          ...(cuadroRef.current
+            ? { ojo: "Lo que tenías en la pizarra le queda arriba de la hoja, para copiarlo." }
+            : {}),
+        };
       }
 
       case "request_camera": {

@@ -15,6 +15,8 @@
 
 import { useRef, useState } from "react";
 
+import Pizarra from "./Pizarra";
+import type { Cuadro } from "./escenas";
 import "./HojaDelNino.css";
 
 /** Lienzo interno. Fijo, para que la imagen salga siempre del mismo tamaño. */
@@ -26,10 +28,20 @@ type Punto = { x: number; y: number };
 
 export default function HojaDelNino({
   consigna,
+  referencia,
   alEnviar,
   alCancelar,
 }: {
   consigna: string;
+  /** Lo que quedó en la pizarra cuando se abrió la hoja: el MODELO A COPIAR.
+   *
+   * `ses_445f4c33db41`: el tutor le mostró la W en el tablero, le abrió la hoja
+   * para que la trazara, y la hoja tapó la W. El niño lo dijo enseguida —«a
+   * ver, okay, sí, pero no me sale el tablero»— y el tutor, que no puede ver la
+   * pantalla, le contestó "déjame lo mando otra vez" y volvió a no aparecer.
+   *
+   * Copiar una letra que ya no está en pantalla es de memoria, no de copia. */
+  referencia?: Cuadro | null;
   /** Recibe el JPEG en base64, sin el prefijo `data:` — igual que la cámara. */
   alEnviar: (jpegBase64: string) => void;
   alCancelar?: () => void;
@@ -78,6 +90,14 @@ export default function HojaDelNino({
   return (
     <div className="hoja">
       <p className="hoja-consigna">{consigna}</p>
+
+      {/* El modelo, chiquito y arriba. Si no hay, la hoja queda igual que
+          siempre: `Pizarra` devuelve null con `cuadro` vacío. */}
+      {referencia ? (
+        <div className="hoja-modelo">
+          <Pizarra cuadro={referencia} />
+        </div>
+      ) : null}
 
       <canvas
         ref={(el) => {

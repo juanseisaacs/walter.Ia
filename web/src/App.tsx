@@ -141,7 +141,12 @@ function Tutor({ ninoId }: { ninoId: string }) {
               niño con la pantalla en blanco y sin tutor. */}
           <SinTumbarLaSesion>
             {hoja !== null ? (
-              <HojaDelNino consigna={hoja} alEnviar={enviarDibujo} alCancelar={cancelarDibujo} />
+              <HojaDelNino
+                consigna={hoja}
+                referencia={cuadro}
+                alEnviar={enviarDibujo}
+                alCancelar={cancelarDibujo}
+              />
             ) : (
               <Pizarra cuadro={cuadro} />
             )}

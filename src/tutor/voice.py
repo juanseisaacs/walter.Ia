@@ -308,8 +308,11 @@ DECLARACIONES_TOOLS: list[dict] = [
         # se paga acá: este tool se resuelve EN EL NAVEGADOR, sin backend. La
         # espera es de microsegundos, no de red.
         "description": (
-            "Escribe en la pizarra que el niño ve al lado tuyo, SIN dejar de "
-            "hablar. Es tu tablero: cuando el niño pide ver algo, dibujarlo o "
+            "Escribe en la pizarra que el niño ve al lado tuyo. DI UNA FRASE "
+            "ANTES de llamarla —«mira, te lo dibujo»— y sigue hablando después: "
+            "entre que la pides y que vuelves a sonar pueden pasar varios "
+            "segundos, y el niño solo oye silencio. "
+            "Es tu tablero: cuando el niño pide ver algo, dibujarlo o "
             "que se lo hagas más visual, se lo muestras acá. "
             "Cómo se traduce lo que el niño pide (son ejemplos de FORMATO, no "
             "cosas para mostrar ahora): si hablan de 2 canastas con 9 manzanas → "
@@ -444,8 +447,9 @@ DECLARACIONES_TOOLS: list[dict] = [
         "description": (
             "Abre una hoja en blanco para que el niño dibuje con el dedo o el "
             "mouse, y te la manda cuando termina. Úsala para trazar una letra o "
-            "un número, o para que dibuje lo que está pensando. Sigue hablando "
-            "mientras la acomoda: la hoja tarda en llenarse."
+            "un número, o para que dibuje lo que está pensando. DI UNA FRASE "
+            "ANTES de llamarla y sigue hablando después: si no, el niño ve "
+            "aparecer una hoja en blanco sin que nadie le diga qué hacer con ella."
         ),
         "parameters": {
             "type": "object",
