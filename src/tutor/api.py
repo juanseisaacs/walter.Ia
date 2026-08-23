@@ -14,6 +14,7 @@ El audio NO pasa por acá (ARCHITECTURE.md §10). Este es el plano de control:
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -763,6 +764,9 @@ def salud():
         "ok": True,
         "habilidades": len(_grafo),
         "modelo_voz": cfg.MODELO_TUTOR_VOZ,
+        # Con qué versión del frontend está hablando este backend. El navegador
+        # la compara con la suya ANTES de abrir sesión — ver `build_servido`.
+        "build": build_servido(),
     }
 
 
@@ -785,6 +789,40 @@ def salud():
 
 _WEB = cfg.RAIZ / "web" / "dist"
 
+
+def build_servido() -> str | None:
+    """Qué bundle hay en disco AHORA, leído del `index.html` construido.
+
+    Es el nombre con hash que le pone Vite (`index-C1QkbTfb.js`): un número de
+    versión del frontend que no hay que inventar ni acordarse de subir, porque
+    cambia exactamente cuando cambia el código.
+
+    EXISTE POR `ses_4ed4e930e60f` (23/08). El backend se reinició con la
+    pizarra nueva —`cantidades`, para dibujar sumas— y el niño tenía la pestaña
+    abierta desde antes, con el JavaScript viejo vivo en memoria. El log lo
+    muestra sin lugar a dudas: `POST /api/sesiones` ANTES del primer `GET /`.
+
+    Entonces el modelo pidió lo que el backend le dijo que podía pedir, el
+    traductor viejo no lo entendió, y el tutor le dijo al niño:
+
+        «no pude ponerte los pollitos en la pizarra»
+        «como que el tablero no me quiere funcionar hoy»
+
+    No fue un bug de la pizarra: fueron dos versiones hablando entre sí. Y es
+    estructural — el backend define lo que el tutor PUEDE pedir y el navegador
+    define lo que SABE dibujar, así que cada cambio de contrato rompe cualquier
+    pestaña que lleve rato abierta, en silencio y del peor modo posible.
+
+    Se lee del disco en cada llamada a propósito: un `npm run build` con el
+    servidor corriendo tiene que notarse sin reiniciar. Si esto se cacheara,
+    diría que todo está al día justo cuando dejó de estarlo.
+    """
+    indice = _WEB / "index.html"
+    if not indice.is_file():
+        return None
+    m = re.search(r"/assets/(index-[A-Za-z0-9_-]+\.js)", indice.read_text(encoding="utf-8"))
+    return m.group(1) if m else None
+
 if _WEB.is_dir():
     from fastapi.staticfiles import StaticFiles
 
@@ -805,6 +843,30 @@ if _WEB.is_dir():
         `StaticFiles` **lanza** el 404, no lo devuelve: por eso se atrapa la
         excepción en vez de mirar `status_code`.
         """
+
+        def is_not_modified(self, response_headers, request_headers=None) -> bool:
+            """El `index.html` NUNCA sale de la caché del navegador.
+
+            Es la otra mitad del arreglo de `ses_4ed4e930e60f`: de nada sirve
+            detectar que el front está viejo si al recargar el navegador vuelve
+            a entregar el mismo HTML de su caché, apuntando al mismo bundle
+            viejo. El HTML es el único archivo sin hash en el nombre, así que es
+            el único que puede quedar pegado.
+
+            Los assets sí se cachean, y fuerte: llevan el hash adentro del
+            nombre, así que un archivo nunca cambia de contenido — cambia de
+            nombre. Eso lo dice `immutable` en `file_response`.
+            """
+            return False
+
+        def file_response(self, full_path, stat_result, scope, status_code=200):
+            respuesta = super().file_response(full_path, stat_result, scope, status_code)
+            url = scope.get("path", "")
+            if url.startswith("/assets/"):
+                respuesta.headers["cache-control"] = "public, max-age=31536000, immutable"
+            else:
+                respuesta.headers["cache-control"] = "no-store, must-revalidate"
+            return respuesta
 
         async def get_response(self, path: str, scope):
             try:

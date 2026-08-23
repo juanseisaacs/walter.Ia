@@ -13,7 +13,14 @@
 import { GoogleGenAI, type LiveServerMessage, Modality } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ErrorApi, api, type Ejercicio, type SesionAbierta, type Turno } from "../api";
+import {
+  ErrorApi,
+  api,
+  recargarSiEstoyViejo,
+  type Ejercicio,
+  type SesionAbierta,
+  type Turno,
+} from "../api";
 import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
@@ -579,6 +586,21 @@ export function useTutor(ninoId: string) {
           // mostrando" sobre un tablero vacío (ses_697a02991605): el niño tuvo
           // que contestarle "no veo ninguna pizarra".
           console.warn("[pizarra] no se pudo armar la escena:", args);
+
+          // Y QUEDA ESCRITO. Hasta hoy, una pizarra que no dibujaba solo dejaba
+          // este `console.warn`: se iba con la pestaña, el backend no se
+          // enteraba —esto se resuelve acá, sin red— y la transcripción no
+          // decía nada. Tres sesiones seguidas con la pizarra rota y cero
+          // evidencia; lo único que quedaba era el niño quejándose.
+          //
+          // Va como turno del sistema, con los argumentos crudos: es lo que
+          // permite reproducirlo después sin tener que adivinar qué pidió.
+          cerrarTurnoAcumulado();
+          encolar({
+            quien: "tutor",
+            texto: `[la pizarra no supo dibujar esto: ${JSON.stringify(args)}]`,
+          });
+
           return {
             mostrado: false,
             que_hacer:
@@ -682,7 +704,7 @@ export function useTutor(ninoId: string) {
       default:
         return { error: `tool desconocido: ${nombre}` };
     }
-  }, [avisarAlTutor]);
+  }, [avisarAlTutor, cerrarTurnoAcumulado, encolar]);
 
   /* ── El dibujo del niño ───────────────────────────────────────────────── */
 
@@ -1000,6 +1022,15 @@ export function useTutor(ninoId: string) {
       reproductorRef.current = reproductor;
 
       modoRef.current = modo;
+
+      // ANTES DE NADA: ¿esta pestaña es la versión que el servidor sirve?
+      //
+      // Si no lo es, se recarga y vuelve a empezar sola. Se hace acá y no al
+      // montar la app porque una pestaña puede quedar abierta horas: el momento
+      // en que importa es cuando el niño toca "empezar", no cuando abrió la
+      // página. Ver `recargarSiEstoyViejo` — sale de `ses_4ed4e930e60f`.
+      if (await recargarSiEstoyViejo()) return;
+
       const sesion = await api.abrirSesion(ninoId, modo, tokenActual());
       sesionRef.current = sesion;
       bancoRef.current = sesion.ejercicios ?? [];

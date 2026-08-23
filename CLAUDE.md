@@ -175,7 +175,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 599 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 606 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
 | `cd web && npm test` | 124 tests del front: audio, micrófono, pizarra, hoja, mudez | no |
@@ -208,6 +208,11 @@ python -m uvicorn tutor.api:app --port 8000
 
 Y se abre **http://localhost:8000**. La app del niño y la API salen del mismo
 proceso: un origen, sin proxy.
+
+Y **tras un `npm run build`, la pestaña que estuviera abierta se recarga sola**
+al tocar "empezar": el backend anuncia qué bundle sirve y el front se compara
+contra él. Sin eso, un cambio en los tools deja al niño con un tutor que dice que
+su pizarra no funciona (`BITACORA.md`, 23/08).
 
 ⚠️ **`npm run dev` NO se usa para hablar con el tutor.** Sirve para trabajar en
 la interfaz y nada más. El servidor de desarrollo entrega React sin minificar y
@@ -246,7 +251,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **599** de Python + **124** del front, en verde. Lint en cero |
+| Tests | **606** de Python + **124** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

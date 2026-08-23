@@ -83,6 +83,11 @@ PEDIDOS = [
         "Pero que me pueda yo ver las gallinas y los pollitos.",
     ),
     (
+        "3 pollitos + 5 pollitos (ses_4ed4e930e60f)",
+        "Hola, Walter, ¿me ayudas a sumar cuánto dan tres pollitos más cinco "
+        "pollitos, pero que se vea visualmente?",
+    ),
+    (
         "la suma de tres montones",
         "5 + 3 + 6 y no son bolitas, sino son pollitos. ¿Podrías mostrarme los pollitos?",
     ),

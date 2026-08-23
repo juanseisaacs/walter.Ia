@@ -373,6 +373,26 @@ Las dos primeras se cruzan con un test (`web/src/voz/mudez.test.ts`): el tope de
 la tool tiene que vencer **antes** de que el vigilante empuje, o el empujón cae
 mientras el modelo todavía espera la herramienta y no destraba nada.
 
+### El contrato de versión: el backend y la pestaña pueden desincronizarse
+
+Consecuencia directa de §10 y de que la app se sirva desde el mismo proceso: el
+backend define lo que el tutor **puede pedir** (las declaraciones de tools viajan
+atadas al token) y el navegador define lo que **sabe hacer** con eso. Una pestaña
+abierta desde ayer sigue corriendo el JavaScript de ayer.
+
+`ses_4ed4e930e60f` (23/08) es el caso: backend nuevo, pestaña vieja, y el tutor
+diciéndole al niño que «el tablero no quiere funcionar hoy» porque el traductor
+no entendía un parámetro que el propio backend le había ofrecido al modelo.
+
+| pieza | qué garantiza | dónde |
+|---|---|---|
+| `build` en `/api/salud` | el backend dice con qué bundle está hablando | `api.build_servido` |
+| `recargarSiEstoyViejo()` | la pestaña se compara y se recarga antes de abrir sesión | `web/src/api.ts` |
+| `no-store` en el HTML / `immutable` en los assets | que la recarga traiga lo nuevo de verdad | el mount de `_SPA` |
+
+Las tres se cruzan en `tests/test_contrato_version.py`: cada una sola falla en
+silencio, que es como falló la primera vez.
+
 ### Parámetros de audio que no son opcionales
 
 Verificados en un experimento previo (`walter-voz`). No son preferencias:

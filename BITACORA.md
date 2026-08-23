@@ -1270,3 +1270,84 @@ real: el modelo manda `{"nombre": "pollitos", "cantidades": [5,3,6], "tipo":
 
 Faltaban también los **pollitos** en `emojis.ts` —estaba `gallina`— y por eso
 salieron puntos.
+
+---
+
+## Dos versiones hablando entre sí (23/08, `ses_4ed4e930e60f`)
+
+Sesión de 56 segundos. El niño pidió lo único que acabábamos de construir:
+
+```
+nino:  «¿me ayudas a sumar cuánto dan tres pollitos más cinco pollitos, pero
+        que se vea visualmente?»
+tutor: «no pude ponerte los pollitos en la pizarra ahora mismo»
+nino:  «Muéstrame, en el tablero, muéstrame.»
+tutor: «como que el tablero no me quiere funcionar hoy»
+```
+
+Media hora antes habíamos agregado `cantidades` justo para eso, con tests, con
+captura del modelo real y con el emoji del pollito. Todo verde.
+
+### La causa está en el log, en una sola línea fuera de lugar
+
+```
+POST /api/sesiones          <- la sesión abrió acá
+POST .../turnos
+POST .../cerrar
+GET  /                      <- y la página se pidió DESPUÉS
+```
+
+La pestaña **no se cargó de este servidor**. Estaba abierta desde antes, con el
+JavaScript anterior vivo en memoria. Y mientras tanto el backend —reiniciado con
+la pizarra nueva— le decía al modelo que podía pedir `cantidades`.
+
+Entonces: el modelo pidió exactamente lo que le dijimos que podía pedir
+(reproducido: `{"cantidades":[3,5],"nombre":"pollitos","tipo":"grupos"}`), el
+traductor viejo no lo entendió, devolvió `null`, y el tutor —cumpliendo la regla
+de no decir que muestra lo que no mostró— le dijo al niño que el tablero no
+funcionaba.
+
+> **No falló la pizarra. Hablaron dos versiones distintas, con el niño en el
+> medio.** El backend define lo que el tutor PUEDE pedir; el navegador define lo
+> que SABE dibujar. Son dos programas, y el segundo puede llevar horas abierto.
+
+Y es estructural, no un descuido de esta vez: **cada cambio en el contrato de
+tools rompe cualquier pestaña que lleve rato abierta**, en silencio, y del peor
+modo posible — el tutor le enseña al niño que su herramienta no es de fiar.
+
+### El arreglo, en tres piezas que solo sirven juntas
+
+1. **El backend anuncia con qué frontend está hablando.** `/api/salud` devuelve
+   `build`, leído del `index.html` construido: el nombre con hash que le pone
+   Vite. Un número de versión que nadie tiene que acordarse de subir, porque
+   cambia exactamente cuando cambia el código.
+2. **La pestaña se mira al espejo antes de empezar.** `import.meta.url` trae su
+   propio hash; si no coincide con el del servidor, se recarga sola y vuelve a
+   empezar. Va ANTES de `abrirSesion` —con la sesión abierta ya habría una
+   sesión huérfana y un niño que oyó saludar al tutor— y una sola vez, con
+   marca en `sessionStorage`: una recarga que no arregla nada, repetida, es una
+   pantalla que parpadea para siempre.
+3. **El `index.html` deja de cachearse** (`no-store`) y los assets se cachean
+   para siempre (`immutable`). Es la mitad sin la cual la recarga volvería a
+   traer el mismo HTML viejo apuntando al mismo bundle viejo. El HTML es el
+   único archivo sin hash en el nombre: el único que puede quedar pegado.
+
+### Lo que hacía falta antes que todo eso
+
+Nada de esto se habría podido diagnosticar sin el log del servidor, y **la
+pizarra no deja log**: se resuelve en el navegador, sin red. Cuando `aCuadro`
+devuelve `null` lo único que quedaba era un `console.warn` que se va con la
+pestaña.
+
+Van tres sesiones seguidas con la pizarra fallando y cero evidencia de qué se
+había pedido. Ahora el fallo se encola como turno, con los argumentos crudos:
+
+    [la pizarra no supo dibujar esto: {"tipo":"grupos","cantidades":[3,5]}]
+
+Viaja al backend con el resto de la transcripción, queda en `data/transcripts/`
+y se puede reproducir sin adivinar. El descarte silencioso otra vez — esta vez
+en el único componente que el niño MIRA.
+
+> La pregunta que ahorró la tarde no fue «¿qué le pasa a la pizarra?» sino
+> **«¿qué versión estaba corriendo?»**. Y la respuesta no estaba en el código:
+> estaba en el orden de dos líneas del log.

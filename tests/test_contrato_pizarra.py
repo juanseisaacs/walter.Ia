@@ -327,3 +327,33 @@ def test_los_parametros_de_la_pizarra_los_lee_alguien():
         f"el tutor puede mandar {faltan} y desdeElTutor.ts no los lee: el modelo "
         "cree que dibujó algo y el niño ve otra cosa"
     )
+
+
+def test_la_pizarra_que_no_dibuja_deja_rastro():
+    """Un fallo de la pizarra tiene que llegar a la transcripción.
+
+    `mostrar_en_pizarra` se resuelve EN EL NAVEGADOR: no toca el backend, no
+    deja línea en el log y no aparece en ningún lado. Hasta el 23/08, cuando
+    `aCuadro` devolvía `null`, lo único que quedaba era un `console.warn` que se
+    iba con la pestaña — y el niño diciendo «no me sale el tablero».
+
+    Tres sesiones seguidas con la pizarra rota y cero evidencia de qué se había
+    pedido. Es el descarte silencioso otra vez, ahora en el único componente que
+    el niño MIRA.
+
+    Ahora se encola un turno con los argumentos crudos: viaja al backend con el
+    resto, queda en `data/transcripts/` y se puede reproducir sin adivinar.
+    """
+    texto = _texto(USE_TUTOR)
+    inicio = texto.index('case "mostrar_en_pizarra"')
+    cuerpo = texto[inicio : texto.index('case "pedir_dibujo"')]
+
+    assert "no se pudo armar la escena" in cuerpo, "cambió el camino del fallo: revisar este test"
+    assert "encolar(" in cuerpo, (
+        "la pizarra vuelve a fallar sin dejar rastro: sin esto, el próximo "
+        "«no me sale el tablero» tampoco se va a poder investigar"
+    )
+    assert "JSON.stringify(args)" in cuerpo, (
+        "el rastro sin los argumentos no sirve: es lo único que permite "
+        "reproducir qué pidió el tutor"
+    )

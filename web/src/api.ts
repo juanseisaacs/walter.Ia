@@ -106,6 +106,63 @@ async function pedir<T>(ruta: string, opciones?: RequestInit, msTope = MS_TOPE_T
   return r.json() as Promise<T>;
 }
 
+/**
+ * El bundle que está corriendo AHORA MISMO en esta pestaña.
+ *
+ * `import.meta.url` es la URL de este módulo, y Vite le mete el hash del build
+ * en el nombre: `/assets/index-C1QkbTfb.js`. O sea que el frontend puede decir
+ * con qué versión de sí mismo está corriendo, sin que nadie tenga que acordarse
+ * de subir un número a mano.
+ *
+ * En desarrollo (`vite dev`) los módulos no llevan hash y esto da otra cosa;
+ * por eso el chequeo solo actúa cuando el backend informa un build concreto.
+ */
+export const MI_BUILD = import.meta.url.split("/").pop() ?? "";
+
+/** Marca de que ya recargamos por versión vieja. Evita el bucle: si tras la
+ *  recarga seguimos viejos, el problema es otro y hay que decirlo, no repetir. */
+const YA_RECARGUE = "rbh-recargado-por-version";
+
+/**
+ * ¿El JavaScript de esta pestaña es el que el servidor está sirviendo?
+ *
+ * EL BUG QUE ESTO EVITA (`ses_4ed4e930e60f`, 23/08): el niño tenía la pestaña
+ * abierta de hacía rato y tocó "empezar". El backend ya se había reiniciado con
+ * la pizarra nueva y le dijo al modelo que podía pedir `cantidades`; el
+ * JavaScript vivo en esa pestaña era el de antes y no sabía traducirlo. El
+ * tutor terminó diciéndole al niño «como que el tablero no me quiere funcionar
+ * hoy» — una versión hablando con otra, y el niño en el medio.
+ *
+ * Devuelve `true` si se disparó una recarga (y entonces no hay que seguir).
+ */
+export async function recargarSiEstoyViejo(): Promise<boolean> {
+  let servido: string | null | undefined;
+  try {
+    servido = (await pedir<{ build?: string | null }>("/salud")).build;
+  } catch {
+    // Sin respuesta no se recarga nada: quedarse con el front viejo es mucho
+    // mejor que un bucle de recargas contra un backend caído.
+    return false;
+  }
+
+  if (!servido || servido === MI_BUILD) {
+    sessionStorage.removeItem(YA_RECARGUE);
+    return false;
+  }
+
+  if (sessionStorage.getItem(YA_RECARGUE)) {
+    // Recargamos y seguimos viejos: el navegador está sirviendo el HTML de su
+    // caché igual. Se deja de insistir y lo dice quien tiene la pantalla.
+    console.error(`[version] sigo en ${MI_BUILD} y el servidor sirve ${servido}`);
+    return false;
+  }
+
+  console.warn(`[version] esta pestaña es ${MI_BUILD}, el servidor sirve ${servido}: recargo`);
+  sessionStorage.setItem(YA_RECARGUE, "1");
+  location.reload();
+  return true;
+}
+
 export const api = {
   abrirSesion: (ninoId: string, modo: "guiado" | "pedido" = "guiado", token?: string | null) =>
     pedir<SesionAbierta>(

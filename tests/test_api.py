@@ -266,6 +266,59 @@ def test_salud_responde(cliente):
     assert datos["habilidades"] > 0
 
 
+def test_salud_dice_con_que_frontend_esta_hablando(cliente):
+    """EL CHEQUEO DE VERSIÓN, del lado del servidor. Sale de `ses_4ed4e930e60f`.
+
+    El niño tenía la pestaña abierta desde antes; el backend se había reiniciado
+    con la pizarra nueva. El log lo muestra sin discusión —`POST /api/sesiones`
+    ANTES del primer `GET /`—: el JavaScript que corría era el viejo. El modelo
+    pidió lo que el backend le dijo que podía pedir, el traductor no lo entendió,
+    y el tutor le dijo al niño «el tablero no me quiere funcionar hoy».
+
+    `build` es lo que le permite al navegador darse cuenta solo y recargarse.
+    Si esta clave desaparece, el chequeo del front deja de actuar EN SILENCIO
+    —`recargarSiEstoyViejo` no recarga cuando el backend no informa build— y
+    volvemos exactamente al mismo bug.
+    """
+    datos = cliente.get("/api/salud").json()
+    assert "build" in datos, "sin esto el navegador no puede saber si está viejo"
+
+    from tutor.api import _WEB, build_servido
+
+    if (_WEB / "index.html").is_file():
+        assert datos["build"] == build_servido()
+        assert datos["build"].startswith("index-") and datos["build"].endswith(".js")
+    else:
+        # Sin `npm run build` no hay bundle que anunciar, y eso es correcto: un
+        # backend sin frontend construido no puede exigir una versión.
+        assert datos["build"] is None
+
+
+def test_el_html_no_se_cachea_y_los_assets_si(cliente):
+    """La otra mitad: de nada sirve detectar que el front está viejo si al
+    recargar el navegador vuelve a entregar el mismo HTML de su caché.
+
+    El `index.html` es el único archivo sin hash en el nombre —los assets lo
+    llevan adentro—, así que es el único que puede quedar pegado apuntando a un
+    bundle que ya no existe.
+    """
+    from tutor.api import _WEB, build_servido
+
+    if not (_WEB / "index.html").is_file():
+        pytest.skip("hace falta `cd web && npm run build`")
+
+    html = cliente.get("/")
+    assert "no-store" in html.headers.get("cache-control", ""), (
+        "el index.html se puede quedar cacheado y la recarga no traería nada nuevo"
+    )
+
+    asset = cliente.get(f"/assets/{build_servido()}")
+    assert asset.status_code == 200
+    assert "immutable" in asset.headers.get("cache-control", ""), (
+        "el bundle lleva hash en el nombre: puede y debe cachearse fuerte"
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Panel del papá — la página
 # ─────────────────────────────────────────────────────────────────────────────
