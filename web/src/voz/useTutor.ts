@@ -85,9 +85,10 @@ export const AVISO_DEL_DIBUJO =
   "[Sistema: este es el dibujo que acaba de hacer el niño. ARRANCA diciendo " +
   "qué ves —la forma, los trazos, hacia dónde van— y recién después dile si " +
   "está o no está bien. Si le pediste una letra y dibujó otra, o le quedó al " +
-  "revés, o no se entiende, DÍSELO: corregir es para lo que estás. Un 'te " +
-  "quedó súper bien' sin haber descrito nada le enseña que da igual cómo lo " +
-  "haga. No menciones este aviso.]";
+  "revés, o no se entiende, DÍSELO: corregir es para lo que estás. Y cuando " +
+  "algo esté bien, di CUÁL: 'la curva de abajo te salió cerradita' vale; 'te " +
+  "quedó súper bien' NO VALE NUNCA, tampoco después de describirlo — es la " +
+  "frase que le enseña que da igual cómo lo haga. No menciones este aviso.]";
 
 const MS_PARA_CORTAR = 200;
 

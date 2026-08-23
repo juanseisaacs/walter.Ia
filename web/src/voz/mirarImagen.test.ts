@@ -36,6 +36,25 @@ describe("el aviso que viaja con el dibujo", () => {
     expect(AVISO_DEL_DIBUJO).toContain("súper bien");
   });
 
+  it("prohíbe el elogio vacío SIN condición", () => {
+    // La versión anterior decía que un "te quedó súper bien" *sin haber
+    // descrito nada* estaba mal. El modelo la cumplió al pie de la letra:
+    // describía el trazo y después soltaba el elogio vacío igual, incluso sobre
+    // una J con un error (medido el 22/08: 4 de 8 respuestas con la condición,
+    // 0 de 3 sin ella).
+    //
+    // Una prohibición con condición es una instrucción de cómo cumplirla a
+    // medias. Esta no la tiene.
+    expect(AVISO_DEL_DIBUJO).toContain("NO VALE NUNCA");
+    expect(AVISO_DEL_DIBUJO.toLowerCase()).toContain("después de describirlo");
+  });
+
+  it("le dice qué decir en vez del elogio vacío", () => {
+    // Prohibir sin dar el reemplazo deja al tutor sin nada que decir cuando el
+    // niño SÍ lo hizo bien, y ahí se calla o improvisa otra frase hecha.
+    expect(AVISO_DEL_DIBUJO).toContain("di CUÁL");
+  });
+
   it("le dice que no mencione el aviso", () => {
     expect(AVISO_DEL_DIBUJO).toContain("No menciones este aviso");
   });

@@ -118,6 +118,25 @@ def responder_tool(nombre: str, args: dict) -> dict:
     return {"ok": True}
 
 
+# Elogio vacío: la frase hecha que se cierra sola.
+#
+# El detector busca el adjetivo pegado a un signo de puntuación, y esa es toda
+# su inteligencia: "te quedó súper bien." se cierra sin nombrar nada, mientras
+# que "esa curva te quedó bien cerradita" sigue con lo que estuvo bien y no
+# matchea. Es la lección de `verificar_vision`: un detector que busca la palabra
+# suelta reprueba también al que acierta.
+_ELOGIO_VACIO = re.compile(
+    r"(te qued[óo]|te sali[óo]|qued[óo]|est[áa])\s+(s[úu]per\s+|muy\s+)?"
+    r"(bien|genial|perfect[ao]|ch[ée]vere|lind[ao])\s*([.!?,¡]|$)",
+    re.IGNORECASE,
+)
+
+
+def elogios_vacios(dicho: str) -> list[str]:
+    """Las frases hechas que aparecieron. Vacía = el elogio nombró algo."""
+    return [m.group(0).strip() for m in _ELOGIO_VACIO.finditer(dicho)]
+
+
 class Turno:
     """Lo que llegó del modelo en un turno: qué dijo, qué pidió, si cerró."""
 
@@ -137,6 +156,9 @@ class Turno:
             partes.append(f"tools: {', '.join(self.tools)}")
         arranque = f"{round(self.arranco_ms)} ms" if self.arranco_ms else "nunca"
         partes.append(f"audio: {self.audio} bloques · arrancó a los {arranque}")
+        vacios = elogios_vacios(que)
+        if vacios:
+            partes.append(f"ELOGIO VACÍO: {vacios[0]!r}")
         if self.venció:
             partes.append("NO CONTESTÓ")
         elif not self.cerro:
@@ -336,6 +358,11 @@ async def main() -> int:
         print(f"  Lo último que pidió antes: {', '.join(paso2.tools) or 'nada'}")
     else:
         print(f"  El tutor SÍ habló después del dibujo ({paso3.audio} bloques de audio).")
+        vacios = elogios_vacios("".join(paso3.dicho))
+        if vacios:
+            print(f"  Pero elogió sin nombrar nada: {', '.join(repr(v) for v in vacios)}")
+        else:
+            print("  Y su elogio nombró algo concreto, o no elogió.")
         if not paso3.cerro:
             print("  Pero NO cerró el turno: la transcripción del tutor se pierde.")
     print("=" * 74)

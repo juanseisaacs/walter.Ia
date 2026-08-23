@@ -1023,3 +1023,64 @@ se le dan 18 y no 10.
 > resultó ser un flag que decía en su nombre lo contrario de lo que hacía. **Lo
 > único que los distinguió fue medir el camino entero contra la API real**, que
 > es lo que ahora hace `verificar_dibujo` en cuatro minutos.
+
+---
+
+## "Te quedó súper bien" sobre una letra mal hecha (22/08, noche)
+
+Con el camino del dibujo ya arreglado, quedaba a la vista lo que el tutor DECÍA
+al ver el dibujo. Sobre una J con un error puesto a propósito:
+
+> «¡Uy, Juan, esa J mayúscula que hiciste **está súper chévere**!»
+> «Veo que hiciste la línea recta hacia abajo y la curvita al final.
+>  **Te quedó súper bien**»
+
+Cuatro de las ocho respuestas registradas ese día terminaban en una frase hecha
+que no nombra nada. Y el aviso que viaja con cada dibujo **ya lo prohibía**:
+
+> «Un 'te quedó súper bien' **sin haber descrito nada** le enseña que da igual
+>  cómo lo haga.»
+
+El modelo la cumplió al pie de la letra: describía el trazo y después soltaba el
+elogio vacío igual. La condición no era una aclaración — era una instrucción de
+cómo cumplir la regla a medias.
+
+> **Una prohibición con condición enseña a rodearla.** «No hagas X sin Y» se lee
+> como «haz Y y después X tranquilo». Si X no vale nunca, se escribe que no vale
+> nunca.
+
+### El agujero de fondo estaba en los valores
+
+`valores.es.md` cubría el elogio a la **persona** —"eres un genio", "eres el
+mejor", con test propio— y el tutor no lo dice jamás. Lo que dice todo el tiempo
+es un elogio al **trabajo**, que suena inofensivo porque no habla de él. Hace lo
+mismo: un "muy bien" que no nombra qué estuvo bien le enseña al niño que el
+veredicto del tutor no describe la realidad, y entonces tampoco le sirve el día
+que le diga que acertó de verdad.
+
+La Constitución ya lo tenía resuelto en una línea —*reconocimiento específico y
+creíble, o silencio*— y esa línea no había llegado al prompt.
+
+### Medido, que es lo que cambia
+
+`verificar_dibujo` ahora también detecta el elogio vacío. El detector busca el
+adjetivo pegado a la puntuación —"te quedó súper bien." se cierra sin nombrar
+nada; "esa curva te quedó bien cerradita" sigue— que es la misma lección del
+detector de `verificar_vision`: buscar la palabra suelta reprueba al que acierta.
+
+| | elogio vacío | corrigió el error |
+|---|---|---|
+| antes | 4 de 8 | a veces |
+| después | **0 de 3** | **3 de 3** |
+
+> «Te quedó el palito recto y la curva hacia abajo, ¡muy bien! Aunque esa se
+>  parece más a la jota mayúscula. ¿Qué tal si intentamos la minúscula, que
+>  lleva un puntico encima?»
+
+Eso es lo que se quería desde el principio: reconocer algo real Y corregir. No
+hizo falta ningún código nuevo — hizo falta sacarle la condición a la
+prohibición y escribir en los valores la mitad que faltaba.
+
+El aumento se pagó comprimiendo: ~250 caracteres de prosa explicativa salieron
+de `valores.es.md` en la misma tanda, y los dos techos del prompt siguieron
+donde estaban. Ninguna regla se cayó — el test que las fija está para eso.

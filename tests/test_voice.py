@@ -157,6 +157,30 @@ def test_los_valores_prohiben_el_elogio_inflado():
     assert "el elogio inflado hace" in valores, "falta la razón, y sin razón no se sostiene"
 
 
+def test_el_elogio_al_trabajo_tambien_tiene_que_nombrar_algo():
+    """La mitad del elogio inflado que faltaba, y la que de verdad sale.
+
+    El test de arriba cubre el elogio a la PERSONA ("eres un genio"), y el tutor
+    no lo dice nunca. Lo que sí dice, todo el tiempo, es **"te quedó súper
+    bien"** sobre un trabajo que no miró — medido el 22/08 contra la API real,
+    en 4 de las 8 respuestas a un dibujo que se registraron ese día, sobre una J
+    que tenía un error. Después de esta regla: 0 de 3, y las tres corrigieron el
+    error en vez de taparlo.
+
+    Suena inofensivo porque habla del trabajo y no de él. Hace lo mismo: un
+    "muy bien" que no nombra QUÉ estuvo bien le enseña al niño que el veredicto
+    del tutor no describe la realidad — y entonces tampoco le sirve el día que
+    le diga que acertó de verdad.
+
+    La Constitución lo cierra en una línea: reconocimiento específico y creíble,
+    o silencio.
+    """
+    valores = cargar_prompt("valores").lower()
+    assert "te quedó súper bien" in valores, "no veta la frase que de verdad dice"
+    assert "no nombra qué estuvo bien" in valores, "falta la regla: el elogio nombra algo"
+    assert "específico y creíble" in valores, "falta el criterio de la Constitución"
+
+
 def test_los_valores_no_predican():
     """El ADN es cristiano; la expresión es universal (Constitución §7).
 
@@ -778,6 +802,7 @@ def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
         "la seguridad puede escalar": "escalate_safety",
         "los valores no se predican": "no hay una lección de valores",
         "no ofrece lo que no puede dar": "nunca le ofrezcas lo que este canal no tiene",
+        "el elogio nombra qué estuvo bien": "específico y creíble",
     }
 
     faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]
