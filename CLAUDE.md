@@ -175,10 +175,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 591 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 592 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
-| `cd web && npm test` | 108 tests del front: audio, micrófono, pizarra, mudez | no |
+| `cd web && npm test` | 110 tests del front: audio, micrófono, pizarra, mudez | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
@@ -190,7 +190,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | `python -m evals.runner` | Las 4 suites de YC, 48 casos, contra el modelo real | **sí** |
 | `python -m scripts.verificar_gemini` | Los supuestos de la Live API contra la API real | **sí** |
 | `python -m scripts.verificar_vision` | ¿El tutor VE o completa? Le muestra lo que no puede adivinar | **sí** |
-| `python -m scripts.verificar_dibujo` | ¿El tutor VUELVE cuando el niño le manda un dibujo? Reproduce el camino entero con la config real. `--con-micro` agrega el micrófono, que es lo que lo rompía | **sí** |
+| `python -m scripts.verificar_dibujo` | ¿El tutor VUELVE cuando el niño le manda un dibujo, y qué le dice? Reproduce el camino entero con la config real y detecta el elogio vacío. `--con-micro` agrega el micrófono, que es lo que lo rompía | **sí** |
 | `python -m scripts.e2e_voz` | La pantalla del niño en un navegador de verdad, con sesión Live real. `--sin-voz` hace la mitad que no cuesta nada | **sí** |
 | `python -m scripts.procesar_pendientes` | Drena la cola del Analista **y aplica la retención**. La purga corre siempre, aunque la cola esté vacía o falte la llave. `--seco` la calcula sin borrar | **sí** |
 | `python -m scripts.generar_reportes` | El reporte semanal al papá | **sí** |
@@ -245,7 +245,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **591** de Python + **108** del front, en verde. Lint en cero |
+| Tests | **592** de Python + **110** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 
