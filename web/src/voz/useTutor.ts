@@ -79,6 +79,34 @@ export const AVISO_DEL_DIBUJO =
 
 const MS_PARA_CORTAR = 200;
 
+/**
+ * Cuánto se le aguanta al tutor sin decir nada después de que el niño terminó
+ * de hablar, antes de darlo por mudo.
+ *
+ * Diez segundos es una eternidad en una conversación —el tutor real contesta
+ * en uno o dos— y esa holgura es a propósito: este reloj no está para apurarlo,
+ * está para que un silencio que ya no va a terminar no dure para siempre.
+ */
+export const MS_MUDEZ = 10_000;
+
+/** Cuántos empujones antes de aceptar que no vuelve. */
+export const EMPUJONES_ANTES_DE_RENDIRSE = 2;
+
+/** El empujón. Es prompt —lo lee el modelo—, y por eso se prueba. */
+export const AVISO_DE_MUDEZ =
+  "[Sistema: el niño terminó de hablar hace rato y tú no has dicho nada. " +
+  "Retoma tú AHORA: dile en una frase corta que se te fue el sonido un " +
+  "momentico y pregúntale en qué iban. No inventes por qué pasó y no " +
+  "menciones este aviso.]";
+
+/** Lo que queda escrito en la transcripción cuando el tutor se calla.
+ *
+ * Sin esto la mudez es el único fallo del producto que no deja rastro: la
+ * transcripción se ve igual que una donde el niño se aburrió y se fue. Va con
+ * el prefijo entre corchetes que ya usan las marcas de sistema, así el Analista
+ * la lee como evento y no como algo que alguien dijo. */
+export const MARCA_DE_MUDEZ = "[el tutor no contestó: se quedó callado]";
+
 export function useTutor(ninoId: string) {
   // Con qué modo se abrió la sesión. Lo elige el niño al empezar.
   const modoRef = useRef<"guiado" | "pedido">("guiado");
@@ -217,6 +245,87 @@ export function useTutor(ninoId: string) {
     }
   }, []);
 
+  /* ── El vigilante de la mudez ───────────────────────────────────────────
+
+     PASÓ DE VERDAD, `ses_87aba17c8c6c` (22/08). El niño dictó su tarea —"5 + 5,
+     3 - 4, 8 - 7"— y el tutor no volvió a hablar nunca. La sesión seguía viva:
+     el micrófono mandaba, Gemini transcribía, y en la transcripción quedó el
+     niño solo, preguntándole a nadie *"¿por qué no estás aquí? ¿qué te pasó?
+     ¿por qué te fuiste?"*. En la pantalla no decía nada. En nuestros logs
+     tampoco: el backend no está en el camino del audio y no se enteró.
+
+     La causa no se pudo determinar —la única evidencia vivía en la consola del
+     navegador, que se cerró con la pestaña—, y ese es justamente el punto: hay
+     por lo menos tres formas conocidas de que el modelo se quede sin hablar
+     (una tool que nunca recibe respuesta, un turno que el VAD no cierra, un
+     socket que se murió callado), todas se ven IGUAL desde acá, y ninguna se
+     arregla sola. Lo que faltaba no era la causa: era que alguien mirara el
+     reloj.
+
+     Dos fases, y la segunda importa tanto como la primera:
+       1. Empujar. Un turno de texto que le pide retomar. Destraba el caso del
+          VAD y el del turno perdido, que son los baratos.
+       2. Rendirse. Si tras `EMPUJONES_ANTES_DE_RENDIRSE` sigue mudo, se cierra
+          la sesión y se le DICE al niño. Un tutor que no vuelve es malo; un
+          niño hablándole a una pantalla que no le avisa es peor. Es la misma
+          regla que hizo hablar a `onclose`.
+
+     Y las dos dejan marca en la transcripción: ver `MARCA_DE_MUDEZ`. */
+
+  const mudezRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const empujonesRef = useRef(0);
+
+  /** El tutor dio señales de vida: audio, turno cerrado o un tool pedido. */
+  const tutorContesto = useCallback(() => {
+    if (mudezRef.current) {
+      clearTimeout(mudezRef.current);
+      mudezRef.current = null;
+    }
+    empujonesRef.current = 0;
+  }, []);
+
+  /** Arranca (o reinicia) la cuenta. La llama todo lo que espera respuesta. */
+  const vigilarMudez = useCallback(() => {
+    if (mudezRef.current) clearTimeout(mudezRef.current);
+
+    mudezRef.current = setTimeout(() => {
+      mudezRef.current = null;
+      if (!liveRef.current) return; // la sesión ya no existe: no hay a quién empujar
+
+      if (empujonesRef.current >= EMPUJONES_ANTES_DE_RENDIRSE) {
+        console.error("[mudez] el tutor no volvió: se cierra la sesión");
+        cerrarTurnoAcumulado();
+        encolar({ quien: "tutor", texto: MARCA_DE_MUDEZ });
+        void terminarRef.current?.(true).then(() => {
+          // Lo lee un niño: qué pasó y qué hacer, sin código de error.
+          setError("El tutor se quedó callado. Toca para volver a empezar.");
+          setEstado("error");
+        });
+        return;
+      }
+
+      empujonesRef.current += 1;
+      console.warn(`[mudez] ${MS_MUDEZ} ms sin respuesta: empujón ${empujonesRef.current}`);
+      // Primero se cierra lo que hay acumulado, para que la marca quede DESPUÉS
+      // del turno que se quedó sin contestar y no encima de él.
+      cerrarTurnoAcumulado();
+      encolar({ quien: "tutor", texto: MARCA_DE_MUDEZ });
+      try {
+        liveRef.current.sendClientContent({
+          turns: { role: "user", parts: [{ text: AVISO_DE_MUDEZ }] },
+          turnComplete: true,
+        });
+      } catch (e) {
+        console.warn("[mudez] no se pudo empujar:", e);
+      }
+      vigilarMudezRef.current?.(); // y se sigue mirando el reloj
+    }, MS_MUDEZ);
+  }, [cerrarTurnoAcumulado, encolar]);
+
+  /** Para llamarse a sí misma sin depender del orden de los closures. */
+  const vigilarMudezRef = useRef<(() => void) | null>(null);
+  vigilarMudezRef.current = vigilarMudez;
+
   /**
    * Le muestra una imagen al tutor. La ÚNICA puerta: dibujo y foto entran igual.
    *
@@ -273,6 +382,12 @@ export function useTutor(ninoId: string) {
       });
       console.info(`[imagen] enviada dentro del turno (${jpegBase64.length} b64)`);
 
+      // Acá el niño se calla a propósito (el micro se apaga), así que no va a
+      // llegar transcripción que arranque la cuenta. Se arranca a mano: este es
+      // justo el camino donde el tutor ya se quedó mudo dos veces
+      // (ses_6b430731226f, ses_50d5fa00b5d8).
+      vigilarMudez();
+
       // Y VUELVE PASE LO QUE PASE.
       //
       // El micro se reabre en cuanto el tutor arranca a hablar (lo hace
@@ -292,7 +407,7 @@ export function useTutor(ninoId: string) {
       console.warn("[imagen] no se pudo enviar:", e);
       return false;
     }
-  }, []);
+  }, [vigilarMudez]);
 
   const atenderTool = useCallback(async (nombre: string, args: any): Promise<object> => {
     const sesion = sesionRef.current;
@@ -671,6 +786,12 @@ export function useTutor(ninoId: string) {
     relojesRef.current = [];
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
+    // El vigilante de la mudez tampoco sobrevive: cerraría la sesión siguiente.
+    if (mudezRef.current) {
+      clearTimeout(mudezRef.current);
+      mudezRef.current = null;
+    }
+    empujonesRef.current = 0;
   }, []);
 
   /* ── Cierre ────────────────────────────────────────────────────────────── */
@@ -911,6 +1032,7 @@ export function useTutor(ninoId: string) {
                 }
                 setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
+                tutorContesto();
                 reproductor.programar(parte.inlineData.data);
               }
             }
@@ -941,9 +1063,13 @@ export function useTutor(ninoId: string) {
               // El reloj del silencio. La última sílaba transcripta es lo más
               // cerca que estamos de "el niño terminó de hablar".
               callóRef.current = performance.now();
+              // Y el que mira si el tutor contesta. Se reinicia con cada sílaba:
+              // mientras el niño habla no hay nada que esperar.
+              vigilarMudez();
             }
 
             if (contenido?.turnComplete) {
+              tutorContesto();
               const dichoTutor = acumTutorRef.current;
 
               // Lo que el Analista va a LEER, visible en el momento. La
@@ -971,6 +1097,10 @@ export function useTutor(ninoId: string) {
             // no puede arrastrar a las otras) y el envío tiene el suyo.
             const llamadas = (mensaje as any).toolCall?.functionCalls ?? [];
             if (llamadas.length) {
+              // Pedir una herramienta ES contestar: el turno sigue vivo. Y el
+              // tope de `MS_TOPE_TOOL` garantiza que la respuesta sale, así que
+              // la cuenta se reinicia recién cuando el modelo vuelva a hablar.
+              tutorContesto();
               void Promise.all(
                 llamadas.map(async (fc: any) => {
                   let respuesta: object;
@@ -1182,7 +1312,7 @@ export function useTutor(ninoId: string) {
     } finally {
       arrancandoRef.current = false;
     }
-  }, [ninoId, atenderTool, encolar, terminar, soltarRecursos]);
+  }, [ninoId, atenderTool, encolar, terminar, soltarRecursos, vigilarMudez, tutorContesto]);
 
   // El callback de Gemini se arma antes que `terminar`, así que lo alcanza
   // por referencia en vez de por closure.

@@ -344,6 +344,27 @@ candado 1.
 Si se migra, **toda la capa de audio del cliente sigue igual** (captura,
 reproducción encadenada, interrupción): solo se muda la conexión.
 
+### El precio de esta arquitectura: cuando el tutor se calla, nadie se entera
+
+Que el audio no pase por el backend es lo que hace posible la latencia (§9), y
+tiene una contra que se cobró el 22/08 (`ses_87aba17c8c6c`): **el servidor no
+puede saber que el tutor dejó de hablar.** Ve abrir la sesión, ve llegar turnos,
+ve cerrarla — y una sesión donde el modelo se quedó mudo a los dos minutos se
+ve, desde acá, exactamente igual que una donde el niño se quedó callado.
+
+La decisión no cambia: el backend controla, no transporta. Lo que se agrega es
+que **el único que puede mirar el reloj es el navegador, así que lo mira**:
+
+| capa | qué garantiza | dónde |
+|---|---|---|
+| `MS_TOPE_TOOL` (8 s) | toda tool contesta, colgada o no — Gemini bloquea el turno hasta recibirla | `web/src/api.ts` |
+| Vigilante de mudez (10 s) | un silencio del tutor se empuja, y si no vuelve se le dice al niño | `web/src/voz/useTutor.ts` |
+| `MARCA_DE_MUDEZ` | el episodio queda en la transcripción, que es lo único que se lee después | idem |
+
+Las dos primeras se cruzan con un test (`web/src/voz/mudez.test.ts`): el tope de
+la tool tiene que vencer **antes** de que el vigilante empuje, o el empujón cae
+mientras el modelo todavía espera la herramienta y no destraba nada.
+
 ### Parámetros de audio que no son opcionales
 
 Verificados en un experimento previo (`walter-voz`). No son preferencias:

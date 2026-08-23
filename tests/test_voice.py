@@ -325,7 +325,27 @@ def test_el_prompt_de_sesion_no_engorda_sin_que_nadie_mire():
     # regla ("no se declara") y `test_ninguna_regla_se_cae_al_adelgazar_el_prompt`
     # la atrapó. Ese test es el que hace que este techo se pueda subir sin que
     # subirlo sea una excusa para dejar de mirar.
-    assert peor < 36_500, (
+    #
+    # ═══ 22/08, noche: 37.000, y lo que entró fue una promesa rota ═══
+    #
+    # Quedaban 96 caracteres libres cuando apareció `ses_87aba17c8c6c`: el tutor
+    # le ofreció a Juan "un videíto corto" para ver cómo vuelan los aviones y
+    # después tuvo que decirle que no, que se lo pidiera a su mamá. Ofrecer lo
+    # que no se tiene es la promesa rota más barata de hacer y la más cara de
+    # pagar — el niño deja de creerle también cuando sí puede.
+    #
+    # La regla que entró («Lo que tienes para darle»: las tres materias, los
+    # cuatro medios, y nunca ofrecer fuera de eso) pesa ~570 caracteres netos.
+    # Se comprimió PRIMERO, que es el orden: salieron ~435 de anécdota pura de
+    # `tutor_persona` —el "¿te tinca?" que frenó una clase, las nueve veces que
+    # dijo "¿sí ves?", y el helado, que estaba contado dos veces en la misma
+    # página—. Ninguna era una regla; las reglas las fija el test de abajo.
+    #
+    # El resto (465) es el aumento, y es una decisión: la sección corrige además
+    # un dato que ya era FALSO —decía "solo matemáticas" con lectura y escritura
+    # en el banco desde el 22/08— y que le hacía prometer de menos a un niño que
+    # venía a leer. Adelgazar el prompt sigue siendo la deuda abierta #1.
+    assert peor < 37_000, (
         f"el peor caso del prompt de sesión llegó a {peor} caracteres. "
         "Antes de subir el techo: ¿qué párrafo cambia lo que el tutor DICE? "
         "Lo que solo explica el porqué va en knowledge/product/."
@@ -642,6 +662,61 @@ def test_la_pizarra_le_muestra_al_modelo_como_traducir_lo_que_pide_el_nino():
     assert "→" in d, "los ejemplos tienen que mostrar el mapeo, no solo nombrar tipos"
 
 
+def test_el_tutor_no_ofrece_lo_que_no_puede_dar():
+    """PASÓ DE VERDAD, `ses_87aba17c8c6c` (22/08). Juan preguntó por qué vuelan
+    los aviones:
+
+        tutor: "¿Te gustaría que viéramos un videíto corto para entenderlo
+                mejor? ¡Es súper interesante!"
+        nino:  "¿Como así que un videíto, tú me puedes mostrar videos? A ver,
+                muéstramela."
+        tutor: "Ay, Juan, me temo que no puedo mostrarte videos directamente
+                por aquí, ¡es una lástima!"
+
+    Y el niño paró la clase para dictarnos el bug: *"deja el reporte de que me
+    ofreciste videos y tú como tutor no puedes dar videos."*
+
+    Es el gemelo exacto de `test_el_tutor_sabe_que_tiene_pizarra_y_no_la_niega`:
+    ahí negaba algo que SÍ podía, acá ofrece algo que NO puede. Las dos salen de
+    lo mismo — el tutor contestaba desde lo que cree ser y no desde lo que tiene
+    en la mano — y las dos se arreglan igual: diciéndole cuáles son sus medios.
+
+    Ofrecer y no dar es peor que no tener: el niño aprende que lo que promete el
+    tutor no significa nada, y eso se lo lleva a cuando le dice que acertó.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+
+    assert "nunca le ofrezcas lo que este canal no tiene" in persona, "falta la prohibición"
+    assert "videos" in persona, "falta nombrar lo que ofreció de verdad"
+
+    # Los medios que SÍ tiene, dichos por su nombre. Sin la lista, "no ofrezcas
+    # lo que no tienes" no se puede obedecer: el modelo no sabe dónde está el
+    # borde. Son los mismos cuatro de `DECLARACIONES_TOOLS` más la voz.
+    for medio in ("pizarra", "camarita", "hoja"):
+        assert medio in persona, f"no le decimos que tiene {medio}"
+
+
+def test_lo_que_dice_que_ensena_es_lo_que_el_banco_tiene():
+    """La misma sección decía **"solo matemáticas"** con el grafo ya en tres
+    materias: 13 habilidades de lectura y 11 de escritura cargadas desde el
+    22/08. O sea que le prometía DE MENOS a un niño que venía a leer, con el
+    material en la mano.
+
+    Prometer de más rompe la confianza; prometer de menos deja una materia
+    entera sin usar. Este test ata la frase del prompt a lo que el currículum
+    tiene HOY: si mañana entra inglés, se rompe acá y hay que decirlo.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+    materias = {h.id.split(".")[0] for h in cargar_grafo()}
+    esperado = {"mat": "matemáticas", "lec": "lectura", "esc": "escritura"}
+
+    assert materias <= set(esperado), f"materia nueva en el grafo sin nombre acá: {materias}"
+    for prefijo in materias:
+        assert esperado[prefijo] in persona, (
+            f"el grafo tiene {prefijo}.* y el prompt no dice que lo enseña"
+        )
+
+
 def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
     """EL CONTRAPESO DE LOS DOS TECHOS.
 
@@ -686,6 +761,7 @@ def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
         "el modo pedido es más estricto": "no es hacerle la tarea",
         "la seguridad puede escalar": "escalate_safety",
         "los valores no se predican": "no hay una lección de valores",
+        "no ofrece lo que no puede dar": "nunca le ofrezcas lo que este canal no tiene",
     }
 
     faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]

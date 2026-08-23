@@ -106,6 +106,23 @@ vayamos a enseñar a leer.
 - **Limpiar la base.** Hay dos Felipe (el onboarding corrió dos veces) y datos
   de prueba mezclados.
 
+### La mudez tiene red, pero sigue sin causa
+
+`ses_87aba17c8c6c` (22/08): el tutor se calló a mitad de sesión y no volvió. Se
+puso la red —tope de 8 s en las tools, vigilante de 10 s que empuja y después
+cierra avisando, y marca en la transcripción— pero **no se supo por qué pasó**:
+la única evidencia estaba en la consola del navegador y se fue con la pestaña.
+
+Lo que hace falta la próxima vez que ocurra, en este orden:
+
+1. **No cerrar la pestaña.** La consola tiene `[tool]`, `[latencia]`, `[live]` y
+   ahora `[mudez]` — con eso se distingue una tool colgada de un turno que el
+   VAD no cerró.
+2. **Buscar `MARCA_DE_MUDEZ` en `data/transcripts/`.** Si aparece, el vigilante
+   funcionó y hay al menos un episodio contado.
+3. Recién ahí decidir si hace falta guardar los logs del navegador en algún
+   lado. Hoy sería infraestructura para un fallo que ocurrió una vez.
+
 ---
 
 ## ⚪ Abierto, sin urgencia

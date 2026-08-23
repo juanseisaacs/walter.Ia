@@ -56,11 +56,49 @@ export class ErrorApi extends Error {
   }
 }
 
-async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
-  const r = await fetch(`/api${ruta}`, {
-    headers: { "Content-Type": "application/json" },
-    ...opciones,
-  });
+/**
+ * Tope duro de una llamada de tool. NO es un número de rendimiento: es la
+ * garantía de que el tutor vuelve a hablar.
+ *
+ * `fetch` sin señal no vence nunca por su cuenta — se queda colgado hasta que
+ * el sistema operativo decida, y eso son minutos. Adentro de `atenderTool` eso
+ * no es "un ejercicio que tarda": Gemini bloquea el turno hasta recibir la
+ * respuesta de cada tool que pidió, así que un fetch colgado deja al tutor
+ * MUDO para siempre con la sesión viva, el micrófono abierto y el niño
+ * hablándole a nadie. La regla de `useTutor` —«sendToolResponse se manda
+ * SIEMPRE, pase lo que pase»— no se podía cumplir sin esto: el `catch` que la
+ * sostiene solo atrapa promesas que fallan, y una promesa colgada no falla.
+ *
+ * 8 segundos es holgadísimo para un backend medido en 4 ms (ARCHITECTURE §9).
+ * Si se llega acá, algo está roto y lo que importa es que el tutor lo SEPA y
+ * pueda decir algo, no esperar por si acaso.
+ */
+export const MS_TOPE_TOOL = 8_000;
+
+/** Abrir sesión precarga el banco: tarda más y no está en ningún turno. */
+const MS_TOPE_SESION = 30_000;
+
+async function pedir<T>(ruta: string, opciones?: RequestInit, msTope = MS_TOPE_TOOL): Promise<T> {
+  let r: Response;
+  try {
+    r = await fetch(`/api${ruta}`, {
+      headers: { "Content-Type": "application/json" },
+      ...opciones,
+      // Después del spread a propósito: el tope no lo pisa quien llama.
+      signal: AbortSignal.timeout(msTope),
+    });
+  } catch (e: any) {
+    // Se traduce a ErrorApi para que arriba haya UN solo tipo de fallo. El
+    // status 0 dice "ni siquiera hubo respuesta" y no es 404: la sesión sigue
+    // viva del lado del servidor, lo que se cayó es el camino.
+    const vencio = e?.name === "TimeoutError" || e?.name === "AbortError";
+    throw new ErrorApi(
+      0,
+      vencio
+        ? `el backend no contestó en ${Math.round(msTope / 1000)}s`
+        : (e?.message ?? "no se pudo hablar con el backend"),
+    );
+  }
   if (!r.ok) {
     const detalle = await r.json().catch(() => ({ detail: r.statusText }));
     throw new ErrorApi(r.status, detalle.detail ?? `Error ${r.status}`);
@@ -70,13 +108,17 @@ async function pedir<T>(ruta: string, opciones?: RequestInit): Promise<T> {
 
 export const api = {
   abrirSesion: (ninoId: string, modo: "guiado" | "pedido" = "guiado", token?: string | null) =>
-    pedir<SesionAbierta>("/sesiones", {
-      method: "POST",
-      // El `token` es la credencial del niño, del enlace que recibió el papá.
-      // Sin ella el backend contesta 401: el `nino_id` viaja en la URL y nunca
-      // fue un secreto.
-      body: JSON.stringify({ nino_id: ninoId, modo, token }),
-    }),
+    pedir<SesionAbierta>(
+      "/sesiones",
+      {
+        method: "POST",
+        // El `token` es la credencial del niño, del enlace que recibió el papá.
+        // Sin ella el backend contesta 401: el `nino_id` viaja en la URL y nunca
+        // fue un secreto.
+        body: JSON.stringify({ nino_id: ninoId, modo, token }),
+      },
+      MS_TOPE_SESION,
+    ),
 
   /** Reportar habilita recargar ejercicios. Sin esto la sesión se queda sin material. */
   reportarTurnos: (sesionId: string, turnos: Turno[]) =>

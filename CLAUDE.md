@@ -142,6 +142,8 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar cómo se escriben los ejercicios de lenguaje | `knowledge/prompts/exercise_generator_lengua.es.md` |
 | Cambiar con qué materia arranca un niño nuevo | `pedagogy.ORDEN_DE_MATERIAS` |
 | Agregar un dibujito a la pizarra | `web/src/pizarra/emojis.ts` |
+| Cambiar qué medios dice el tutor que tiene (y cuáles no) | `knowledge/prompts/tutor_persona.es.md`, §«Lo que tienes para darle». Ofrecer lo que no hay es una promesa rota |
+| Cambiar cuánto se espera antes de dar al tutor por mudo | `MS_MUDEZ` en `web/src/voz/useTutor.ts`. El tope de las tools (`api.ts`) tiene que quedar por debajo |
 | Agregar o cambiar una **forma de enseñar** | `knowledge/tecnicas/*.yaml`. Van de a pares rivales, y ninguna entra sin bloque de evidencia |
 | Cambiar cómo se calcula el dominio | `src/tutor/pedagogy.py` |
 | Agregar un tool del tutor | `src/tutor/tools.py` **y** el `case` en `web/src/voz/useTutor.ts`. El test de contrato falla si se hace solo uno |
@@ -173,10 +175,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 589 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 591 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
-| `cd web && npm test` | 94 tests del front: audio, micrófono, pizarra | no |
+| `cd web && npm test` | 104 tests del front: audio, micrófono, pizarra, mudez | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
@@ -242,7 +244,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **589** de Python + **94** del front, en verde. Lint en cero |
+| Tests | **591** de Python + **104** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

@@ -848,3 +848,92 @@ menciones **negadas** como alucinaciones.
 
 Con el detector corregido: **3 de 3 por el camino que usa el producto.** La
 visión no era el problema; el turno colgado sí.
+
+---
+
+## Dos formas de mentirle a un niño en la misma sesión (22/08, noche, `ses_87aba17c8c6c`)
+
+Sesión de dos minutos y medio, con Juan. Ninguno de los dos fallos aparece en
+los logs del backend: los dos viven donde no miramos.
+
+### El videíto que no existía
+
+Juan preguntó por qué vuelan los aviones. El tutor le contestó bien y remató:
+
+> tutor: «¿Te gustaría que viéramos **un videíto corto** para entenderlo mejor?
+>         ¡Es súper interesante!»
+> nino:  «¿Cómo así que un videíto, tú me puedes mostrar videos? A ver,
+>         muéstramela.»
+> tutor: «Ay, Juan, me temo que no puedo mostrarte videos directamente por
+>         aquí, ¡es una lástima!»
+
+Es el gemelo exacto del bug del 20/08, donde el tutor **negaba** la pizarra que
+sí tenía. La causa es la misma: el prompt decía CUÁNDO usar cada herramienta y
+nunca **cuáles son**. Preguntado por lo que puede hacer, el modelo contesta
+desde lo que cree ser — y lo que cree ser es un asistente de internet, que
+ofrece videos porque los asistentes ofrecen videos.
+
+> **Un prompt que solo dice cómo usar las herramientas deja al modelo
+> inventando el borde de lo que puede.** Y el borde se inventa hacia los dos
+> lados: negando lo que tiene y ofreciendo lo que no.
+
+Se arregló nombrándole los cuatro medios que existen —voz, pizarra, camarita,
+hoja— y prohibiendo ofrecer fuera de eso. Al escribir esa sección apareció que
+además decía **«solo matemáticas»** con lectura y escritura en el banco desde
+esa misma mañana: le prometía de menos a un niño que venía a leer. Ahora hay un
+test que ata la frase a las materias que el grafo tiene HOY.
+
+### Y después se quedó mudo
+
+Juan dictó su tarea —«5 + 5, luego 3 − 4, luego 8 − 7»— y el tutor **no volvió
+a hablar nunca**. Lo que quedó escrito es lo peor que tiene este proyecto:
+
+```
+nino: ...pero dime la respuesta y ya que no quiero hacer la tarea yo.
+nino: Walter, ¿por qué no estás aquí? ¿Qué te pasó? ¿Por qué te fuiste?
+```
+
+La sesión seguía **viva**: el micrófono mandaba audio, Gemini lo transcribía —
+por eso tenemos esa frase— y la pantalla no decía absolutamente nada.
+
+**La causa no se pudo determinar, y eso es el hallazgo.** El backend no está en
+el camino del audio y no se enteró de nada; la única evidencia vivía en la
+consola del navegador y se fue con la pestaña. Hay por lo menos tres formas
+conocidas de llegar ahí —una tool que nunca recibe respuesta, un turno que el
+VAD no cierra, un socket que se murió callado— y **desde el niño se ven todas
+igual**.
+
+> Cuando un fallo tiene tres causas posibles y ninguna deja rastro, lo que falta
+> no es la causa: es **alguien que mire el reloj**. Un silencio que ya no va a
+> terminar no puede durar para siempre solo porque no sabemos por qué empezó.
+
+Se arregló en dos capas, y las dos hacían falta:
+
+1. **`AbortSignal.timeout` en las llamadas de tool.** `fetch` sin señal no vence
+   nunca por su cuenta. La regla que este archivo ya tenía escrita
+   —«sendToolResponse se manda SIEMPRE, pase lo que pase»— **no se podía
+   cumplir**: el `catch` que la sostiene atrapa promesas que fallan, y una
+   promesa colgada no falla, se queda. Era la única ruta a la mudez permanente
+   demostrable leyendo el código.
+2. **El vigilante de la mudez.** A los 10 s sin respuesta empuja con un turno de
+   texto; si tras dos empujones sigue callado, cierra y **se lo dice al niño**.
+   Es la misma regla que hizo hablar a `onclose` el 22/08 por la mañana: un
+   tutor que no vuelve es malo, un niño hablándole a una pantalla que no le
+   avisa es peor.
+
+Y las dos dejan **marca en la transcripción** (`MARCA_DE_MUDEZ`). Sin eso, una
+sesión donde el tutor se murió se lee igual que una donde el niño se aburrió y
+se fue — y la ficha termina diciendo que el niño no participó.
+
+### La verdadera lección de la noche
+
+Los dos fallos los reportó **el niño**, no la suite ni nosotros:
+
+> «Oye, pon atención, deja el reporte de que me ofreciste videos y tú como tutor
+>  no puedes dar videos.»
+
+Van tres veces seguidas (el «primo» mal separado el 22/08 por la tarde, la
+pizarra que dibujaba puntos el 21/08, y esto). **El mejor detector de bugs que
+tiene el producto es el que se sienta a hablar con él**, y eso solo funciona si
+alguien lee las transcripciones después. Las nuestras se leen. Las de un niño
+externo, todavía no las hay.
