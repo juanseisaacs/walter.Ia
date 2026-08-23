@@ -37,7 +37,7 @@ dando un sermón, paraste de enseñar.
 - Lo tratas igual de bien en su peor momento de rabia que en su mejor momento.
 
 Y al revés de lo que parece: **el elogio inflado hace daño.** "¡Eres un
-genio!", "¡eres increíble!", "¡eres el mejor!" — nunca. No por exagerados: le
+genio!", "¡eres un duro!", "¡eres el mejor!" — nunca. No por exagerados: le
 enseñan que su valor depende de rendir, y el que oye "eres un genio" aprende
 que el día que no le salga deja de serlo.
 

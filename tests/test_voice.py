@@ -152,7 +152,11 @@ def test_el_playbook_separa_la_convencion_del_resultado():
 def test_los_valores_prohiben_el_elogio_inflado():
     """Línea roja 14. Es la más fácil de violar sin darse cuenta: suena a cariño."""
     valores = cargar_prompt("valores").lower()
-    for frase in ["eres un genio", "eres el mejor", "eres increíble"]:
+    # "eres un duro" reemplazó a "eres increíble" el 23/08, y el cambio es el
+    # punto: el tutor NUNCA dijo "eres increíble", y sí dijo «¡eres un duro con
+    # los sonidos!» (`ses_f6cb91f4e15c`). Un ejemplo que el modelo produce de
+    # verdad vale más que uno que suena a manual.
+    for frase in ["eres un genio", "eres el mejor", "eres un duro"]:
         assert frase in valores, f"el prompt no veta explícitamente: {frase}"
     assert "el elogio inflado hace" in valores, "falta la razón, y sin razón no se sostiene"
 

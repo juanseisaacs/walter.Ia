@@ -1351,3 +1351,99 @@ en el único componente que el niño MIRA.
 > La pregunta que ahorró la tarde no fue «¿qué le pasa a la pizarra?» sino
 > **«¿qué versión estaba corriendo?»**. Y la respuesta no estaba en el código:
 > estaba en el orden de dos líneas del log.
+
+---
+
+## La clase que el tutor arruinó porque su herramienta no oía (23/08, `ses_f6cb91f4e15c`)
+
+Diez minutos de sesión, y el niño diagnosticó el bug mejor que nosotros.
+
+```
+tutor: «¿Cuántas sílabas tiene la palabra "brazo"?»
+nino:  «una»                    -> «uy, espérame, se me fue el sonido»
+nino:  «una»                    -> «no te alcanzo a entender bien»
+nino:  «una sola sílaba»        -> «sigo sin entenderte bien»
+nino:  «creo que son dos»       -> «¡qué piedra! no estoy logrando escucharte»
+nino:  «Al parecer hay un problema cuando te digo que es una sola sílaba.»
+```
+
+**El tutor no estaba sordo.** `verify_language("brazo", "silabas", "dos")`
+devolvía **INCORRECTO**: la herramienta solo aceptaba el dígito `"2"`. El modelo
+oía bien, preguntaba bien, y recibía de su propia herramienta un veredicto que
+contradecía lo que sabía. Salió por donde pudo — le echó la culpa al sonido
+cinco veces— y terminó dándole por buena una respuesta deletreada («razo») con
+tal de avanzar.
+
+Es **el bug que este archivo tiene escrito como el más caro**: confundir un
+acierto con un error le enseña al niño que responder bien no sirve. Ya había
+mordido con «eme» por «m» en `check_answer`, y la lección quedó escrita:
+
+> Cada tipo de respuesta que entra trae **su propia forma de decirse en voz
+> alta**, y no se ve venir desde el código.
+
+`check_answer` aprendió eso hace fases. `verify_language` —su gemelo, agregado
+el 22/08— nació sin nada de eso, porque `lengua.verificar` fue escrito para
+validar el BANCO, donde la respuesta la escribe un generador y "2" es "2".
+
+### Cómo pasó el filtro
+
+Se le escribieron tests a su **declaración**: que existiera, que no voseara, que
+se distinguiera de sus hermanas. **Ninguno a lo que hace.** El día que se agregó,
+esos tests pasaron en verde sobre una herramienta que reprobaba a los que
+acertaban.
+
+> Un test de la declaración de una herramienta no prueba nada de la herramienta.
+> Y la ausencia se ve igual que la presencia: la suite estaba verde las dos
+> veces.
+
+### Y el artículo que era la respuesta
+
+Al arreglarlo apareció el segundo: `_normalizar_texto` borra el relleno —bien
+para `check_answer`, donde "un cuarenta y dos" es "cuarenta y dos"— y "una"
+está en esa lista. A la pregunta «¿cuántas sílabas?» el niño contesta **«una»**,
+y la respuesta quedaba en cadena vacía.
+
+> Aflojar una normalización para un caso rompe el de al lado. La misma
+> `_RELLENO` que salva a `check_answer` era la que se comía la respuesta acá.
+
+---
+
+## Las tres mejoras que pidió el niño, y una mentira que le dijo el tutor
+
+De la misma sesión, todo dicho por él:
+
+**1. «Voy a dejar como reporte que solo escribes en letra despegada.»** Le había
+pedido la W en cursiva, y el tutor contestó *«ahí te la puse en letra cursiva,
+¿sí ves cómo es más curvita?»*. No había ninguna cursiva. Lo sostuvo dos veces,
+con detalles inventados.
+
+El tutor **no ve el tablero**: sabe lo que `describir()` le dice que quedó. Ese
+texto decía «"w" escrito grande» y no decía con qué letra — así que la inventó.
+Ahora dice *«en letra de imprenta suelta (la pizarra NO sabe cursiva)»*.
+
+> Lo que no se le dice al tutor, se lo inventa. Es la tercera vez que esta misma
+> frase aparece en este archivo, y las tres veces el arreglo fue el mismo:
+> decirle qué hay en la pantalla.
+
+**2. «Me sale en dos cuadritos, uno que dice 16 y otro 15.»** Pidió ver 16
+unicornios y 15. `MAX_PUNTOS_CONTABLES` estaba en 12, así que la pizarra escribió
+el número adentro de la caja: pedir ver algo y recibir el número escrito es
+exactamente lo contrario. Subido a 20 —lo que un chico de primero cuenta de a
+uno sin perderse— y agregado el 🦄, que tampoco existía.
+
+**3. «Eso así debería ser siempre, como que se tenga el proceso y que uno sepa
+de dónde salió, e incluso puedes encerrar el 31.»**
+
+Tuvo que pedir tres veces en la misma cuenta: primero que pusiera el resultado,
+después que dejara la llevada, después que lo encerrara. Las tres veces tenía
+razón, y la tercera lo convirtió en regla general — que es exactamente lo que
+era.
+
+Ahora **el resultado se encierra solo** (se hace en el navegador: es gratis, no
+se olvida y no gasta un turno del niño) y la descripción del tool le pide al
+tutor volver a mandar la cuenta con lo que el niño ya sacó, para que el tablero
+acompañe el proceso y no solo el enunciado.
+
+> El mejor product manager que ha tenido este proyecto tiene siete años y no
+> sabe que lo es. Las tres mejoras de hoy salieron de escucharlo pedir lo mismo
+> dos veces.

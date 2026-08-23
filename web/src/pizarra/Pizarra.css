@@ -186,6 +186,16 @@
   stroke: var(--alerta);
 }
 
+/* El óvalo alrededor del resultado. Lo pidió Juan: «puedes encerrar el 31 como
+   esa la respuesta». Va con el mismo trazo del marcador del profe —es la misma
+   mano— y sin relleno, para que el número siga leyéndose. */
+.pz-respuesta {
+  stroke: var(--pizarra-marca);
+  stroke-width: var(--pizarra-trazo);
+  stroke-linecap: round;
+  fill: none;
+}
+
 .pz-anot-exito {
   stroke: var(--exito);
 }

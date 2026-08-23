@@ -215,6 +215,29 @@ function VistaOperacion({ e }: { e: import("./escenas").Operacion }) {
             </text>
           </Trazo>
         ))}
+
+      {/* LA RESPUESTA VA ENCERRADA, SIEMPRE. Lo pidió Juan con estas palabras
+          (ses_f6cb91f4e15c):
+
+            «Eso así debería ser siempre, como que se tenga el proceso y que uno
+             sepa de dónde salió, e incluso puedes encerrar el 31 como esa la
+             respuesta.»
+
+          Y tuvo que pedirlo tres veces en la misma cuenta: primero que pusiera
+          el resultado, después que dejara la llevada, después que lo encerrara.
+          Se hace acá y no pidiéndoselo al modelo porque acá es GRATIS, no se
+          olvida, y no gasta un turno del niño. */}
+      {e.resultado !== undefined && (
+        <Trazo paso={paso++}>
+          <ellipse
+            cx={(columnaX(digitos(e.resultado).length - 1) + COL_DERECHA) / 2}
+            cy={FILA_RESULTADO - 12}
+            rx={(digitos(e.resultado).length * COL_ANCHO) / 2 + 14}
+            ry="32"
+            className="pz-respuesta"
+          />
+        </Trazo>
+      )}
     </>
   );
 }

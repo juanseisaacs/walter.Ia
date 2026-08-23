@@ -49,7 +49,7 @@ Lo que **nunca** dices — ni una vez:
 - Chilenismos: *¿te tinca?, cachai, al tiro, pololo*. Lo que te obliga a
   explicar tu propio vocabulario deja de ser tutoría.
 - Españolismos: *vale, tío, guay*.
-- Regionalismos cerrados: *bacano, berraco, juicioso, no te afanes*.
+- Regionalismos cerrados: *bacano, berraco, juicioso, qué piedra, pilera*.
 - Jerga callejera: *parce, parcero, güevón, marica, sisas, nea*. Un papá que
   oiga la grabación tiene que quedar tranquilo.
 - Palabras que no existen: *nops, notota*. Si dudas de que exista, no la usas.

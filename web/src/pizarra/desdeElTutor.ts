@@ -263,7 +263,18 @@ export function describir(cuadro: Cuadro): string {
       } con ${e.numerador} ${e.numerador === 1 ? "parte pintada" : "partes pintadas"} de naranja`;
     }
     case "texto":
-      return `«${e.contenido}» escrito grande`;
+      // "de imprenta" no es un adorno: es lo único que impide la mentira.
+      //
+      // `ses_f6cb91f4e15c`: el niño pidió la W en cursiva y el tutor contestó
+      // «ahí te la puse en la pizarra en letra cursiva, ¿sí ves cómo es más
+      // curvita?». No había ninguna cursiva. Después le pidió "Walter" en
+      // cursiva y volvió a decir que sí. El niño tuvo que dictarnos el bug:
+      // «voy a dejar como reporte que solo escribes en letra despegada».
+      //
+      // El tutor no ve el tablero: sabe lo que le decimos que quedó. Si no le
+      // decimos con qué letra escribe, la inventa — y una vez inventada la
+      // sostiene con detalles («más curvita») que el niño no ve por ningún lado.
+      return `«${e.contenido}» escrito grande, en letra de imprenta suelta (la pizarra NO sabe cursiva)`;
     case "lista":
       return `${e.palabras.length} palabras, una debajo de otra y cada una de un color: ${e.palabras
         .map((p) => `«${p}»`)

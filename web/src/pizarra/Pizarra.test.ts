@@ -117,3 +117,46 @@ describe("los montones desiguales llegan al lienzo", () => {
     expect(svg).toContain(">40<");
   });
 });
+
+describe("la respuesta queda encerrada", () => {
+  /* Lo pidió Juan como regla, después de pedir tres veces lo mismo en una sola
+     cuenta (`ses_f6cb91f4e15c`):
+
+       nino: «Pero deja el 31, no lo has puesto en el tablero.»
+       nino: «Déjalo el 31 e incluye todavía el uno que habías llevado, como
+              deja la operación completa.»
+       nino: «Eso así debería ser siempre, como que se tenga el proceso y que
+              uno sepa de dónde salió, e incluso puedes encerrar el 31.» */
+
+  it("encierra el resultado sin que nadie se lo pida", () => {
+    const svg = pintar({ escena: { tipo: "operacion", a: 16, b: 15, op: "+", resultado: 31 } });
+    expect(svg).toContain("pz-respuesta");
+  });
+
+  it("no encierra nada mientras la cuenta está abierta", () => {
+    // Sin resultado el niño todavía la está resolviendo: encerrar el vacío
+    // sería marcarle una respuesta que no dio.
+    const svg = pintar({ escena: { tipo: "operacion", a: 16, b: 15, op: "+" } });
+    expect(svg).not.toContain("pz-respuesta");
+  });
+
+  it("el proceso completo cabe junto: llevada, resultado y el óvalo", () => {
+    const svg = pintar({
+      escena: { tipo: "operacion", a: 16, b: 15, op: "+", resultado: 31, llevada: 1 },
+    });
+    expect(svg).toContain("pz-llevada");
+    expect(svg).toContain("pz-respuesta");
+  });
+});
+
+describe("los montones grandes se pueden contar", () => {
+  it("dibuja 16 y 15 en vez de escribir el número", () => {
+    // «Me sale en dos cuadritos, uno que dice 16 y otro 15» — con el tope en 12
+    // pedir ver algo devolvía el número escrito, que es lo contrario de ver.
+    const svg = pintar({
+      escena: { tipo: "grupos", grupos: 2, porGrupo: 16, cantidades: [16, 15], nombre: "unicornios" },
+    });
+    expect(svg.match(/🦄/g)?.length).toBe(31);
+    expect(svg).not.toContain("pz-en-caja");
+  });
+});

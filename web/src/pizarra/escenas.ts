@@ -79,8 +79,17 @@ export interface Grupos {
   cantidades?: number[];
 }
 
-/** Hasta acá los puntos se cuentan de un vistazo. Pasado esto, va el número. */
-export const MAX_PUNTOS_CONTABLES = 12;
+/** Hasta acá los puntos se cuentan de un vistazo. Pasado esto, va el número.
+ *
+ * Eran 12, y el niño pidió ver 16 unicornios y 15 (`ses_f6cb91f4e15c`). Le
+ * salieron dos cajas con los números adentro, y lo dijo: «me sale en dos
+ * cuadritos, uno que dice 16 y otro 15». Pedir ver algo y recibir el número
+ * escrito es exactamente lo contrario de lo que pidió.
+ *
+ * 20 es el techo de lo que un chico de primero cuenta de a uno sin perderse, y
+ * el que aparece en las cuentas de sumar de esa edad. Más que eso sí es una
+ * mancha, y ahí el número dice más que el dibujo. */
+export const MAX_PUNTOS_CONTABLES = 20;
 
 /** Recta numérica, con un salto opcional para mostrar el movimiento. */
 export interface Recta {

@@ -504,6 +504,47 @@ class ResultadoLengua(BaseModel):
     corrección. Nunca se manda antes de que conteste."""
 
 
+def _numero_dicho(respuesta: str) -> str | None:
+    """«dos» -> "2". «son dos» -> "2". «una sola sílaba» -> "1".
+
+    Solo para las comprobaciones cuya respuesta ES un número —cuántas sílabas,
+    cuántos sonidos, cuántas letras—. Devuelve `None` cuando no hay número que
+    sacar, y entonces no se toca nada: una respuesta de texto se compara como
+    texto, igual que antes.
+    """
+    # OJO: acá NO se usa `_normalizar_texto`, que borra el relleno.
+    #
+    # Para `check_answer` está bien —"un cuarenta y dos" es "cuarenta y dos"—
+    # pero acá el artículo ES la respuesta: a «¿cuántas sílabas?» el niño
+    # contesta «una», y `_RELLENO` se la comía entera. La frase quedaba vacía y
+    # el número se perdía justo en el caso que trajo todo esto.
+    palabras = [p for p in re.split(r"[^\w]+", _sin_acentos(respuesta.lower())) if p]
+    if not palabras:
+        return None
+
+    # La frase entera primero: es lo que hace funcionar «cuarenta y dos».
+    if (entero := palabras_a_numero(" ".join(palabras))) is not None:
+        return str(entero)
+
+    # Si no, el número que haya adentro de la frase: «una sola sílaba» -> 1,
+    # «creo que son dos» -> 2. Se toma el trozo más largo que convierta, de
+    # izquierda a derecha, para no partir «veinticinco» ni «cuarenta y dos».
+    hallados: list[int] = []
+    i = 0
+    while i < len(palabras):
+        for largo in range(len(palabras) - i, 0, -1):
+            if (n := palabras_a_numero(" ".join(palabras[i : i + largo]))) is not None:
+                hallados.append(n)
+                i += largo
+                break
+        else:
+            i += 1
+
+    # Dos números distintos es una duda, no una respuesta: «dos o tres» no se
+    # adivina. Misma regla que `check_answer`, que ya la tenía escrita.
+    return str(hallados[0]) if len(set(hallados)) == 1 else None
+
+
 def verify_language(
     palabra: str, que: str, respuesta_nino: str, palabra2: str = ""
 ) -> ResultadoLengua:
@@ -522,7 +563,36 @@ def verify_language(
         return ResultadoLengua(veredicto=Veredicto.NO_SE_ENTENDIO)
 
     args = f"{palabra.strip()},{palabra2.strip()}" if palabra2.strip() else palabra.strip()
-    motivo = verificar(f"{tipo}({args})", respuesta_nino)
+    expresion = f"{tipo}({args})"
+
+    motivo = verificar(expresion, respuesta_nino)
+
+    # EL NIÑO HABLA: dice «dos», no «2».
+    #
+    # `lengua.verificar` nació para validar el BANCO, comparando lo que escribió
+    # el generador contra lo calculado — y ahí "2" es "2". El 22/08 se reusó tal
+    # cual para esta herramienta, y con eso entró el bug más caro que tiene este
+    # proyecto escrito: **confundir un acierto con un error.**
+    #
+    # `ses_f6cb91f4e15c` (23/08), sesión de lectura entera arruinada:
+    #
+    #   tutor: «¿Cuántas sílabas tiene "brazo"?»
+    #   nino:  «una»            -> la herramienta: INCORRECTO (y lo era)
+    #   nino:  «dos»            -> la herramienta: INCORRECTO (¡y NO lo era!)
+    #   tutor: «no te alcanzo a entender bien, ¿me lo repites?»
+    #
+    # El tutor no estaba sordo: estaba atrapado entre lo que oía y lo que la
+    # herramienta le decía. Y el niño lo diagnosticó mejor que nosotros —«al
+    # parecer hay un problema cuando te digo que es una sola sílaba»—.
+    #
+    # `check_answer` aprendió esto hace fases (`palabras_a_numero`,
+    # `NOMBRE_DE_LETRA`). Su gemelo nació sin ello. Misma lección de siempre:
+    # cada tipo de respuesta que entra trae su propia forma de decirse en voz
+    # alta, y no se ve venir desde el código — se ve pasando por acá lo que un
+    # niño diría de verdad.
+    if motivo is not None and (hablado := _numero_dicho(respuesta_nino)) is not None:
+        if verificar(expresion, hablado) is None:
+            return ResultadoLengua(veredicto=Veredicto.CORRECTO, valor_interpretado=hablado)
 
     if motivo is None:
         return ResultadoLengua(
@@ -539,6 +609,9 @@ def verify_language(
         correcto = m.group(1)
     return ResultadoLengua(
         veredicto=Veredicto.INCORRECTO,
-        valor_interpretado=respuesta_nino.strip(),
+        # Se devuelve el NÚMERO que se entendió, no la frase cruda: el tutor
+        # necesita poder decir «entendí que eran tres» para que el niño sepa
+        # qué se le está corrigiendo.
+        valor_interpretado=_numero_dicho(respuesta_nino) or respuesta_nino.strip(),
         lo_correcto=correcto,
     )

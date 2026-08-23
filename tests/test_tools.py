@@ -17,6 +17,7 @@ from tutor.tools import (
     palabras_a_numero,
     request_camera,
     verify_arithmetic,
+    verify_language,
 )
 
 
@@ -381,3 +382,80 @@ class TestLetrasHabladas:
         )
         assert check_answer(ej, "aguda").veredicto is Veredicto.CORRECTO
         assert check_answer(ej, "grave").veredicto is Veredicto.INCORRECTO
+
+
+class TestVerifyLanguageOyeAlNino:
+    """EL GEMELO QUE NACIÓ SIN OÍDO.
+
+    `verify_language` se agregó el 22/08 para que el modelo no se diera la razón
+    a sí mismo en lectura y escritura. Se le escribieron tests a su DECLARACIÓN
+    —que existiera, que no vosease, que se distinguiera de sus hermanas— y
+    ninguno a lo que hace. Por eso lo que sigue pudo pasar un día entero.
+
+    `ses_f6cb91f4e15c` (23/08), una clase de lectura entera:
+
+        tutor: «¿Cuántas sílabas tiene "brazo"?»
+        nino:  «dos»
+        tutor: «no te alcanzo a entender bien, ¿me lo repites?»
+        nino:  «una sola sílaba»
+        tutor: «sigo sin entenderte bien»
+
+    No estaba sordo: la herramienta le decía INCORRECTO a «dos», porque solo
+    aceptaba el dígito `"2"`. El modelo, atrapado entre lo que oía y lo que la
+    herramienta le respondía, salió por donde pudo — y le echó la culpa al
+    sonido cinco veces seguidas.
+
+    Y lo diagnosticó el niño: «al parecer hay un problema cuando te digo que es
+    una sola sílaba».
+
+    Es el bug que este repo tiene escrito como el más caro —confundir un
+    acierto con un error le enseña al niño que responder bien no sirve— y ya
+    había mordido en `check_answer` con «eme» por «m».
+    """
+
+    def test_el_nino_dice_dos_no_2(self):
+        assert verify_language("brazo", "silabas", "dos").veredicto is Veredicto.CORRECTO
+        assert verify_language("mariposa", "silabas", "cuatro").veredicto is Veredicto.CORRECTO
+
+    def test_contesta_con_la_frase_entera_como_habla_un_nino(self):
+        for dicho in ("son dos", "creo que son dos", "dos sílabas", "yo digo que dos"):
+            assert verify_language("brazo", "silabas", dicho).veredicto is Veredicto.CORRECTO, dicho
+
+    def test_el_articulo_ES_la_respuesta(self):
+        """«una» a la pregunta «¿cuántas?» es un uno, no un artículo.
+
+        `_normalizar_texto` borra el relleno —bien para `check_answer`, donde
+        "un cuarenta y dos" es "cuarenta y dos"— y se comía la respuesta entera.
+        Quedaba vacía justo en el caso que trajo todo esto.
+        """
+        r = verify_language("sol", "silabas", "una")
+        assert r.veredicto is Veredicto.CORRECTO
+        assert verify_language("brazo", "silabas", "una sola sílaba").valor_interpretado == "1"
+
+    def test_sigue_siendo_estricto_con_el_valor(self):
+        """Tolerante con la FORMA, estricto con el VALOR. Aflojar para que entre
+        «dos» no puede convertir a la herramienta en una que aprueba todo."""
+        assert verify_language("brazo", "silabas", "tres").veredicto is Veredicto.INCORRECTO
+        assert verify_language("brazo", "silabas", "una").veredicto is Veredicto.INCORRECTO
+        assert verify_language("mariposa", "silabas", "dos").veredicto is Veredicto.INCORRECTO
+
+    def test_dos_numeros_distintos_no_se_adivinan(self):
+        """«dos o tres» es una duda, no una respuesta. Misma regla que
+        `check_answer`, que ya la tenía escrita: varios números, no adivinar."""
+        r = verify_language("brazo", "silabas", "dos o tres")
+        assert r.veredicto is Veredicto.INCORRECTO
+        assert r.valor_interpretado == "dos o tres", "no debe elegir uno de los dos"
+
+    def test_le_dice_al_tutor_QUÉ_entendió(self):
+        """Sin esto el tutor no puede corregir: «entendí que eran tres» es lo
+        que le permite al niño saber qué se le está corrigiendo."""
+        r = verify_language("brazo", "silabas", "creo que son cinco")
+        assert r.valor_interpretado == "5"
+        assert r.lo_correcto == "2"
+
+    def test_las_respuestas_que_no_son_números_siguen_igual(self):
+        """El arreglo toca solo el camino numérico. Las letras y los sí/no
+        andaban bien y tienen que seguir andando."""
+        assert verify_language("mesa", "inicial", "eme").veredicto is Veredicto.CORRECTO
+        assert verify_language("gato", "rima", "sí", "pato").veredicto is Veredicto.CORRECTO
+        assert verify_language("gato", "rima", "no", "silla").veredicto is Veredicto.CORRECTO

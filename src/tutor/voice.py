@@ -312,6 +312,9 @@ DECLARACIONES_TOOLS: list[dict] = [
             "ANTES de llamarla —«mira, te lo dibujo»— y sigue hablando después: "
             "entre que la pides y que vuelves a sonar pueden pasar varios "
             "segundos, y el niño solo oye silencio. "
+            "Cuando el niño resuelve un paso, MÁNDALA OTRA VEZ con lo que ya "
+            "sacó (`resultado`, `llevada`): el tablero acompaña el proceso, no "
+            "solo el enunciado, y el resultado te queda encerrado solo. "
             "Es tu tablero: cuando el niño pide ver algo, dibujarlo o "
             "que se lo hagas más visual, se lo muestras acá. "
             "Cómo se traduce lo que el niño pide (son ejemplos de FORMATO, no "
@@ -363,7 +366,9 @@ DECLARACIONES_TOOLS: list[dict] = [
                         "se dibuja una suma de varios sumandos · "
                         "recta: recta numérica · fraccion: una fracción "
                         "partida · texto: UNA letra o palabra grande, escrita a "
-                        "mano · lista: de dos a cuatro palabras, una debajo de "
+                        "mano en letra de imprenta suelta — NO hay cursiva ni letra "
+                        "pegada, y si te la pide se lo dices · "
+                        "lista: de dos a cuatro palabras, una debajo de "
                         "otra y cada una de un color · limpiar: borra el tablero, "
                         "para cuando cambian de tema y lo de antes ya no viene "
                         "al caso"
@@ -372,6 +377,11 @@ DECLARACIONES_TOOLS: list[dict] = [
                 "a": {"type": "number", "description": "operacion: primer número"},
                 "b": {"type": "number", "description": "operacion: segundo número"},
                 "op": {"type": "string", "enum": ["+", "−", "×", "÷"]},
+                # Lo pidió Juan como regla general (ses_f6cb91f4e15c): «eso así
+                # debería ser siempre, como que se tenga el proceso y que uno
+                # sepa de dónde salió». Tuvo que pedir tres veces en la misma
+                # cuenta —el resultado, después la llevada, después que lo
+                # encerrara— y las tres tenía razón.
                 "resultado": {
                     "type": "number",
                     "description": (

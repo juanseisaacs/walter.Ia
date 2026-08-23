@@ -367,3 +367,17 @@ describe("la suma dibujada: montones distintos", () => {
     });
   });
 });
+
+describe("lo que el tutor cree que escribió", () => {
+  it("sabe que su letra es de imprenta y que NO tiene cursiva", () => {
+    /* `ses_f6cb91f4e15c`: el niño pidió la W en cursiva y el tutor contestó
+       «ahí te la puse en letra cursiva, ¿sí ves cómo es más curvita?». No
+       había ninguna cursiva, y lo sostuvo dos veces con detalles inventados.
+
+       El tutor no ve el tablero: sabe lo que este texto le dice que quedó. Si
+       no dice con qué letra escribe, la inventa. */
+    const dicho = describir(aCuadro({ tipo: "texto", contenido: "w" })!);
+    expect(dicho).toContain("imprenta");
+    expect(dicho.toLowerCase()).toContain("cursiva");
+  });
+});

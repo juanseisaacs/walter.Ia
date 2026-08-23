@@ -46,6 +46,10 @@ const DIBUJOS: Record<string, string> = {
   // Juan pidió pollitos dos veces en la misma sesión y le salieron puntos:
   // `gallina` estaba, `pollito` no (ses_97d5b112a122).
   pollito: "🐤",
+  // «Ahora me gustan los unicornios. 16 unicornios + 15 unicornios» — y no
+  // había ninguno. El catálogo se llena con lo que los niños piden, no con lo
+  // que se nos ocurre a nosotros.
+  unicornio: "🦄",
   pollo: "🐥",
   pato: "🦆",
   vaca: "🐄",
@@ -101,6 +105,7 @@ const IRREGULARES: Record<string, string> = {
   aviones: "avion",
   balones: "balon",
   pollitos: "pollito",
+  unicornios: "unicornio",
   pollo: "pollito",
   pollos: "pollito",
   panes: "pan",
