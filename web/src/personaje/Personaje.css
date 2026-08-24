@@ -1,0 +1,332 @@
+/* El oso. Todo el color sale de estilos/tokens.css; acá solo hay movimiento.
+ *
+ * REGLA DURA de este archivo: solo se animan `transform` y `opacity`. Son las
+ * dos propiedades que el navegador resuelve en el compositor, sin tocar el
+ * hilo principal — que acá está ocupado procesando el audio del tutor. Animar
+ * `width`, `fill`, `d` o `r` obliga a recalcular layout o pintura por frame, y
+ * eso compite con la voz. Ver la cabecera de `Personaje.tsx`.
+ *
+ * `transform-box: view-box` en todo lo que rota: sin eso, `transform-origin`
+ * en un elemento SVG se mide contra su propia caja y los pivotes se van al
+ * diablo. Con esto, las coordenadas del origen son las MISMAS del viewBox, así
+ * que el pivote se lee al lado del dibujo.
+ */
+
+.pj {
+  display: block;
+  height: 176px;
+  transition: transform var(--transicion);
+  width: 150px;
+}
+
+/* ── Las partes ─────────────────────────────────────────────────────────── */
+
+.pj-pelaje {
+  fill: var(--pj-pelaje);
+}
+
+.pj-claro {
+  fill: var(--pj-claro);
+}
+
+.pj-nariz {
+  fill: var(--pj-nariz);
+}
+
+.pj-ojo {
+  fill: var(--pj-ojo);
+}
+
+.pj-pupila {
+  fill: var(--pj-pupila);
+}
+
+.pj-brillo {
+  fill: var(--pj-ojo);
+}
+
+.pj-ceja {
+  fill: none;
+  stroke: var(--pj-pelaje);
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+/* El aura: el color del turno. Es la única señal de la pantalla que un niño
+   que todavía no lee bien puede usar para saber si le toca hablar. */
+.pj-aura {
+  fill: var(--acento-suave);
+  transition: fill var(--transicion);
+}
+
+.pj-escuchando .pj-aura,
+.pj-esperando .pj-aura {
+  fill: var(--pj-aura-nino);
+}
+
+/* ── Lo que pasa siempre ────────────────────────────────────────────────── */
+
+/* Respirar. Lentísimo y de apenas 2%: si se nota, está mal hecho. Lo que tiene
+   que quedar es la sensación de que hay alguien, no un oso inflándose. */
+.pj-torso {
+  animation: pj-respirar 4600ms ease-in-out infinite;
+  transform-box: view-box;
+  transform-origin: 50px 117px; /* apoyado en el piso, no flotando */
+}
+
+@keyframes pj-respirar {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.022);
+  }
+}
+
+/* Parpadear. El ciclo es largo y el parpadeo ocupa el 3% final: cae cada
+   ~5 segundos, que es más o menos lo que hace un ojo de verdad. */
+.pj-ojos {
+  animation: pj-parpadear 5200ms infinite;
+  transform-box: view-box;
+  transform-origin: 50px 40px;
+}
+
+@keyframes pj-parpadear {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* ── La cabeza: el gesto más legible que tiene ──────────────────────────── */
+
+/* Pivota en el cuello. Ver Personaje.tsx. */
+.pj-cabeza,
+.pj-pupilas,
+.pj-hocico,
+.pj-cejas,
+.pj-brazo {
+  transform-box: view-box;
+  transition: transform 320ms ease;
+}
+
+.pj-cabeza {
+  transform-origin: 50px 66px;
+}
+
+.pj-cejas {
+  transform-origin: 50px 23px;
+}
+
+.pj-pupilas {
+  transform-origin: 50px 40px;
+}
+
+.pj-hocico {
+  transform-origin: 50px 54px;
+}
+
+/* Escuchando: la cabeza ladeada. Es EL gesto de la escucha activa, y no hay
+   forma más barata de decirle a un niño "te estoy prestando atención". */
+.pj-escuchando .pj-cabeza {
+  transform: rotate(-5deg);
+}
+
+/* Esperando (el niño lleva rato callado): ladea más y levanta la mirada, como
+   quien dice "¿y?" sin decirlo. Nada de impaciencia: ninguna animación se
+   acelera acá. El tutor es paciente infinito (Constitución §8.1). */
+.pj-esperando .pj-cabeza {
+  transform: rotate(-9deg);
+}
+
+.pj-esperando .pj-pupilas {
+  transform: translate(2px, -2.5px);
+}
+
+.pj-esperando .pj-cejas {
+  transform: translateY(-2px);
+}
+
+/* Mirando la foto: baja la cabeza y baja los ojos AL PAPEL. Sin esto, el niño
+   manda una foto y el tutor se queda mirándolo a él, que es exactamente lo que
+   no está haciendo. */
+.pj-mirando .pj-cabeza {
+  transform: rotate(4deg) translateY(2px);
+}
+
+.pj-mirando .pj-pupilas {
+  transform: translateY(3px);
+}
+
+.pj-mirando .pj-ojos {
+  animation-duration: 3400ms; /* mirar de cerca hace parpadear más seguido */
+}
+
+.pj-escuchando .pj-pupilas {
+  transform: translateY(1px);
+}
+
+/* ── Los brazos ─────────────────────────────────────────────────────────── */
+
+.pj-brazo-izq {
+  transform-origin: 26px 81px; /* el hombro */
+}
+
+.pj-brazo-der {
+  transform-origin: 74px 81px;
+}
+
+/* El saludo de la llegada. Va acotado a 3 ciclos: un personaje que saluda sin
+   parar deja de saludar y empieza a agitarse. */
+.pj-saludando .pj-brazo-der {
+  animation: pj-saludar 620ms ease-in-out 3;
+  transform-origin: 74px 81px;
+}
+
+@keyframes pj-saludar {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(16deg);
+  }
+}
+
+.pj-saludando .pj-cejas {
+  transform: translateY(-2px);
+}
+
+/* ── La boca ────────────────────────────────────────────────────────────── */
+
+.pj-boca {
+  fill: none;
+  stroke: var(--pj-nariz);
+  stroke-linecap: round;
+  stroke-width: 3.5;
+}
+
+.pj-boca-llena {
+  fill: var(--pj-nariz);
+  opacity: 0;
+}
+
+/* En reposo hay una sola boca visible: la sonrisa quieta. */
+.pj-boca-ancha,
+.pj-boca-a,
+.pj-boca-o {
+  opacity: 0;
+}
+
+.pj-saludando .pj-boca-quieta {
+  opacity: 0;
+}
+
+.pj-saludando .pj-boca-ancha {
+  opacity: 1;
+}
+
+/* Hablar: las tres formas se turnan.
+ *
+ * Los tramos son DESIGUALES (30 / 28 / 42) a propósito. Con tercios exactos el
+ * ciclo suena a metrónomo y se ve como un mecanismo; desparejo se lee como
+ * alguien diciendo sílabas. Los cortes van a 0.1% de distancia, así que el
+ * cruce dura medio milisegundo: es un corte, no un fundido, y dos bocas nunca
+ * se ven a la vez. */
+.pj-hablando .pj-boca-quieta {
+  animation: pj-boca-cerrada 460ms linear infinite;
+}
+
+.pj-hablando .pj-boca-a {
+  animation: pj-boca-a 460ms linear infinite;
+}
+
+.pj-hablando .pj-boca-o {
+  animation: pj-boca-o 460ms linear infinite;
+}
+
+@keyframes pj-boca-a {
+  0%,
+  29.9% {
+    opacity: 1;
+  }
+  30%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pj-boca-o {
+  0%,
+  29.9% {
+    opacity: 0;
+  }
+  30%,
+  57.9% {
+    opacity: 1;
+  }
+  58%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pj-boca-cerrada {
+  0%,
+  57.9% {
+    opacity: 0;
+  }
+  58%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* La mandíbula acompaña. Un pixel y medio, y es la diferencia entre "la boca
+   cambia de forma" y "está hablando". El ciclo es el MISMO que el de las
+   bocas: si se desfasan, se ve doblado. */
+.pj-hablando .pj-hocico {
+  animation: pj-mandibula 460ms ease-in-out infinite;
+}
+
+@keyframes pj-mandibula {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(1.5px);
+  }
+}
+
+/* ── Quien pidió menos movimiento ───────────────────────────────────────── */
+
+/* Se apaga TODO lo cíclico y quedan las transiciones de ánimo, que son un
+   movimiento único y con causa: el niño empezó a hablar, llegó una foto. El
+   personaje sigue diciendo de quién es el turno; simplemente deja de moverse
+   solo. */
+@media (prefers-reduced-motion: reduce) {
+  .pj-torso,
+  .pj-ojos,
+  .pj-brazo,
+  .pj-hocico,
+  .pj-boca,
+  .pj-boca-llena {
+    animation: none;
+  }
+
+  /* Sin el ciclo de bocas, hablando se queda en una sola forma abierta: se
+     sigue distinguiendo de callado, sin que nada parpadee. */
+  .pj-hablando .pj-boca-quieta {
+    opacity: 0;
+  }
+
+  .pj-hablando .pj-boca-a {
+    opacity: 1;
+  }
+}

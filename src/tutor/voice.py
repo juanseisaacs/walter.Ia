@@ -152,17 +152,41 @@ señales. `adaptationPhrases` de AudioTranscriptionConfig existe justo para esto
 Verificado contra la API real (2026-08-18): el servidor Live acepta la config al
 conectar. Que efectivamente corrija el "dos"→"32" hay que oírlo con audio real."""
 
-VOZ_POR_DEFECTO = "Leda"
-"""La documentada como juvenil.
+VOZ_POR_DEFECTO = "Sadachbia"
+"""La documentada como *lively*, y la primera que concuerda con quién es Walter.
 
 Historial de esta constante, porque el oído es el único juez acá:
-  · Charon  — grave y adulta. Sonaba a locutor, no a hermano mayor.
-  · Puck    — animada, pero al escucharla seguía siendo un adulto.
-  · Leda    — juvenil                                        ← actual
+  · Charon    — grave y adulta. Sonaba a locutor, no a hermano mayor.
+  · Puck      — animada, pero al escucharla seguía siendo un adulto.
+  · Leda      — juvenil, y FEMENINA. Ver abajo: ese era el problema.
+  · Sadachbia — masculina, joven y alegre                     ← actual
 
-Si tampoco convence, las que quedan: Achird (amistosa), Zephyr (brillante),
-Aoede (suelta), Sulafat (cálida). Es cambiar esta constante y recargar: nada
-más en el sistema depende de cuál sea."""
+═══ 23/08: el tutor se llamaba Walter y sonaba a mujer ═══
+
+Las tres primeras se eligieron buscando "que suene joven", y ninguna revisó lo
+más básico: `cfg.NOMBRE_TUTOR` es **Walter**, y `tutor_persona.es.md` lo define
+como *«el hermano mayor que sabe más y se sienta al lado»*. Leda es la voz
+femenina del catálogo. Durante 62 sesiones de prueba, el niño oyó una voz de
+mujer que decía llamarse Walter y ser su hermano mayor.
+
+No lo destapó un test —ninguno fija esta constante— sino leer el nombre y la
+voz en la misma pantalla. La coherencia del personaje no la cuida el compilador.
+
+**Google no publica el género de las voces**, solo el descriptor de tono
+(verificado el 23/08 en la doc de speech-generation). Así que la lista de
+candidatas masculinas no se puede consultar: hay que oírlas. Se oyeron en el
+Voice Library de AI Studio —https://aistudio.google.com/generate-speech, las 30
+mismas de VOCES_CONOCIDAS— con una frase real del tutor y sin style prompt, para
+no elegir una que solo funcione forzada.
+
+Si Sadachbia tampoco convence, las masculinas que quedan sin descartar: Achird
+(amistosa), Zubenelgenubi (casual), Fenrir (excitable), Umbriel (relajada),
+Iapetus (clara). NO volver a Charon ni a Puck, y no ir a Orus, Alnilam ni
+Algenib (firmes/graves) ni a Rasalgethi o Sadaltager: esas suenan a profesor,
+que es justo lo que el prompt dice que Walter no es.
+
+Es cambiar esta constante y recargar el backend: nada más en el sistema depende
+de cuál sea, y el front ni se entera."""
 
 VOCES_CONOCIDAS = frozenset({
     "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede",

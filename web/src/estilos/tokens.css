@@ -75,13 +75,21 @@
   --pizarra-vivo-4: #d4a017;
   --pizarra-vivo-5: #9b5aa8;
 
-  /* ── La cara del tutor ───────────────────────────────────────────────────
-     Deliberadamente mínima: dos ojos y una boca. Lo justo para que el niño
-     sienta que le habla alguien, sin prometer un personaje que todavía no
-     está diseñado. */
-  --cara-piel: var(--acento);
-  --cara-piel-nino: var(--acento-suave);
-  --cara-rasgos: #fdfcf8;
+  /* ── El tutor ────────────────────────────────────────────────────────────
+     Un oso de anteojos: andino, colombiano, no humano. El porqué está en
+     `personaje/Personaje.tsx`; acá solo vive su paleta.
+
+     El pelaje es marrón muy oscuro y NO negro: el negro puro sobre este fondo
+     crema hace un recorte duro que se ve pegado encima, no dibujado. */
+  --pj-pelaje: #3f3730;
+  --pj-claro: #e6d9bf;        /* las manchas, el hocico, la panza           */
+  --pj-nariz: #2b2622;
+  --pj-ojo: #fdfcf8;
+  --pj-pupila: #2b2622;
+
+  /* El aura de atrás dice de quién es el turno. Verde el tutor, azul el niño:
+     los mismos dos colores que ya usa el resto de la pantalla. */
+  --pj-aura-nino: #ccd8e6;
 }
 
 /* ── Reset mínimo ──────────────────────────────────────────────────────── */

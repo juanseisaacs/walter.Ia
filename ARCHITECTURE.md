@@ -851,3 +851,75 @@ Es el mismo patrón de la fase 6 —*tratar la ausencia de evidencia como
 evidencia*— movido un paso atrás: acá había evidencia, pero de segunda mano.
 **Una fuente que cubre más áreas y se ve más ordenada no gana; gana la que se
 cruzó contra el primario.**
+
+---
+
+## 20. El personaje: por qué SVG y CSS, y no un runtime de animación
+
+Hasta el 23/08 el tutor era una cara: un círculo, dos ojos y una boca. Su
+propio comentario admitía que era provisional — *"un personaje de verdad se
+diseña, y todavía no está diseñado"*.
+
+Ahora es un **oso de anteojos** andino: cuerpo, brazos, mirada y boca
+articulada, en seis ánimos.
+
+### La decisión técnica
+
+**SVG por capas articuladas, animado con CSS.** Se evaluó y se descartó Rive,
+que es la mejor herramienta del mercado para esto.
+
+El motivo no es estético. Este navegador procesa **audio PCM en tiempo real en
+el hilo principal** (§9, §10). Rive es un runtime WASM que dibuja en canvas y
+hace un tick **por frame en ese mismo hilo**; Lottie es peor, porque interpreta
+JSON y muta atributos SVG desde JS. Cualquiera de los dos sería el primer
+sospechoso la próxima vez que la sesión se sienta lenta — y ya sabemos cuánto
+cuesta encontrar esa causa cuando el backend responde en 4 ms.
+
+`transform` y `opacity` los resuelve el compositor, fuera del hilo principal.
+El personaje cuesta **cero** en el camino del audio. Es el mismo razonamiento
+que ya había resuelto `pizarra/trazos.ts`, aplicado al cuerpo en vez de a la
+letra.
+
+También se descartó el **sprite sheet** con `steps()`: es igual de barato en
+CPU, pero no recolorea desde `tokens.css` y sobre todo **no compone** — cada
+combinación de gestos sería arte nuevo en vez de dos clases.
+
+### Por qué un oso, y no una persona
+
+Un tutor humano obliga a elegirle piel, pelo y género, y cada una de esas
+elecciones le dice algo distinto a cada niño que abre la app. Un oso no le dice
+nada a nadie. El de anteojos, además, es **andino y colombiano**, y sus manchas
+claras alrededor de los ojos son un rasgo real de la especie que acá enmarca la
+mirada — que es de lejos lo que más hace que un dibujo se sienta alguien.
+
+Y hay una razón técnica: cuanto más humano el dibujo, más exige la animación, y
+la animación acá tiene que ser barata por diseño.
+
+### El límite que impone la Constitución
+
+§8.4: el tutor *"nunca finge cuerpo, familia, infancia, ni vida fuera de la
+app"*. Un dibujo no viola eso — un dibujo es un dibujo. Pero **el repertorio
+sí podría empujar al tutor a mentir**, así que el oso solo hace cosas que la
+app hace de verdad: escuchar, hablar, mirar una foto, esperar. No come, no
+duerme, no se cansa, no se va. Esa es la vara para cualquier gesto futuro.
+
+Por eso tampoco hay un ánimo de celebración: un personaje que salta y tira
+confeti cada vez que el niño acierta **es elogio inflado dibujado**, prohibido
+por las mismas razones que el hablado.
+
+### Qué es testeable y qué no
+
+Un dibujo no se prueba con asserts; se mira, en `/pizarra`, que recorre los
+seis ánimos sin abrir sesión ni gastar cuota. Lo que **sí** se prueba
+(`personaje/animo.test.ts`) es la traducción de la sesión al cuerpo, porque ahí
+cabe un bug callado: un tutor que sigue moviendo la boca después de callarse, o
+que se queda mirando el papel mientras el niño le habla. Ninguno de los dos
+tira un error — simplemente el personaje miente sobre lo que está pasando, y un
+niño de 7 le cree al dibujo antes que al audio.
+
+### Lo que quedó sin conectar
+
+El ánimo `esperando` (el niño lleva 10 s callado) está construido y se ve en el
+banco, pero **no llega desde la sesión**: `useTutor` no expone `mudo`. Es una
+línea, y se dejó afuera a propósito para no tocar `useTutor.ts` mientras otra
+sesión trabajaba ahí.

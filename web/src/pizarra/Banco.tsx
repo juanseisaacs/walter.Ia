@@ -14,7 +14,8 @@
 
 import { useState } from "react";
 
-import Cara from "../Cara";
+import Personaje from "../personaje/Personaje";
+import type { Animo } from "../personaje/animo";
 import "./Banco.css";
 import HojaDelNino from "./HojaDelNino";
 import Pizarra from "./Pizarra";
@@ -127,11 +128,22 @@ const MOMENTOS: { rotulo: string; dice: string; cuadro: Cuadro }[] = [
   },
 ];
 
+/** El repertorio entero del personaje. Si se le agrega un ánimo y no aparece
+    acá, no hay forma de mirarlo: por eso la lista va junto al banco. */
+const ANIMOS: [Animo, string][] = [
+  ["hablando", "🗣 Hablando"],
+  ["escuchando", "👂 Escuchando"],
+  ["esperando", "⏳ El niño no contesta"],
+  ["mirando", "🔍 Mirando una foto"],
+  ["saludando", "👋 Llegando"],
+  ["reposo", "😌 En reposo"],
+];
+
 export default function Banco() {
   const [i, setI] = useState(0);
   const [dibujando, setDibujando] = useState(false);
   const [abecedario, setAbecedario] = useState(false);
-  const [hablando, setHablando] = useState(true);
+  const [animo, setAnimo] = useState<Animo>("hablando");
   const [ultimoDibujo, setUltimoDibujo] = useState<string | null>(null);
 
   const momento = MOMENTOS[i];
@@ -183,12 +195,21 @@ export default function Banco() {
       {!abecedario && (
       <div className="banco-escena">
         <aside className="banco-tutor">
-          {/* La cara de verdad, la misma que ve el niño. El botón la pone a
-              hablar para poder mirarla sin abrir una sesión. */}
-          <Cara hablando={hablando} />
-          <button className="banco-boton" onClick={() => setHablando((h) => !h)}>
-            {hablando ? "⏸ Que se calle" : "▶ Que hable"}
-          </button>
+          {/* El personaje de verdad, el mismo que ve el niño. Los botones
+              recorren su repertorio entero sin abrir una sesión ni gastar un
+              peso de cuota: es la única forma de opinar sobre un dibujo. */}
+          <Personaje animo={animo} nivelMic={animo === "escuchando" ? 0.4 : 0} />
+          <div className="banco-animos">
+            {ANIMOS.map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                className={`banco-boton ${animo === valor ? "banco-boton-activo" : ""}`}
+                onClick={() => setAnimo(valor)}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
           <p className="banco-dice">{dibujando ? "Dibújame la letra ñ." : momento.dice}</p>
           <p className="banco-nota">
             Acá va el tutor de voz, tal como está hoy. La pizarra vive al lado y no lo interrumpe.

@@ -1,9 +1,8 @@
 /**
  * Pantalla del niño.
  *
- * MINIMALISTA A PROPÓSITO: un botón grande y lo que se está diciendo. Sin
- * personaje, sin ilustración, sin animaciones. Primero saber cómo se usa de
- * verdad; el diseño viene después.
+ * MINIMALISTA A PROPÓSITO: un botón grande, el tutor y lo que se está
+ * diciendo. Nada más en pantalla compite con eso.
  *
  * Ningún color ni tamaño está escrito acá: todo sale de estilos/tokens.css.
  */
@@ -12,7 +11,8 @@ import { useState } from "react";
 
 import "./App.css";
 import Onboarding from "./Onboarding";
-import Cara from "./Cara";
+import Personaje from "./personaje/Personaje";
+import { animoDesde } from "./personaje/animo";
 import VisorCamara from "./VisorCamara";
 import HojaDelNino from "./pizarra/HojaDelNino";
 import Pizarra from "./pizarra/Pizarra";
@@ -113,7 +113,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
 
         {enSesion && (
           <>
-            <Cara hablando={estado === "hablando"} nivelMic={nivelMic} />
+            <Personaje animo={animoDesde({ estado, mirandoFoto })} nivelMic={nivelMic} />
             <p className="tenue">
               {mirandoFoto
                 ? "Está mirando tu foto..."

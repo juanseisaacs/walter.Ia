@@ -138,3 +138,17 @@
   font-size: var(--tam-chico);
   margin-top: var(--espacio-xs);
 }
+
+/* Los botones del repertorio del personaje: en columna, porque son estados y
+   no acciones — se leen como una lista de momentos, no como una barra. */
+.banco-animos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--espacio-s);
+}
+
+.banco-animos .banco-boton {
+  min-height: 38px;
+  text-align: left;
+}
