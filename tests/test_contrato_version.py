@@ -79,3 +79,40 @@ def test_el_chequeo_no_puede_entrar_en_bucle():
     parpadea para siempre. Se intenta UNA vez y después se dice."""
     ts = _texto(API_TS)
     assert "sessionStorage" in ts, "sin marca, una recarga que no arregla se repite sin fin"
+
+
+def test_el_microfono_se_calla_mientras_el_tutor_habla():
+    """LA CAUSA DE QUE EL TUTOR SE CORTARA A MITAD DE PALABRA.
+
+    Medido con `python -m scripts.medir_fluidez` sobre las 8 transcripciones del
+    23/08: **20 de 99 turnos del tutor quedaron partidos** —«¡Ah, ya lo veo!
+    Mira,», «está en la pizarrita blanca justo»—. RBH lo dijo dentro de la
+    sesión: «se corta y no terminas de hablar y te demoras un poco al regresar».
+
+    El micrófono mandaba audio SIEMPRE, también mientras el tutor sonaba. El VAD
+    del servidor corre con `START_SENSITIVITY_HIGH` —puesta a propósito para que
+    el niño que habla bajito abra turno— y con ese oído el eco del propio tutor
+    cuenta como "el niño empezó a hablar": el servidor le cortaba la generación.
+    Por eso la frase queda partida también en la transcripción.
+
+    El arreglo NO fue bajar la sensibilidad (eso devuelve el bug de Felipe: sus
+    respuestas se perdían). Fue dejar de mandarle al servidor el eco del tutor.
+
+    Este test mira el orden, que es lo único que importa: el `return` que retiene
+    tiene que estar ANTES del `sendRealtimeInput`. Si alguien mueve el envío
+    arriba, el bug vuelve entero y en silencio.
+    """
+    ts = _texto(USE_TUTOR)
+    inicio = ts.index("MIENTRAS EL TUTOR HABLA, EL AUDIO NO SALE")
+    envio = ts.index("sendRealtimeInput", inicio)
+    retencion = ts.index("if (tutorSonando) {", inicio)
+    assert retencion < envio, "el audio vuelve a salir mientras el tutor habla"
+    assert "retenidos.push(muestras)" in ts, "sin buffer, interrumpir cuesta la primera sílaba"
+
+
+def test_lo_retenido_solo_sale_si_hubo_interrupcion_de_verdad():
+    """Al terminar su turno, esos bloques son el ECO del tutor. Mandarlos le
+    abriría al niño un turno sobre algo que nadie dijo."""
+    ts = _texto(USE_TUTOR)
+    assert "interrumpioDeVerdad" in ts
+    assert "if (!interrumpioDeVerdad) aSoltar.length = 0;" in ts

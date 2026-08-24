@@ -100,6 +100,16 @@ export const AVISO_DEL_DIBUJO =
 const MS_PARA_CORTAR = 200;
 
 /**
+ * Cuántos bloques del micrófono se guardan mientras el tutor está sonando.
+ *
+ * Son ~64 ms cada uno: ocho dan medio segundo, que es lo que tarda el barge-in
+ * en confirmar que la voz es de verdad (`MS_PARA_CORTAR`) más un margen. Sin
+ * este buffer, interrumpir al tutor le costaría al niño la primera sílaba de lo
+ * que dijo — y a un chico de siete años eso lo obliga a repetirse.
+ */
+export const BLOQUES_RETENIDOS = 8;
+
+/**
  * Cuánto se le aguanta al tutor sin decir nada después de que el niño terminó
  * de hablar, antes de darlo por mudo.
  *
@@ -1263,6 +1273,11 @@ export function useTutor(ninoId: string) {
       liveRef.current = live;
 
       let vozSostenidaMs = 0;
+      /** Lo que el niño dijo mientras el tutor sonaba, por si era una
+          interrupción de verdad. Ver el bloque de envío, más abajo. */
+      const retenidos: Float32Array[] = [];
+      /** ¿Lo retenido es una interrupción confirmada, o es eco para tirar? */
+      let interrumpioDeVerdad = false;
 
       const { captura } = await abrirMicrofono((muestras, nivel) => {
         setNivelMic(Math.min(1, nivel * 5));
@@ -1286,12 +1301,19 @@ export function useTutor(ninoId: string) {
         // El umbral va por encima del eco residual que deja la cancelación del
         // navegador, y se exige que se sostenga: un golpe en la mesa dura un
         // bloque, una sílaba dura varios.
-        if (reproductor.hablando && nivel > UMBRAL_BARGE_IN) {
+        const tutorSonando = reproductor.hablando;
+
+        if (tutorSonando && nivel > UMBRAL_BARGE_IN) {
           vozSostenidaMs += (muestras.length / SAMPLE_RATE_ENTRADA) * 1000;
           if (vozSostenidaMs >= MS_PARA_CORTAR) {
-            reproductor.detenerTodo();
+            // El nivel va al log para poder calibrar el umbral con un número la
+            // próxima vez, en vez de moverlo a ojo: si acá aparecen cortes con
+            // niveles apenas por encima de 0,045, es eco y el umbral sube.
+            console.info(`[barge-in] corta al tutor · nivel ${nivel.toFixed(3)}`);
+            reproductor.detenerTodo(); // desde acá `hablando` es false
             setEstado("escuchando");
             vozSostenidaMs = 0;
+            interrumpioDeVerdad = true;
           }
         } else if (nivel <= UMBRAL_BARGE_IN) {
           vozSostenidaMs = 0;
@@ -1301,7 +1323,50 @@ export function useTutor(ninoId: string) {
         // el turno abierto y no contestaría nunca. Ver `mostrarleAlTutor`.
         if (esperandoMiradaRef.current) return;
 
+        // ── MIENTRAS EL TUTOR HABLA, EL AUDIO NO SALE ──────────────────────
+        //
+        // Esta es la causa de que el tutor se cortara a mitad de frase, y de la
+        // que se quejó RBH: «se corta y no terminas de hablar».
+        //
+        // Medido sobre las últimas 8 transcripciones: **20 de 99 turnos del
+        // tutor (uno de cada cinco) quedaron a mitad de palabra** —«¡Ah, ya lo
+        // veo! Mira,», «está en la pizarrita blanca justo»—.
+        //
+        // El micrófono mandaba SIEMPRE, también mientras el tutor sonaba. Del
+        // otro lado, el VAD del servidor corre con `START_SENSITIVITY_HIGH`
+        // —puesta a propósito, para que el niño que habla bajito abra turno— y
+        // con esa sensibilidad el eco del propio tutor por los parlantes cuenta
+        // como "el niño empezó a hablar". El servidor entonces CORTA LA
+        // GENERACIÓN: por eso la frase queda partida también en la
+        // transcripción, no solo en el parlante.
+        //
+        // El barge-in local no lo evitaba: solo callaba el altavoz de acá.
+        //
+        // Ahora, mientras el tutor suena, los bloques se GUARDAN en vez de
+        // enviarse. Si el barge-in confirma voz de verdad, `detenerTodo()` deja
+        // `hablando` en false y este mismo bloque ya sale por el camino normal,
+        // soltando primero lo retenido — así el niño no pierde la primera
+        // sílaba de su interrupción. Y si era eco, se descarta y nadie corta
+        // nada.
+        if (tutorSonando) {
+          retenidos.push(muestras);
+          if (retenidos.length > BLOQUES_RETENIDOS) retenidos.shift();
+          return;
+        }
+
+        // Lo retenido sale SOLO si hubo interrupción de verdad. Cuando el
+        // tutor termina su turno solo, esos bloques son el eco de su propia voz
+        // y mandarlos le abriría un turno al niño sobre algo que nadie dijo.
+        const aSoltar = retenidos.splice(0);
+        if (!interrumpioDeVerdad) aSoltar.length = 0;
+        interrumpioDeVerdad = false;
+
         try {
+          for (const antiguo of aSoltar) {
+            live.sendRealtimeInput({
+              audio: { data: aPcm16Base64(antiguo), mimeType: "audio/pcm;rate=16000" },
+            });
+          }
           live.sendRealtimeInput({
             audio: { data: aPcm16Base64(muestras), mimeType: "audio/pcm;rate=16000" },
           });

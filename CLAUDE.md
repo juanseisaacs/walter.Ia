@@ -176,7 +176,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 613 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 615 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
 | `cd web && npm test` | 129 tests del front: audio, micrófono, pizarra, hoja, mudez | no |
@@ -186,6 +186,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | `python -m scripts.demo_persistencia` | El ciclo completo, de la sesión al dominio | no |
 | `python -m scripts.demo_tecnicas` | El motor de técnicas sesión a sesión, con tres niños simulados | no |
 | `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
+| `python -m scripts.medir_fluidez` | Cuánto se traba la conversación: turnos cortados, retomas y mudeces, contados sobre las transcripciones. Es el número que le faltaba a «no está fluida» | no |
 | `python -m scripts.verificar_tokens` | Que el prompt de sesión siga bajo el techo | no |
 | `python -m scripts.build_exercise_bank` | Reconstruye el banco. El validador impide voseo y enunciados largos — eso no lo sostiene el prompt | **sí** |
 | `python -m evals.runner` | Las 4 suites de YC, 48 casos, contra el modelo real | **sí** |
@@ -252,7 +253,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **613** de Python + **129** del front, en verde. Lint en cero |
+| Tests | **615** de Python + **129** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

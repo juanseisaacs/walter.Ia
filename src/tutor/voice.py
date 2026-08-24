@@ -72,7 +72,21 @@ class DeteccionFinTurno(BaseModel):
 
     Si aparecen turnos vacíos por ruido de fondo, esto vuelve a LOW — pero
     entonces hay que subir el volumen del micrófono, no bajarle el oído al
-    tutor."""
+    tutor.
+
+    ═══ 23/08: el precio que tenía HIGH, y por qué ya no lo tiene ═══
+
+    Un oído fino también oye el eco del propio tutor por los parlantes, y para
+    este VAD eso es "el niño empezó a hablar": cortaba la generación a mitad de
+    palabra. Medido sobre 8 transcripciones, **20 de 99 turnos del tutor (uno de
+    cada cinco) quedaron partidos** — «¡Ah, ya lo veo! Mira,». RBH lo dijo
+    dentro de la sesión: *«se corta y no terminas de hablar»*.
+
+    No se arregló bajando la sensibilidad, porque eso devuelve el bug de Felipe.
+    Se arregló donde estaba el error de verdad: **el navegador mandaba audio
+    mientras el tutor sonaba**. Ahora lo retiene y solo lo suelta si el barge-in
+    local confirma voz de verdad (`useTutor`, `BLOQUES_RETENIDOS`). El VAD sigue
+    con el oído fino para el niño y ya no puede oír al tutor."""
 
     sensibilidad_fin: str = "END_SENSITIVITY_LOW"
     """LOW = más paciencia para cerrar. Es lo que le da tiempo a pensar."""

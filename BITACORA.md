@@ -1447,3 +1447,76 @@ acompañe el proceso y no solo el enunciado.
 > El mejor product manager que ha tenido este proyecto tiene siete años y no
 > sabe que lo es. Las tres mejoras de hoy salieron de escucharlo pedir lo mismo
 > dos veces.
+
+---
+
+## «Se corta y no terminas de hablar» (23/08, noche)
+
+RBH lo dijo **dentro** de la sesión, mientras el tutor le hacía una suma:
+
+> «Pues haría seis, pero porque como que se corta y no terminas de hablar y te
+>  demoras un poco al regresar.»
+
+Y por primera vez esa queja tuvo un número. Contando los turnos del tutor que
+terminan a mitad de palabra sobre las 8 transcripciones del día:
+
+**20 de 99 — uno de cada cinco.**
+
+```
+tutor: «¡Ah, ya lo veo! Mira,»
+tutor: «está en la pizarrita blanca justo»
+tutor: «¿Listo para que sigamos trazando letras,»
+```
+
+### La causa: el tutor se cortaba a sí mismo
+
+El micrófono mandaba audio al servidor **siempre**, también mientras el tutor
+sonaba por los parlantes. Del otro lado, el VAD corre con
+`START_SENSITIVITY_HIGH` — puesta a propósito el 20/08, porque en LOW un niño
+que contesta murmurando no abría turno y sus respuestas se perdían enteras.
+
+Con ese oído fino, el eco del propio tutor cuenta como «el niño empezó a
+hablar», y el servidor **corta la generación**. Por eso la frase queda partida
+también en la transcripción, no solo en el parlante: el modelo dejó de escribir.
+
+El barge-in local no lo evitaba — solo calla el altavoz de acá.
+
+> Las dos mitades del problema estaban escritas y ninguna mencionaba a la otra:
+> un comentario explicaba por qué el VAD tiene que ser sensible, y veinte líneas
+> más abajo se le mandaba el eco del tutor. **Cada decisión era correcta sola.**
+
+### El arreglo, y por qué no fue bajar la sensibilidad
+
+Bajarla devuelve el bug de Felipe («ya te dije que 20, ¿no me escuchaste?»). El
+error no era el oído del servidor: era **lo que le dábamos de comer**.
+
+Ahora, mientras el tutor suena, los bloques del micrófono **se retienen** en vez
+de enviarse. Si el barge-in local confirma voz de verdad —0,045 sostenidos 200
+ms— `detenerTodo()` deja de sonar, el bloque sale por el camino normal y **se
+suelta primero lo retenido**, así el niño no pierde la primera sílaba de su
+interrupción. Si era eco, se descarta y nadie corta nada.
+
+Y lo retenido **solo sale si hubo interrupción confirmada**: cuando el tutor
+termina su turno solo, esos bloques son su propia voz, y mandarlos le abriría al
+niño un turno sobre algo que nadie dijo.
+
+El VAD se queda con el oído fino para el niño, y ya no puede oír al tutor.
+
+### Lo que faltaba: poder medirlo
+
+«No está fluida» se discutió tres veces mirando el backend —que responde en
+4 ms— y las tres el problema estaba en otro lado. `scripts/medir_fluidez.py`
+cuenta sobre las transcripciones lo que el niño siente, separado en tres cosas
+que se confundían entre sí:
+
+| | qué es |
+|---|---|
+| **cortado** | el turno termina a mitad de palabra: alguien cortó la generación |
+| **retoma** | dos turnos seguidos del tutor: se cortó y volvió a arrancar |
+| **mudez** | se quedó callado y hubo que empujarlo |
+
+No necesita red ni API key. Corrido hoy: **69/681 (10%) histórico, 20% en las de
+hoy**, que es la marca contra la que se compara el próximo arreglo.
+
+> Una queja sin número se discute para siempre. La misma queja con número se
+> arregla una vez y se verifica.
