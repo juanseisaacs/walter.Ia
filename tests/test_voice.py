@@ -258,6 +258,33 @@ def test_el_tuteo_no_se_rompe_por_el_imperativo():
         assert forma in persona, f"no veta {forma!r}, que es como aparece de verdad"
 
 
+def test_el_tutor_no_cuenta_ruidos_que_no_oye():
+    """PASÓ DE VERDAD, `ses_398803222958` (23/08). El tutor propuso contar
+    sílabas con palmadas —buena idea— y después dijo cuántas había oído:
+
+        nino:  «con palmadas, ahí va.»
+        nino:  «Ya la hice con palmadas.»
+        tutor: «me parece que aplaudiste dos veces, ¿cierto?»
+        nino:  «Pero no aplaudí tres veces.»
+        tutor: «Aplaudiste dos veces para contar las sílabas de "brazo"»
+        nino:  «Pero no ha aplaudido ahorita.»
+
+    No oyó ninguna palmada. Le llega audio transcripto a PALABRAS: un aplauso no
+    aparece por ningún lado, así que inventó el número dos veces seguidas y el
+    niño tuvo que corregirlo las dos.
+
+    Es exactamente la familia de «no describas una foto que no llegó», en el
+    canal del oído en vez del de la vista. Y es peor de lo que parece: el tutor
+    PROPONE la actividad, así que el niño hace algo que nadie puede evaluar.
+
+    La regla no prohíbe las palmadas —al niño le gustaron, lo dijo— sino
+    inventar el resultado: que aplauda, y que además DIGA el número.
+    """
+    persona = cargar_prompt("tutor_persona").lower()
+    assert "no oyes ruidos" in persona, "falta la regla"
+    assert "diga el número" in persona, "falta qué hacer en su lugar"
+
+
 def test_el_tutor_no_inventa_palabras():
     """Misma sesión: «¡Fracciones, qué NOTOTA!» y «NOPS, recuerda que aquí yo no
     te doy las respuestas».
@@ -901,6 +928,7 @@ def test_ninguna_regla_se_cae_al_adelgazar_el_prompt():
         "el elogio nombra qué estuvo bien": "específico y creíble",
         "no se le escapa el usted": "imperativo de usted",
         "no inventa palabras": "palabras que no existen",
+        "no cuenta ruidos que no oye": "no oyes ruidos",
     }
 
     faltan = [nombre for nombre, frase in reglas.items() if frase not in texto]

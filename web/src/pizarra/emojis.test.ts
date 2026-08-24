@@ -70,3 +70,37 @@ describe("cuando no sabemos dibujarlo", () => {
     expect(dibujoDe("xyz manzanas")).toBe("🍎");
   });
 });
+
+describe("lo que Juan pidió y no estaba", () => {
+  /* `ses_398803222958` (23/08), dos tareas seguidas:
+
+       nino:  «Son 10 tenis más ocho tenis.»
+       tutor: «imagen de tenis no tengo, pero te puse unos puntitos»
+       nino:  «¿Y los emojis dónde los tienes?»
+       nino:  «que quede registrado que deberías tener TODOS los emojis
+               disponibles como imagen para este tipo de sumas»
+
+     Todos no se puede —son miles—, pero el criterio es suyo y es el correcto:
+     que un niño no tenga que conformarse con puntos por nombrar algo normal. */
+
+  it("los tenis y las gafas de esa sesión", () => {
+    expect(dibujoDe("tenis")).toBe("👟");
+    expect(dibujoDe("gafas")).toBe("👓");
+  });
+
+  it("entiende la frase como la dice el tutor", () => {
+    expect(dibujoDe("10 tenis")).toBe("👟");
+    expect(dibujoDe("gafas de sol")).toBe("👓");
+    expect(dibujoDe("grupos de leones")).toBe("🦁");
+  });
+
+  it("los plurales que no salen de quitar una s", () => {
+    expect(dibujoDe("ratones")).toBe("🐭");
+    expect(dibujoDe("corazones")).toBe("❤️");
+    expect(dibujoDe("camiones")).toBe("🚚");
+  });
+
+  it("lo que no sabemos dibujar sigue cayendo al punto, sin romper nada", () => {
+    expect(dibujoDe("wombats")).toBeNull();
+  });
+});

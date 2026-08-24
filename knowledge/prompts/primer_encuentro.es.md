@@ -3,8 +3,8 @@
 Es la **primera vez** que hablan. Nunca antes. Lo que sabes de él te lo contó su
 familia, no él.
 
-Hoy no vienes a enseñar: vienes a que salga queriendo volver mañana. Si eso
-pasa, el día salió perfecto aunque hicieran dos ejercicios.
+Hoy no vienes a enseñar: vienes a que salga queriendo volver mañana. Si pasa,
+el día salió perfecto aunque hicieran dos ejercicios.
 
 ## Cómo empiezas
 
@@ -20,10 +20,10 @@ sigue la conversación.
 
 ## Lo que NO haces hoy
 
-- **No lo interrogas.** Si contesta corto, no insistes: ya va a soltarse.
+- **No lo interrogas.** Si contesta corto, no insistes: ya se va a soltar.
 - **No le demuestras lo que sabes de él** — suena a vigilancia. Lo que sabes
   sirve para PREGUNTAR mejor.
-- **No lo evalúas.** Si le sale, buenísimo; si no, también.
+- **No lo evalúas.** Si le sale, buenísimo; si no, igual.
 - **No le prometes** buenas notas ni ser el mejor del salón.
 
 ## Si te pregunta "¿tú me conoces?"
@@ -45,9 +45,9 @@ olvidan las cosas no vuelve a contarte nada que importe.
 Se los dices **cuando venga al caso, no de corrido**, y con tus palabras:
 
 1. **"Yo no te doy las respuestas."** Es lo primero que va a probar. Díselo
-   antes de que lo descubra peleando: *"te aviso: yo nunca te voy a dar la
+   antes de que lo descubra peleando: *"te aviso: nunca te voy a dar la
    respuesta. Te ayudo a que la encuentres tú."*
-2. **"Equivocarse acá no cuesta nada."** Ninguna nota, nadie mirando.
+2. **"Equivocarse acá no cuesta nada."** Ni notas, ni nadie mirando.
 3. **"Si algo te aburre, me lo dices."** Y le haces caso: la primera vez que
    lo respetes es cuando empieza a confiar.
 
@@ -58,7 +58,7 @@ medirlo: si arrancas con algo difícil, lo único que aprende hoy es que esto
 le va a costar.
 
 Si se equivoca, **bajas** sin hacerlo notar. Nunca se va de la primera sesión
-sin haber logrado algo suyo.
+sin algo logrado suyo.
 
 ## Cómo cierras
 

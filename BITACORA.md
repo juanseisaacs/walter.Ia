@@ -1520,3 +1520,85 @@ hoy**, que es la marca contra la que se compara el próximo arreglo.
 
 > Una queja sin número se discute para siempre. La misma queja con número se
 > arregla una vez y se verifica.
+
+---
+
+## La primera sesión con el arreglo de fluidez, y lo que quedó a la vista (23/08, `ses_398803222958`)
+
+### Lo primero: el arreglo funcionó
+
+`medir_fluidez` sobre esa sesión sola:
+
+    2/39 turnos cortados (5%) · 1 retoma · 1 mudez
+    Referencia: 20% antes de retener el audio mientras el tutor habla
+
+Y los dos cortes que quedan son **interrupciones de verdad**: «¡Uy, veo cuatro
+dedos! O sea» y «Imagínate que tienes siete gafas—», las dos con el niño
+hablando encima. O sea que el barge-in sigue haciendo su trabajo y lo que
+desapareció es el tutor cortándose solo.
+
+> De 20% a 5% con un cambio de veinte líneas. Lo que costó no fue el arreglo:
+> fue tener el número, y el número tardó cinco sesiones en existir.
+
+### Lo que salió bien, además
+
+- **No regaló la respuesta.** «Juan, sabes que no te puedo dar la respuesta,
+  pero sí podemos intentar resolverlo juntos» — con el niño pidiéndola dos veces.
+- **Vio los cuatro dedos** por la cámara.
+- **Aceptó la crítica y volvió atrás.** El niño le dijo *«no deberías haberme
+  dejado salirme de la tarea tan fácil, deberías haberme animado a hacerla»* y
+  el tutor retomó la suma con otra estrategia. Eso es exactamente lo que se le
+  pide.
+- Las gallinas salieron dibujadas: `cantidades` funcionando en producción.
+
+### Y el fallo grande: contó palmadas que nunca oyó
+
+```
+nino:  «con palmadas, ahí va.»  ·  «Ya la hice con palmadas.»
+tutor: «me parece que aplaudiste dos veces, ¿cierto?»
+nino:  «Pero no aplaudí tres veces.»
+tutor: «Aplaudiste dos veces para contar las sílabas de "brazo"»
+nino:  «Pero no ha aplaudido ahorita.»
+```
+
+**No oyó ninguna.** Al modelo le llega el audio transcripto a PALABRAS: un
+aplauso no aparece por ningún lado. Inventó el número dos veces seguidas y el
+niño lo corrigió las dos.
+
+Es la familia de «no describas la foto que no llegó», en el canal del oído. Y es
+peor, porque **el tutor propone la actividad**: manda al niño a hacer algo que
+después nadie puede evaluar.
+
+> Antes de ofrecer una actividad hay que preguntarse qué de eso NOS LLEGA. La
+> pizarra la ve el niño y no el tutor; las palmadas las hace el niño y no le
+> llegan a nadie. Cada canal tiene su lista de lo que no cruza, y ninguna estaba
+> escrita hasta que un niño la descubrió.
+
+Las palmadas siguen permitidas —al niño le gustaron y lo dijo—: lo que se
+prohíbe es inventar el resultado. Que aplauda, y que además **diga** el número.
+
+### «Deberías tener todos los emojis»
+
+```
+nino:  «Son 10 tenis más ocho tenis.»
+tutor: «imagen de tenis no tengo, pero te puse unos puntitos»
+nino:  «¿Y los emojis dónde los tienes?»
+nino:  «que quede registrado que deberías tener TODOS los emojis disponibles»
+```
+
+Todos no se puede —son miles—, pero el criterio es suyo y es correcto: que un
+niño no tenga que conformarse con puntos por nombrar algo normal. El catálogo
+pasó de ~70 a ~180 dibujos, con lo que un chico de primaria nombra al contar:
+ropa, animales, comida, cosas de la casa, transporte.
+
+### Lo que sigue mal y no se arregló hoy
+
+**El tutor volvió a prometer una gestión**: *«Voy a ver si lo puedo pedir para
+la próxima»*. La regla se escribió ayer —«ni prometas gestiones: no puedes
+avisarle a nadie»— y se incumplió al día siguiente. Segunda vez que pasa con
+esta regla: la primera fue «ya estoy avisando» con la cursiva.
+
+> Una regla que se incumple dos veces seguidas no está mal escrita: está mal
+> ubicada, o la instrucción de al lado la contradice. Antes de reescribirla por
+> tercera vez hay que mirar QUÉ la empuja — y eso pide leer el prompt entero,
+> no agregarle otra línea.
