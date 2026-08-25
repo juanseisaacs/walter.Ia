@@ -213,6 +213,63 @@ def test_el_tutor_callado_no_vuelve_a_sonar_encima_del_nino():
     )
 
 
+def test_solo_interrupted_descarta_el_audio_retenido():
+    """EL BUG QUE DEJÓ A JUAN LEYENDO AL TUTOR SIN OÍRLO (`ses_660ce383567d`).
+
+    Cuando el barge-in local calla al tutor, el audio que Gemini siga mandando
+    se retiene hasta saber si el servidor confirma el corte. Y hay exactamente
+    UN mensaje que lo confirma: `interrupted`.
+
+    `turnComplete` prueba lo contrario. Si el turno terminó entero es porque
+    nadie lo interrumpió — o sea, el barge-in se equivocó, y lo retenido es la
+    frase del tutor que el niño nunca llegó a oír. Descartarla ahí fue lo que
+    hizo que el niño dijera: *«estoy viendo que estás hablando y hablando y como
+    que no se escucha, solo leo lo que estás diciendo»*.
+
+    Y se retroalimentaba: el niño no oía, preguntaba más fuerte si seguía ahí,
+    eso disparaba otro barge-in, y el turno siguiente también se perdía.
+    """
+    ts = _texto(USE_TUTOR)
+    completo = ts.index("contenido?.turnComplete")
+    fin = ts.index("cerrarTurnoAcumuladoRef.current?.()", completo)
+    rama = ts[completo:fin]
+
+    assert "reproductor.programar(guardado)" in rama, (
+        "`turnComplete` vuelve a descartar el audio retenido: el niño va a ver "
+        "al tutor hablar sin oírlo, y cada vez que pregunte se repetirá"
+    )
+    assert "enDudaRef.current.length = 0" not in rama, (
+        "el audio retenido se tira en la rama que prueba que nadie interrumpió"
+    )
+
+
+def test_alguien_vigila_que_la_voz_SUENE_y_no_solo_que_llegue():
+    """Tres sesiones distintas terminaron con el niño descubriendo solo que el
+    tutor era mudo, y cada una por una causa diferente: el contexto suspendido
+    (`ses_91c13b1747a2`), el contexto recreado sin gesto (`ses_6c6fb58aafbb`) y
+    un turno retenido de más (`ses_660ce383567d`).
+
+    Por eso el vigilante no mira ninguna causa: mira el síntoma —hay audio
+    programado y no suena— y deja marca en la transcripción. Sin marca, una
+    sesión que el niño no oyó se ve idéntica a una sana: el texto llega por un
+    camino y el audio por otro.
+    """
+    ts = _texto(USE_TUTOR)
+    assert "vozMuda(MS_VOZ_MUDA)" in ts, "nadie mira si el tutor se está oyendo"
+    assert "MARCA_DE_VOZ_MUDA" in ts, "la voz muda no deja rastro en la transcripción"
+
+    audio = _texto(RAIZ / "web" / "src" / "voz" / "audio.ts")
+    assert "vozMuda(" in audio and "reiniciar()" in audio, (
+        "el reproductor perdió el diagnóstico o el último recurso"
+    )
+
+    # Y la marca la lee el medidor: si se desincronizan, deja de contarse.
+    medidor = _texto(RAIZ / "scripts" / "medir_fluidez.py")
+    assert "MARCA_DE_VOZ_MUDA" in medidor, (
+        "`medir_fluidez` dejó de contar los turnos que el niño no oyó"
+    )
+
+
 def test_el_saludo_tambien_esta_protegido():
     """EL TURNO MÁS EXPUESTO DE LA SESIÓN, y era el único sin cubrir.
 

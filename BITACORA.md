@@ -2300,3 +2300,86 @@ respuesta del niño.
 > La queja llevaba días siendo la misma —«no está fluida»— y cada vez se medía
 > lo que ya se sabía medir. El número que faltaba no era más preciso: era **de
 > otra cosa**.
+
+---
+
+## «Estás hablando y hablando y no se escucha» (25/08, `ses_660ce383567d`)
+
+Cuatro horas después del arreglo de la mañana, la misma sesión con Juan:
+
+> «Estoy viendo que estás hablando y hablando y como que no se escucha, solo
+> leo lo que estás diciendo. Ya veo los siete pollitos, la imagen la hiciste
+> bien, pero ya no te escucho a ti, algo pasó.»
+
+**La causa la introduje yo esa misma mañana**, en el arreglo #2 del incidente
+anterior. Ahí el audio que Gemini seguía mandando después de un barge-in dejó de
+ir al parlante y pasó a retenerse, esperando que el servidor confirmara el
+corte. La lista de mensajes que lo confirmaban tenía dos entradas, y una estaba
+mal:
+
+```ts
+if (contenido?.turnComplete) {
+  turnoAbortadoRef.current = 0;
+  enDudaRef.current.length = 0;   // ← acá se perdía la voz
+```
+
+`turnComplete` no confirma ningún corte: **prueba lo contrario.** Si el turno
+terminó entero es porque nadie lo interrumpió — o sea, el barge-in se equivocó,
+y lo que se estaba tirando era la frase del tutor que el niño nunca oyó.
+
+Y se retroalimentaba solo, que es lo que lo volvió una sesión entera y no un
+turno suelto:
+
+1. un barge-in falso retiene el turno;
+2. `turnComplete` lo descarta y el niño no oye nada;
+3. el niño pregunta más fuerte si sigue ahí — «Walter, ¿estás acá?»;
+4. eso dispara otro barge-in, y vuelve al paso 1.
+
+La transcripción llegaba intacta todo el tiempo, porque **el texto y el audio
+viajan por caminos distintos**. En pantalla el tutor hablaba y hablaba.
+
+> Cuando se retiene algo esperando una confirmación, la lista de lo que
+> confirma es la parte peligrosa del diseño — no el mecanismo de retener.
+> Un mensaje mal clasificado ahí no se ve como un bug: se ve como silencio.
+
+### Lo que faltaba de verdad: nadie vigilaba que la voz SONARA
+
+Este síntoma exacto ya había aparecido dos veces, y las tres veces por una causa
+distinta:
+
+| sesión | lo que dijo el niño | causa |
+|---|---|---|
+| `ses_91c13b1747a2` | «¿por qué dejaste de hablar y solo estoy viendo el texto?» | contexto de audio suspendido |
+| `ses_6c6fb58aafbb` | «solo veo como al muñeco hablar, pero no estás hablando» | contexto recreado fuera del gesto |
+| `ses_660ce383567d` | «estás hablando y hablando y como que no se escucha» | turno retenido de más |
+
+Tres causas, un síntoma, y **cada vez lo descubrió el niño hablando.** Hay un
+vigilante para el tutor que no contesta (`MS_MUDEZ`) y otro para la pestaña
+abandonada (`ABANDONO_SEG`); para el tutor que contesta y no se oye no había
+ninguno, y por eso cada aparición costaba una sesión y una investigación.
+
+> Tres causas distintas con el mismo síntoma no piden tres arreglos: piden un
+> vigilante del síntoma. Lo que hay que detectar es «programé audio y no
+> sonó», que es cierto en las tres y en la cuarta que todavía no pasó.
+
+`ReproductorContinuo.vozMuda()` mira exactamente eso —hay trozos programados y
+hace `MS_VOZ_MUDA` que ninguno termina de sonar—, con dos cuidados que importan:
+
+- **la tolerancia se aplica también cuando el contexto no está corriendo.** Una
+  suspensión es normal y se resuelve sola; denunciarla en el acto recrearía el
+  contexto cada vez que el niño mira otra ventana.
+- **con la pestaña de fondo no se vigila.** Ahí no hay nadie oyendo y el
+  navegador suspende el audio a propósito.
+
+La recuperación es tirar el contexto y hacer uno nuevo (`reiniciar()`), porque
+un `resume()` no saca de todos los estados. Y si el contexto nuevo queda
+suspendido —fuera del gesto del usuario el navegador puede negarse— se le dice
+al niño en pantalla, que es infinitamente mejor que dejarlo mirando a un tutor
+mudo.
+
+### Y ahora deja rastro
+
+`MARCA_DE_VOZ_MUDA` queda en la transcripción, y `medir_fluidez` la cuenta en
+una columna nueva (`sin voz`). Sin esa marca, una sesión que el niño no oyó se
+ve **idéntica** a una sana: el texto llega igual, por otro camino. Era el único
+de los cinco síntomas de fluidez que no dejaba ninguna huella.

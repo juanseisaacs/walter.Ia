@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **666 tests** de Python · **181** del front · **evals 45/45** (los 3 casos
+- **668 tests** de Python · **189** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **~100 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
@@ -64,6 +64,7 @@ después de la próxima sesión, con `python -m scripts.medir_fluidez`:
 |---|---|---|
 | `cortados` | el tutor partido a mitad de palabra | 38% en `ses_31593f90ab26`; 11% en el acumulado |
 | `niño✁` | el turno del niño que empieza a mitad | 10,3% el 20/08 · 6,8% el 24/08 |
+| `sin voz` | turnos que el niño NO OYÓ | tiene que ser **cero**. Si aparece, el vigilante de la voz hizo su trabajo y hay que leer por qué |
 
 Y en la consola del navegador, dos líneas nuevas que dicen si el barge-in está
 calibrado: `[barge-in] corta al tutor · nivel X` y `[barge-in] el servidor no

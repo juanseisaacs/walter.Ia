@@ -45,6 +45,19 @@ export class ReproductorContinuo {
   private finDeHabla = 0;
   /** ¿Hay un `resume()` en vuelo? Evita encolar uno por chunk. */
   private despertando = false;
+  /**
+   * `Date.now()` de la última vez que un trozo TERMINÓ DE SONAR de verdad.
+   *
+   * No es lo mismo que "se programó": un `AudioBufferSourceNode` sobre un
+   * contexto suspendido nunca dispara `onended`, porque el reloj que lo
+   * dispararía está detenido. Justamente por eso sirve como prueba de vida —
+   * es la única señal que distingue «el tutor está hablando» de «el tutor cree
+   * que está hablando». Ver `vozMuda`.
+   */
+  private ultimoSonido = 0;
+  /** `Date.now()` en que empezó la tanda de audio que está sonando ahora. Es la
+      referencia cuando todavía no terminó de sonar ningún trozo. */
+  private programadoDesde = 0;
 
   /** Tiene que llamarse DENTRO del gesto del usuario o el navegador lo suspende. */
   iniciar(): void {
@@ -140,15 +153,78 @@ export class ReproductorContinuo {
     fuente.start(inicio);
     this.proximoInicio = inicio + buffer.duration;
 
+    if (this.fuentes.size === 0) this.programadoDesde = Date.now();
     this.fuentes.add(fuente);
     this.finDeHabla = 0; // vuelve a haber audio programado
     fuente.onended = () => {
       this.fuentes.delete(fuente);
+      // Prueba de vida: si esto corre, el reloj del contexto está andando y el
+      // trozo se reprodujo. Sobre un contexto suspendido nunca llega.
+      this.ultimoSonido = Date.now();
       if (this.fuentes.size === 0) {
         this.finDeHabla = Date.now();
         this.alTerminar?.();
       }
     };
+  }
+
+  /**
+   * ¿Hay audio programado que NO está sonando?
+   *
+   * Es el diagnóstico que faltaba, y el que convierte en dato lo que hasta el
+   * 25/08 había que descubrir hablando: *«estoy viendo que estás hablando y
+   * hablando y como que no se escucha, solo leo lo que estás diciendo»*
+   * (`ses_660ce383567d`). El mismo síntoma exacto había aparecido ya en
+   * `ses_91c13b1747a2` y `ses_6c6fb58aafbb`, cada vez por una causa distinta —
+   * el contexto suspendido, la cola en el futuro, un turno retenido de más.
+   *
+   * Por eso esto NO pregunta por ninguna causa: pregunta por el síntoma. Hay
+   * trozos programados, ha pasado `toleranciaMs` y ninguno terminó de sonar.
+   * Sea cual sea el motivo, el niño está viendo hablar a un tutor mudo.
+   */
+  vozMuda(toleranciaMs: number): boolean {
+    if (this.fuentes.size === 0) return false; // no hay nada que debiera sonar
+
+    // LA TOLERANCIA SE APLICA SIEMPRE, también cuando el contexto no está
+    // corriendo. Una suspensión es normal y transitoria —la pestaña se va al
+    // fondo, el sistema ahorra energía— y `asegurarActivo()` la resuelve sola
+    // en milisegundos. Denunciarla en el acto convertiría cada una de esas en
+    // un contexto recreado, y dos seguidas le cerrarían la sesión al niño por
+    // haber mirado otra ventana.
+    //
+    // Si todavía no terminó de sonar ningún trozo de esta tanda, la referencia
+    // es cuándo empezó: el primer turno de la sesión también tiene que estar
+    // cubierto, y ahí `ultimoSonido` es cero.
+    const referencia = this.ultimoSonido || this.programadoDesde;
+    if (referencia === 0 || Date.now() - referencia <= toleranciaMs) return false;
+    return true;
+  }
+
+  /**
+   * El último recurso: tirar el contexto y hacer uno nuevo.
+   *
+   * `iniciar()` no puede hacerlo —ve que ya hay uno y se va—, y hay estados de
+   * los que un `resume()` no saca: el dispositivo de salida que se fue con los
+   * audífonos, el contexto que quedó atado a un sink que ya no existe. Devuelve
+   * si el contexto nuevo quedó andando: fuera del gesto del usuario el
+   * navegador puede dejarlo suspendido, y en ese caso hay que decírselo al niño
+   * en vez de dejarlo mirando a un tutor que no suena.
+   */
+  reiniciar(): boolean {
+    const anterior = this.ctx;
+    if (anterior) {
+      anterior.onstatechange = null;
+      void anterior.close().catch(() => {});
+    }
+    this.ctx = null;
+    this.fuentes.clear();
+    this.proximoInicio = 0;
+    this.finDeHabla = 0;
+    this.ultimoSonido = 0;
+    this.despertando = false;
+    document.removeEventListener("visibilitychange", this.alVolverAlFrente);
+    this.iniciar();
+    return this.ctx !== null && (this.ctx as AudioContext).state === "running";
   }
 
   /**

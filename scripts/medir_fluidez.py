@@ -18,6 +18,9 @@ que son tres cosas distintas y se confundían entre sí:
               volvió a arrancar. Cada uno es una frase que el niño oyó dos veces
               a medias.
   · MUDEZ     `MARCA_DE_MUDEZ`: se quedó callado y hubo que empujarlo.
+  · SIN VOZ   `MARCA_DE_VOZ_MUDA`: contestó, pero el niño no lo oyó. Es la peor
+              de todas y la que no se veía — el texto llega por un camino y el
+              audio por otro, así que la transcripción se ve igual de sana.
   · NIÑO✂     el turno del NIÑO termina a mitad de frase. Este mira para el otro
               lado: el VAD del servidor le cerró el turno antes de que
               terminara de hablar. «Tengo una tarea de» (`ses_02805f3edba1`) es
@@ -57,14 +60,22 @@ TRANSCRIPTS = cfg.RAIZ / "data" / "transcripts"
 # había buen comportamiento.
 CIERRES = '.!?"»)]…:'
 
-# Lo que el navegador escribe cuando el tutor se queda callado. Vive en
-# `useTutor.ts` (`MARCA_DE_MUDEZ`) y se lee de ahí para que no se desincronice.
-def _marca_de_mudez() -> str:
+# Lo que el navegador escribe cuando algo sale mal. Vive en `useTutor.ts` y se
+# lee de ahí para que no se desincronice.
+def _marca(nombre: str, respaldo: str) -> str:
     import re  # noqa: PLC0415
 
     ts = (cfg.RAIZ / "web" / "src" / "voz" / "useTutor.ts").read_text(encoding="utf-8")
-    m = re.search(r'MARCA_DE_MUDEZ\s*=\s*"([^"]*)"', ts)
-    return m.group(1) if m else "[el tutor no contestó"
+    m = re.search(rf'{nombre}\s*=\s*"([^"]*)"', ts)
+    return m.group(1) if m else respaldo
+
+
+def _marca_de_mudez() -> str:
+    return _marca("MARCA_DE_MUDEZ", "[el tutor no contestó")
+
+
+def _marca_de_voz_muda() -> str:
+    return _marca("MARCA_DE_VOZ_MUDA", "[el niño no oyó esto")
 
 
 def _turnos(texto: str) -> list[tuple[str, str]]:
@@ -149,11 +160,19 @@ def medir(texto: str, marca_mudez: str) -> dict:
 
     mudeces = sum(1 for _, t in turnos if marca_mudez[:20] in t)
 
+    # LA PEOR DE TODAS, y la que no se veía. El tutor contestó, la
+    # transcripción llegó, el muñeco movió la boca — y por el parlante no salió
+    # nada. `ses_660ce383567d`: «estás hablando y hablando y como que no se
+    # escucha, solo leo lo que estás diciendo». Sin esta marca, esa sesión se
+    # ve idéntica a una sana: el texto llega por un camino y el audio por otro.
+    voz_muda = sum(1 for _, t in turnos if _marca_de_voz_muda()[:20] in t)
+
     return {
         "turnos": len(del_tutor),
         "cortados": len(cortados),
         "retomas": retomas,
         "mudeces": mudeces,
+        "voz_muda": voz_muda,
         "cortados_nino": len(cortados_nino),
         "descabezados": len(descabezados),
         "turnos_nino": len(del_nino),
@@ -186,7 +205,7 @@ def main() -> int:
     print("=" * 78)
     print(
         f"\n{'sesión':22}{'turnos':>7}{'cortados':>10}{'retomas':>9}{'mudez':>7}"
-        f"{'niño✂':>8}"
+        f"{'niño✂':>8}{'niño✁':>8}{'sin voz':>9}"
     )
 
     total = {
@@ -194,6 +213,7 @@ def main() -> int:
         "cortados": 0,
         "retomas": 0,
         "mudeces": 0,
+        "voz_muda": 0,
         "cortados_nino": 0,
         "descabezados": 0,
         "turnos_nino": 0,
@@ -210,6 +230,7 @@ def main() -> int:
         print(
             f"{f.stem:22}{m['turnos']:>7}{m['cortados']:>10}{m['retomas']:>9}"
             f"{m['mudeces']:>7}{m['cortados_nino']:>8}{m['descabezados']:>8}"
+            f"{m['voz_muda']:>9}"
         )
         if m["ejemplos"]:
             peores.append((f.stem, m["ejemplos"]))
@@ -225,7 +246,8 @@ def main() -> int:
         f"({100 * total['cortados'] / t:.0f}%) · "
         f"{total['retomas']} retomas · {total['mudeces']} mudeces · "
         f"{total['cortados_nino']} turnos del niño cortados al final · "
-        f"{total['descabezados']} descabezados"
+        f"{total['descabezados']} descabezados · "
+        f"{total['voz_muda']} turnos que el niño NO OYÓ"
     )
 
     if peores:

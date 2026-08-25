@@ -230,6 +230,44 @@ export const EMPUJONES_ANTES_DE_RENDIRSE = 1;
 export const RECONEXIONES_ANTES_DE_RENDIRSE = 1;
 
 /**
+ * Cuánto puede haber audio programado SIN SONAR antes de dar la voz por muda.
+ *
+ * ── EL VIGILANTE QUE FALTABA ─────────────────────────────────────────────
+ *
+ * Hay un vigilante para el tutor que no contesta (`MS_MUDEZ`) y otro para la
+ * pestaña abandonada (`ABANDONO_SEG`). No había ninguno para el caso en que el
+ * tutor contesta, la transcripción llega, el muñeco mueve la boca — y por el
+ * parlante no sale nada. El niño lo descubre solo, y tarda:
+ *
+ *   · `ses_91c13b1747a2`: «¿por qué dejaste de hablar y solo estoy viendo el
+ *     texto?» — el contexto de audio estaba suspendido.
+ *   · `ses_6c6fb58aafbb`: «solo veo como al muñeco hablar, pero no estás
+ *     hablando» — el contexto se había recreado fuera del gesto del usuario.
+ *   · `ses_660ce383567d`: «estás hablando y hablando y como que no se escucha,
+ *     solo leo lo que estás diciendo» — un turno retenido de más por el
+ *     barge-in.
+ *
+ * Tres veces el mismo síntoma y tres causas distintas. Por eso esto no vigila
+ * ninguna causa: vigila el SÍNTOMA — hay trozos programados y ninguno suena
+ * (`ReproductorContinuo.vozMuda`). Cualquier causa futura cae en la misma red.
+ *
+ * Cuatro segundos: los trozos de Gemini duran bastante menos, así que en una
+ * voz sana siempre termina alguno dentro de ese plazo. Un chunk largo no
+ * alcanza a disparar un falso positivo.
+ */
+export const MS_VOZ_MUDA = 4_000;
+
+/** Cada cuánto se mira. No hace falta más fino: la recuperación tarda más. */
+export const MS_ENTRE_CHEQUEOS_DE_VOZ = 1_000;
+
+/** Lo que queda escrito en la transcripción cuando la voz se pierde.
+ *
+ * Es la mitad que convierte esto en algo diagnosticable: sin marca, una sesión
+ * en la que el niño no oyó nada se ve idéntica a una sana — la transcripción
+ * llega igual, porque llega por otro camino. Ver `medir_fluidez`. */
+export const MARCA_DE_VOZ_MUDA = "[el niño no oyó esto: la voz no sonaba]";
+
+/**
  * Cuánto silencio DEL NIÑO antes de dar por terminada la sesión.
  *
  * ESTE ES EL QUE NO GASTA PLATA A LO TONTO, y faltaba.
@@ -466,6 +504,12 @@ export function useTutor(ninoId: string) {
       volver a montarlo en cada cambio. */
   const hojaRef = useRef<string | null>(null);
   const camaraAbiertaRef = useRef(false);
+  /** El reloj del vigilante de la voz. Ver `MS_VOZ_MUDA`. */
+  const vozRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Cuántas veces se intentó recuperar la voz en esta sesión. Al segundo
+      intento fallido se le dice al niño: seguir intentando en silencio es
+      exactamente lo que lo dejaba media sesión hablándole a nadie. */
+  const rescatesDeVozRef = useRef(0);
 
   /** El tutor dio señales de vida: audio, turno cerrado o un tool pedido. */
   const tutorContesto = useCallback(() => {
@@ -557,6 +601,56 @@ export function useTutor(ninoId: string) {
   /** Para llamarse a sí misma sin depender del orden de los closures. */
   const vigilarMudezRef = useRef<((espera?: number) => void) | null>(null);
   vigilarMudezRef.current = vigilarMudez;
+
+  /**
+   * EL VIGILANTE DE LA VOZ: ¿el niño está oyendo lo que el tutor dice?
+   *
+   * Vigila el síntoma, no la causa — hay trozos programados y ninguno suena—,
+   * porque las tres veces que pasó fue por un motivo distinto y la próxima será
+   * por un cuarto. Ver `MS_VOZ_MUDA`.
+   *
+   * La recuperación es contundente a propósito: tirar el contexto de audio y
+   * hacer uno nuevo. Un `resume()` no saca de todos los estados —el dispositivo
+   * que se fue con los audífonos, el sink que ya no existe—, y acá el costo de
+   * pasarse es cortar media frase mientras que el costo de quedarse corto es
+   * que el niño no oiga nada el resto de la sesión.
+   *
+   * Y pase lo que pase queda MARCA en la transcripción. Sin ella una sesión que
+   * el niño no oyó se ve idéntica a una sana, porque el texto llega por otro
+   * camino que el audio. Eso es lo que hizo falta descubrir hablando tres
+   * veces.
+   */
+  const vigilarVoz = useCallback(() => {
+    if (vozRef.current) clearInterval(vozRef.current);
+    rescatesDeVozRef.current = 0;
+    vozRef.current = setInterval(() => {
+      // Con la pestaña de fondo el navegador suspende el audio a propósito y no
+      // hay nadie oyendo: acá no hay nada roto que arreglar. Vigilar igual sería
+      // recrear el contexto cada vez que el niño mira otra ventana.
+      if (document.hidden) return;
+      const reproductor = reproductorRef.current;
+      if (!reproductor?.vozMuda(MS_VOZ_MUDA)) return;
+
+      rescatesDeVozRef.current += 1;
+      console.error(
+        `[voz] hay audio programado y no suena: rescate ${rescatesDeVozRef.current}`,
+      );
+      // Que quede en la transcripción, y por lo tanto en `revisar_sesion`.
+      cerrarTurnoAcumuladoRef.current?.();
+      encolar({ quien: "tutor", texto: MARCA_DE_VOZ_MUDA });
+
+      const revivio = reproductor.reiniciar();
+      console.info(`[voz] contexto recreado · ${revivio ? "anda" : "sigue suspendido"}`);
+      if (revivio) return;
+
+      // El navegador no deja sonar nada sin un gesto nuevo. Decírselo es lo
+      // único que queda, y es mucho mejor que dejarlo mirando a un tutor mudo.
+      if (rescatesDeVozRef.current >= 2) {
+        setError("No se oye a Walter. Toca para volver a empezar.");
+        setEstado("error");
+      }
+    }, MS_ENTRE_CHEQUEOS_DE_VOZ);
+  }, [encolar]);
 
   /**
    * Le muestra una imagen al tutor. La ÚNICA puerta: dibujo y foto entran igual.
@@ -1120,6 +1214,10 @@ export function useTutor(ninoId: string) {
     // Un reloj que sobrevive a la sesión corta la SIGUIENTE a destiempo.
     for (const reloj of relojesRef.current) clearTimeout(reloj);
     relojesRef.current = [];
+    if (vozRef.current) {
+      clearInterval(vozRef.current);
+      vozRef.current = null;
+    }
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
     retenerHastaRef.current = 0;
@@ -1341,6 +1439,9 @@ export function useTutor(ninoId: string) {
       reproductor.iniciar(); // dentro del gesto del usuario (o ya iniciado)
       reproductor.alTerminar = () => setEstado((e) => (e === "hablando" ? "escuchando" : e));
       reproductorRef.current = reproductor;
+      // Desde acá alguien mira que lo que el tutor dice se OIGA, no solo que
+      // llegue. Ver `MS_VOZ_MUDA`.
+      vigilarVoz();
 
       modoRef.current = modo;
       ultimaVozRef.current = Date.now(); // arranca limpio el reloj del silencio
@@ -1534,11 +1635,32 @@ export function useTutor(ninoId: string) {
 
             if (contenido?.turnComplete) {
               tutorContesto();
-              // El turno terminó: lo que quedó en duda ya no tiene dónde
-              // encajar. Reproducirlo ahora sería el tutor hablando solo,
-              // encima de lo que venga.
+              // ── `turnComplete` PRUEBA QUE EL SERVIDOR NO CORTÓ NADA ────────
+              //
+              // Y por eso lo que quedó en duda hay que SOLTARLO, no tirarlo.
+              // Acá estuvo el error que dejó a Juan leyendo al tutor sin oírlo
+              // (`ses_660ce383567d`, 25/08): esta rama descartaba el audio
+              // retenido «porque el turno ya terminó». Pero si el turno terminó
+              // entero es justamente porque nadie lo interrumpió — o sea, el
+              // barge-in se equivocó, y lo que se estaba tirando era la frase
+              // del tutor que el niño nunca llegó a oír.
+              //
+              // El resultado se retroalimentaba solo: el niño no oía, hablaba
+              // más fuerte para preguntar si seguía ahí, eso disparaba otro
+              // barge-in, y el turno siguiente también se perdía. La
+              // transcripción llegaba igual, así que en pantalla el tutor
+              // hablaba y hablaba. «Estoy viendo que estás hablando y hablando
+              // y como que no se escucha, solo leo lo que estás diciendo.»
+              //
+              // El único mensaje que autoriza a descartar es `interrupted`: ahí
+              // el servidor confirma que el niño habló encima de verdad.
+              if (enDudaRef.current.length) {
+                console.info("[barge-in] el turno terminó entero: se suelta lo retenido");
+                for (const guardado of enDudaRef.current.splice(0)) {
+                  reproductor.programar(guardado);
+                }
+              }
               turnoAbortadoRef.current = 0;
-              enDudaRef.current.length = 0;
               const dichoTutor = acumTutorRef.current;
 
               // Lo que el Analista va a LEER, visible en el momento. La
@@ -1666,13 +1788,18 @@ export function useTutor(ninoId: string) {
         // El umbral va por encima del eco residual que deja la cancelación del
         // navegador, y se exige que se sostenga: un golpe en la mesa dura un
         // bloque, una sílaba dura varios.
-        // `sonandoHace` y no `hablando` pelado: entre chunk y chunk la cola se
-        // vacía a mitad de frase, y con `hablando` el barge-in se apagaba justo
-        // en esos huecos. Peor todavía en la cola del final: el niño que
-        // arranca a hablar pegado al último sonido —o sea, casi siempre—
-        // quedaba en tierra de nadie, sin barge-in que lo confirmara y sin
-        // stream que lo dejara salir. Sus primeras sílabas se tiraban.
-        const tutorSonando = reproductor.sonandoHace(MS_COLA_ECO);
+        // `hablando` PELADO, y no `sonandoHace`. Cortar al tutor es una decisión
+        // sobre lo que está sonando AHORA: la cola de guarda existe para el
+        // otro problema —que el eco no viaje— y estirar el barge-in hasta ahí
+        // fue dejar que la cola acústica del parlante decidiera cortes.
+        //
+        // Se probó al revés el 25/08 por la mañana, con el argumento de que el
+        // niño que arranca a hablar pegado al final del turno quedaba en tierra
+        // de nadie. El argumento era falso: sus primeras sílabas ya no se
+        // pierden, y no porque el barge-in las rescate sino porque al dejar de
+        // retener la cola se suelta entera con su audio (`pasarPorLaCola`). Lo
+        // único que agregó la ventana extra fueron cortes falsos.
+        const tutorSonando = reproductor.hablando;
 
         if (tutorSonando && nivel > UMBRAL_BARGE_IN) {
           vozSostenidaMs = vozSostenida(vozSostenidaMs, {
@@ -1908,7 +2035,16 @@ export function useTutor(ninoId: string) {
     } finally {
       arrancandoRef.current = false;
     }
-  }, [ninoId, atenderTool, encolar, terminar, soltarRecursos, vigilarMudez, tutorContesto]);
+  }, [
+    ninoId,
+    atenderTool,
+    encolar,
+    terminar,
+    soltarRecursos,
+    vigilarMudez,
+    vigilarVoz,
+    tutorContesto,
+  ]);
 
   // El callback de Gemini se arma antes que `terminar`, así que lo alcanza
   // por referencia en vez de por closure. Lo mismo `empezar`, que el vigilante

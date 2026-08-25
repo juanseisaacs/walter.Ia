@@ -471,3 +471,93 @@ describe("despertar el contexto sin borrar la ráfaga (ses_6c6fb58aafbb)", () =>
     expect(ctx.reanudaciones, "quedó trabado: no reintentó nunca más").toBe(2);
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * El vigilante de la voz: ¿el niño está OYENDO lo que el tutor dice?
+ *
+ * Tres sesiones distintas terminaron con el niño descubriendo solo que el
+ * tutor era mudo —«solo leo lo que estás diciendo»— y cada una por una causa
+ * diferente. Esto no vigila causas: vigila el síntoma.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+describe("vozMuda: el diagnóstico que faltaba", () => {
+  const TOLERANCIA = 4_000;
+
+  it("sin nada programado no hay nada que denunciar", () => {
+    reproductor.iniciar();
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(false);
+  });
+
+  it("audio recién programado todavía no es mudez", () => {
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(0.5));
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(false);
+  });
+
+  it("una suspensión transitoria NO es mudez: se resuelve sola", () => {
+    // El navegador suspende el contexto por su cuenta todo el tiempo —pestaña
+    // al fondo, ahorro de energía— y `asegurarActivo()` lo despierta en
+    // milisegundos. Denunciarlo en el acto haría que cada una de esas se
+    // convirtiera en un contexto recreado, y dos seguidas le cerrarían la
+    // sesión al niño por haber mirado otra ventana.
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(0.5));
+    contexto().suspender();
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(false);
+  });
+
+  it("pero si el reloj sigue parado pasada la tolerancia, sí lo es", () => {
+    // El caso de `ses_91c13b1747a2`: «¿por qué dejaste de hablar y solo estoy
+    // viendo el texto?». El audio programado no va a sonar nunca por su cuenta.
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(0.5));
+    contexto().suspender();
+    vi.setSystemTime(Date.now() + TOLERANCIA + 500);
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("audio programado que no termina de sonar en el plazo es mudez", () => {
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(0.5));
+    vi.setSystemTime(Date.now() + TOLERANCIA + 500);
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("mientras los chunks van terminando, la voz está sana", () => {
+    // La prueba de vida es `onended`: si corre, el reloj del contexto anda.
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(0.5));
+    vi.setSystemTime(Date.now() + TOLERANCIA + 500);
+    contexto().fuentes[0].terminar();
+    reproductor.programar(chunkDe(0.5));
+    expect(reproductor.vozMuda(TOLERANCIA)).toBe(false);
+    vi.useRealTimers();
+  });
+});
+
+describe("reiniciar: el último recurso", () => {
+  it("tira el contexto viejo y hace uno nuevo", () => {
+    // `iniciar()` no sirve para esto: ve que ya hay contexto y se va. Y de
+    // algunos estados no se sale con `resume()` — el dispositivo que se fue
+    // con los audífonos, el sink que ya no existe.
+    reproductor.iniciar();
+    const viejo = contexto();
+    reproductor.programar(chunkDe(0.5));
+
+    expect(reproductor.reiniciar()).toBe(true);
+    expect(viejo.state).toBe("closed");
+    expect(audioFalso.contextos.length).toBe(2);
+  });
+
+  it("después de reiniciar, la cola arranca limpia", () => {
+    // Lo que estaba encolado ya perdió su momento en la conversación, y sonaría
+    // encima de lo que venga.
+    reproductor.iniciar();
+    reproductor.programar(chunkDe(2));
+    reproductor.reiniciar();
+    expect(reproductor.hablando).toBe(false);
+    expect(reproductor.vozMuda(4_000)).toBe(false);
+  });
+});
