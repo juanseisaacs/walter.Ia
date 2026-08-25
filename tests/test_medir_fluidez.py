@@ -113,3 +113,13 @@ def test_una_respuesta_suelta_en_minuscula_no_es_un_descabezado():
     daño la forma normal en que un niño contesta."""
     m = medir("tutor: ¿Cuánto da?\nnino: siete\n", MUDEZ)
     assert m["descabezados"] == 0
+
+
+def test_la_sordera_se_cuenta():
+    """El niño habló y su voz no llegó. La espejo de la voz muda, y la que dejó
+    morir en silencio a `ses_60ea3b164f17`: setenta segundos sin un solo evento
+    porque nadie miraba ese lado."""
+    from scripts.medir_fluidez import _marca_de_sordera
+
+    m = medir(f"tutor: ¿cuánto da?\nnino: {_marca_de_sordera()}\n", MUDEZ)
+    assert m["sordera"] == 1

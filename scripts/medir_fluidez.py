@@ -21,6 +21,10 @@ que son tres cosas distintas y se confundían entre sí:
   · SIN VOZ   `MARCA_DE_VOZ_MUDA`: contestó, pero el niño no lo oyó. Es la peor
               de todas y la que no se veía — el texto llega por un camino y el
               audio por otro, así que la transcripción se ve igual de sana.
+  · SORDO     `MARCA_DE_SORDERA`: el niño habló y su voz no llegó a ningún
+              lado. La espejo de SIN VOZ, y la que dejó morir en silencio a
+              `ses_60ea3b164f17` — nadie la miraba porque el vigilante de la
+              mudez se arma cuando llega la voz del niño.
   · NIÑO✂     el turno del NIÑO termina a mitad de frase. Este mira para el otro
               lado: el VAD del servidor le cerró el turno antes de que
               terminara de hablar. «Tengo una tarea de» (`ses_02805f3edba1`) es
@@ -76,6 +80,10 @@ def _marca_de_mudez() -> str:
 
 def _marca_de_voz_muda() -> str:
     return _marca("MARCA_DE_VOZ_MUDA", "[el niño no oyó esto")
+
+
+def _marca_de_sordera() -> str:
+    return _marca("MARCA_DE_SORDERA", "[el niño habló acá")
 
 
 def _turnos(texto: str) -> list[tuple[str, str]]:
@@ -167,12 +175,18 @@ def medir(texto: str, marca_mudez: str) -> dict:
     # ve idéntica a una sana: el texto llega por un camino y el audio por otro.
     voz_muda = sum(1 for _, t in turnos if _marca_de_voz_muda()[:20] in t)
 
+    # La espejo de la anterior, y la que dejó morir `ses_60ea3b164f17` en
+    # silencio: el niño habló y su voz no llegó a ningún lado. Nadie la miraba
+    # porque el vigilante de la mudez se arma CUANDO llega la voz del niño.
+    sordera = sum(1 for _, t in turnos if _marca_de_sordera()[:20] in t)
+
     return {
         "turnos": len(del_tutor),
         "cortados": len(cortados),
         "retomas": retomas,
         "mudeces": mudeces,
         "voz_muda": voz_muda,
+        "sordera": sordera,
         "cortados_nino": len(cortados_nino),
         "descabezados": len(descabezados),
         "turnos_nino": len(del_nino),
@@ -205,7 +219,7 @@ def main() -> int:
     print("=" * 78)
     print(
         f"\n{'sesión':22}{'turnos':>7}{'cortados':>10}{'retomas':>9}{'mudez':>7}"
-        f"{'niño✂':>8}{'niño✁':>8}{'sin voz':>9}"
+        f"{'niño✂':>8}{'niño✁':>8}{'sin voz':>9}{'sordo':>7}"
     )
 
     total = {
@@ -214,6 +228,7 @@ def main() -> int:
         "retomas": 0,
         "mudeces": 0,
         "voz_muda": 0,
+        "sordera": 0,
         "cortados_nino": 0,
         "descabezados": 0,
         "turnos_nino": 0,
@@ -230,7 +245,7 @@ def main() -> int:
         print(
             f"{f.stem:22}{m['turnos']:>7}{m['cortados']:>10}{m['retomas']:>9}"
             f"{m['mudeces']:>7}{m['cortados_nino']:>8}{m['descabezados']:>8}"
-            f"{m['voz_muda']:>9}"
+            f"{m['voz_muda']:>9}{m['sordera']:>7}"
         )
         if m["ejemplos"]:
             peores.append((f.stem, m["ejemplos"]))
@@ -247,7 +262,8 @@ def main() -> int:
         f"{total['retomas']} retomas · {total['mudeces']} mudeces · "
         f"{total['cortados_nino']} turnos del niño cortados al final · "
         f"{total['descabezados']} descabezados · "
-        f"{total['voz_muda']} turnos que el niño NO OYÓ"
+        f"{total['voz_muda']} turnos que el niño NO OYÓ · "
+        f"{total['sordera']} veces que al niño NO LO OYERON"
     )
 
     if peores:

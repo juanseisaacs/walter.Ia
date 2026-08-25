@@ -262,6 +262,34 @@ export const MS_VOZ_MUDA = 4_000;
 /** Cada cuánto se mira. No hace falta más fino: la recuperación tarda más. */
 export const MS_ENTRE_CHEQUEOS_DE_VOZ = 1_000;
 
+/**
+ * Cuánta VOZ DEL NIÑO puede salir sin que vuelva una sola sílaba transcripta.
+ *
+ * ── EL TERCER VIGILANTE, Y EL ÚNICO LADO QUE FALTABA ─────────────────────
+ *
+ * Los otros dos miran al tutor: que conteste (`MS_MUDEZ`) y que se le oiga
+ * (`MS_VOZ_MUDA`). Este mira al niño, y tapa un agujero que era estructural:
+ *
+ *   **`vigilarMudez` se arma cuando llega transcripción del niño.** O sea que
+ *   el vigilante del silencio depende de que la voz del niño llegue — y "la voz
+ *   del niño no llega" es justamente el fallo que nadie estaba mirando.
+ *
+ * Se vio entero en `ses_60ea3b164f17` (25/08), y por primera vez con datos: el
+ * diario de la voz muestra el último evento a los 3:42 y la sesión cerrada a
+ * los 4:54. **Setenta segundos sin un solo evento** — ni latencia, ni tool, ni
+ * mudez. Camila habló, nadie la oyó, y como su voz no llegó tampoco se armó el
+ * reloj que habría empujado al tutor. La sesión murió en silencio y ella tuvo
+ * que tocar el botón de terminar.
+ *
+ * Seis segundos es voz de verdad, no un carraspeo: se cuenta solo el audio que
+ * SALE (el que va mudo por el eco del tutor no cuenta) y solo por encima del
+ * umbral del barge-in.
+ */
+export const MS_VOZ_SIN_ACUSE = 6_000;
+
+/** Lo que queda escrito cuando el niño habló y su voz no llegó a ningún lado. */
+export const MARCA_DE_SORDERA = "[el niño habló acá y su voz no llegó]";
+
 /** Lo que queda escrito en la transcripción cuando la voz se pierde.
  *
  * Es la mitad que convierte esto en algo diagnosticable: sin marca, una sesión
@@ -506,6 +534,11 @@ export function useTutor(ninoId: string) {
       volver a montarlo en cada cambio. */
   const hojaRef = useRef<string | null>(null);
   const camaraAbiertaRef = useRef(false);
+  /** Cuánta voz del niño salió sin que volviera una sola sílaba transcripta.
+      Ver `MS_VOZ_SIN_ACUSE`: es el vigilante del lado del niño. */
+  const vozSinAcuseRef = useRef(0);
+  /** Cuántas veces se intentó destrabar el oído del tutor en esta sesión. */
+  const rescatesDeOidoRef = useRef(0);
   /** El diario de la voz. Ver `diario.ts`: nunca en el camino del audio. */
   const diarioRef = useRef<Diario | null>(null);
   /** El reloj del vigilante de la voz. Ver `MS_VOZ_MUDA`. */
@@ -613,6 +646,52 @@ export function useTutor(ninoId: string) {
   /** Para llamarse a sí misma sin depender del orden de los closures. */
   const vigilarMudezRef = useRef<((espera?: number) => void) | null>(null);
   vigilarMudezRef.current = vigilarMudez;
+
+  /**
+   * El niño lleva segundos hablando y no volvió ni una sílaba. Destrabar.
+   *
+   * Primero el flush, que es lo que receta la propia Live API para este cuadro:
+   *
+   *   «when the audio stream is paused… an `audioStreamEnd` event should be
+   *    sent to flush any cached audio.»
+   *
+   * El turno del niño puede quedarse colgado en el buffer del servidor sin
+   * cerrarse nunca —y un turno que no se cierra es un turno que no se contesta.
+   * `audioStreamEnd` lo cierra y el modelo responde a lo que ya tenía. Es
+   * barato, no destruye nada y el stream se reanuda solo con el bloque
+   * siguiente.
+   *
+   * Si después de eso el niño sigue hablando sin que nadie le conteste, lo roto
+   * ya no es el turno sino el canal, y eso se arregla con un socket nuevo sobre
+   * la misma sesión — el mismo camino que usa la mudez.
+   */
+  const destrabarElOido = useCallback(() => {
+    rescatesDeOidoRef.current += 1;
+    console.warn(`[oído] el niño habla y no llega nada: intento ${rescatesDeOidoRef.current}`);
+    anotar({ t: "sordera", intento: rescatesDeOidoRef.current });
+    cerrarTurnoAcumuladoRef.current?.();
+    encolar({ quien: "nino", texto: MARCA_DE_SORDERA });
+
+    if (rescatesDeOidoRef.current === 1) {
+      try {
+        liveRef.current?.sendRealtimeInput({ audioStreamEnd: true });
+      } catch (e) {
+        console.warn("[oído] no se pudo cerrar el stream:", e);
+      }
+      // Y desde acá alguien mira el reloj, que es lo que faltaba: si el flush
+      // no destraba nada, la mudez toma el relevo y empuja o reconecta.
+      vigilarMudezRef.current?.();
+      return;
+    }
+
+    // El flush no alcanzó. Se dispara la escalera de la mudez SIN ESPERA: ella
+    // ya sabe empujar primero y, si eso tampoco destraba, reconectar sobre la
+    // MISMA sesión sin perderle al niño los ejercicios ni el hilo. Duplicar esa
+    // escalera acá sería tener dos formas distintas de reaccionar al mismo
+    // silencio, y una de las dos se iba a quedar vieja.
+    console.error("[oído] el flush no alcanzó: se dispara la escalera de la mudez");
+    vigilarMudezRef.current?.(0);
+  }, [encolar, anotar]);
 
   /**
    * EL VIGILANTE DE LA VOZ: ¿el niño está oyendo lo que el tutor dice?
@@ -782,11 +861,9 @@ export function useTutor(ninoId: string) {
     // herramienta y le desobedeció" de "nunca la llamó y lo dijo de memoria".
     const t0 = performance.now();
     const medir = (r: object) => {
-      const ms = Math.round(performance.now() - t0);
-      console.info(`[tool] ${nombre}: ${ms}ms`, r);
-      // El silencio del tool es el que el niño lee como «se fue a buscar la
-      // respuesta»: sin este número no hay forma de saber si duró 40 ms o 6 s.
-      anotar({ t: "tool", nombre, ms });
+      // El diario lo anota el LLAMADOR, para que ningún tool quede fuera: acá
+      // solo pasan los que devuelven por este helper. Ver el `Promise.all`.
+      console.info(`[tool] ${nombre}: ${Math.round(performance.now() - t0)}ms`, r);
       return r;
     };
 
@@ -1246,6 +1323,8 @@ export function useTutor(ninoId: string) {
     // siguiente, que es el saludo — el turno más caro de perder.
     turnoAbortadoRef.current = 0;
     enDudaRef.current.length = 0;
+    vozSinAcuseRef.current = 0;
+    rescatesDeOidoRef.current = 0;
     // EL TABLERO TAMPOCO SOBREVIVE.
     //
     // `ses_97d5b112a122` empezó así, antes de que nadie dijera nada:
@@ -1659,6 +1738,9 @@ export function useTutor(ninoId: string) {
               // cerca que estamos de "el niño terminó de hablar".
               callóRef.current = performance.now();
               ultimaVozRef.current = Date.now(); // y el reloj de la inactividad
+              // Llegó: el oído del tutor funciona. Ver `MS_VOZ_SIN_ACUSE`.
+              vozSinAcuseRef.current = 0;
+              rescatesDeOidoRef.current = 0;
               // Y el que mira si el tutor contesta. Se reinicia con cada sílaba:
               // mientras el niño habla no hay nada que esperar.
               vigilarMudez();
@@ -1727,6 +1809,13 @@ export function useTutor(ninoId: string) {
               void Promise.all(
                 llamadas.map(async (fc: any) => {
                   let respuesta: object;
+                  // Se mide ACÁ y no adentro de cada `case`. La primera versión
+                  // anotaba en un helper que solo envolvía los `return` de los
+                  // tools de red, así que los de la pizarra —los que dibujan, y
+                  // los que RBH sospechaba de tardar— no aparecían en el diario.
+                  // Un instrumento con agujeros manda a buscar el problema al
+                  // lado equivocado, que es peor que no tenerlo.
+                  const desde = performance.now();
                   try {
                     respuesta = await atenderTool(fc.name, fc.args ?? {});
                   } catch (e: any) {
@@ -1741,6 +1830,11 @@ export function useTutor(ninoId: string) {
                       setSesionMurio(true);
                     }
                   }
+                  anotar({
+                    t: "tool",
+                    nombre: fc.name,
+                    ms: Math.round(performance.now() - desde),
+                  });
                   return { id: fc.id, name: fc.name, response: respuesta };
                 }),
               )
@@ -1943,6 +2037,24 @@ export function useTutor(ninoId: string) {
           /* sesión cerrada a mitad de un lote */
         }
 
+        // ── ¿ALGUIEN ESTÁ OYENDO AL NIÑO? ─────────────────────────────────
+        //
+        // Se cuenta solo la voz que SALE de verdad —no la que va muda por el
+        // eco del tutor— y solo por encima del umbral. Si se juntan segundos de
+        // eso sin que vuelva una sola sílaba transcripta, el camino de entrada
+        // está roto: el niño está hablándole a nadie.
+        //
+        // Nadie lo miraba, y no por descuido: `vigilarMudez` se arma CUANDO
+        // LLEGA la transcripción del niño, así que el vigilante del silencio
+        // dependía justo de lo que acá falla. Ver `MS_VOZ_SIN_ACUSE`.
+        if (!reteniendo && nivel > UMBRAL_BARGE_IN) {
+          vozSinAcuseRef.current += (muestras.length / SAMPLE_RATE_ENTRADA) * 1000;
+          if (vozSinAcuseRef.current >= MS_VOZ_SIN_ACUSE) {
+            vozSinAcuseRef.current = 0;
+            destrabarElOido();
+          }
+        }
+
         if (!reteniendo) {
           retenerHastaRef.current = 0; // el techo venció: el saludo no llegó
           // Se apaga con la cola vacía, nunca antes: si sobreviviera al próximo
@@ -2075,6 +2187,7 @@ export function useTutor(ninoId: string) {
     soltarRecursos,
     vigilarMudez,
     vigilarVoz,
+    destrabarElOido,
     tutorContesto,
   ]);
 

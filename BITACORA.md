@@ -2443,3 +2443,96 @@ Y el contrato lo cruzan las tres piezas juntas (`test_contrato_version.py`):
 el que anota, el que recibe y el que lo lee. Cada una sola es inútil — un
 backend que guarda un diario que nadie mira es exactamente el mismo silencio de
 antes, pero con más código.
+
+---
+
+## Setenta segundos sin un solo evento (25/08, `ses_60ea3b164f17`)
+
+Primera vez que un diagnóstico empieza con datos en vez de con una teoría. El
+diario de la voz, estrenado esa misma tarde, contestó la pregunta de RBH en la
+primera pantalla:
+
+> «Cuando él va a verificar una respuesta que yo le doy, como que se queda por
+> allá verificándola… no sé si el código no logra darle la respuesta rápido.»
+
+```
+tools: 3 llamadas · la más lenta check_answer 319 ms
+latencia del tutor: mediana 61 ms · peor 2.751 ms  (11 turnos)
+```
+
+**No era eso.** `check_answer` tardó 319 ms la primera vez —el primer viaje
+HTTP— y **4 ms** la segunda. El backend no está en el camino de nada. La
+sospecha era razonable y el dato la descartó en diez segundos; sin el diario
+habrían sido otras dos horas de lectura de código.
+
+### Lo que sí decía el diario
+
+Dos cosas, y la segunda es la grande:
+
+**Nueve `interrupted` en 3:36.** El servidor le cortó la generación al tutor
+nueve veces. Cinco de ellas sin `barge_in` local, o sea cortando un turno que
+todavía no había llegado al parlante.
+
+**Y después de los 3:42, nada.** Ni un evento hasta el cierre a los 4:54.
+
+```
+3:42  latencia   1 ms      ← el tutor contesta
+      (setenta segundos de nada)
+4:54  cierre — motivo: nino_termino
+```
+
+Setenta segundos sin latencia, sin tool, sin `interrupted` y **sin mudez**.
+Camila habló, nadie la oyó, y el reloj que tendría que haber empujado al tutor
+nunca se armó. Terminó tocando el botón de terminar.
+
+### El agujero era estructural, y se lee en el propio código
+
+`vigilarMudez()` se arma en tres lugares, y el que importa es este:
+
+```ts
+if (delNino) {          // ← llegó transcripción del niño
+  vigilarMudez();
+}
+```
+
+**El vigilante del silencio dependía de que la voz del niño llegara.** Y "la voz
+del niño no llega" es justamente el fallo que nadie estaba mirando. Cuando el
+camino de entrada se rompe, se rompe también el único mecanismo que podía
+detectarlo: el sistema se queda esperando, en silencio, para siempre.
+
+> Un vigilante que se arma con la señal que vigila no vigila nada. Es el mismo
+> error de forma que `ABANDONO_SEG` vino a resolver del otro lado —un vigilante
+> que vive adentro de lo que vigila no puede detectar que eso muera— y esta vez
+> estaba a la vista, en el `if` que lo arma.
+
+Ahora hay un tercer vigilante, y los tres cubren los tres lados de la
+conversación:
+
+| vigilante | qué mira | de qué sesión salió |
+|---|---|---|
+| `MS_MUDEZ` | el tutor no contesta | `ses_02805f3edba1` |
+| `MS_VOZ_MUDA` | el tutor contesta y no se le oye | `ses_660ce383567d` |
+| `MS_VOZ_SIN_ACUSE` | **el niño habla y nadie lo oye** | `ses_60ea3b164f17` |
+
+El nuevo cuenta la voz que SALE de verdad —la que va muda por el eco del tutor
+no cuenta— y a los seis segundos sin una sola sílaba de vuelta manda
+`audioStreamEnd`, que es lo que la Live API receta para un turno que se quedó
+colgado en el buffer del servidor. Si eso no destraba, dispara la escalera de la
+mudez que ya existe: empujón y, si tampoco, reconexión sobre la misma sesión.
+No una segunda escalera propia — dos formas distintas de reaccionar al mismo
+silencio se desincronizan, y una de las dos se queda vieja.
+
+### Y el instrumento estrenado ya tenía un agujero
+
+`mostrar_en_pizarra` **no aparecía en el diario**, aunque la niña estaba viendo
+el tablero. La anotación vivía dentro de un helper (`medir()`) que solo envuelve
+los `return` de los tools que van por red; los de la pizarra devuelven directo.
+
+O sea que los tools que RBH sospechaba de tardar eran justo los que el
+instrumento no veía.
+
+> Un instrumento con agujeros es peor que no tener ninguno: manda a buscar el
+> problema al lado equivocado, y con la autoridad de un número.
+
+Se mide ahora en el llamador, donde pasan todos —incluido el que falla—, y hay
+un test que lo fija.

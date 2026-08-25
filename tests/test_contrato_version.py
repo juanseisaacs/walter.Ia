@@ -307,6 +307,61 @@ def test_el_diario_de_la_voz_esta_conectado_de_punta_a_punta():
     assert "leer_diario" in revisar, "`revisar_sesion` dejó de mostrar el diario"
 
 
+def test_alguien_vigila_que_AL_NINO_LO_OIGAN():
+    """EL TERCER VIGILANTE, Y EL AGUJERO ERA ESTRUCTURAL.
+
+    Los otros dos miran al tutor: que conteste (`MS_MUDEZ`) y que se le oiga
+    (`MS_VOZ_MUDA`). Faltaba el lado del niño, y faltaba por una razón que se
+    lee en el propio código: **`vigilarMudez` se arma cuando LLEGA la
+    transcripción del niño.** O sea que el vigilante del silencio dependía de
+    que la voz del niño llegara — y "la voz del niño no llega" es justamente el
+    fallo que nadie estaba mirando.
+
+    `ses_60ea3b164f17` (25/08) es el primero medido con datos: el diario de la
+    voz muestra el último evento a los 3:42 y la sesión cerrada a los 4:54.
+    **Setenta segundos sin un solo evento** — ni latencia, ni tool, ni mudez.
+    Camila habló, nadie la oyó, y como su voz no llegó tampoco se armó el reloj
+    que habría empujado al tutor. Tuvo que tocar el botón de terminar.
+    """
+    ts = _texto(USE_TUTOR)
+    assert "MS_VOZ_SIN_ACUSE" in ts, "nadie mira si al niño lo están oyendo"
+    assert "destrabarElOido" in ts
+
+    # El flush primero: es lo que receta la Live API para un turno que se quedó
+    # colgado en el buffer del servidor, y no destruye nada.
+    destrabar = ts[ts.index("const destrabarElOido") :]
+    destrabar = destrabar[: destrabar.index("const vigilarVoz")]
+    assert "audioStreamEnd: true" in destrabar, (
+        "sin el flush, un turno colgado del lado del servidor no se cierra nunca"
+    )
+    # Y después la escalera que YA existe, no una segunda inventada acá: dos
+    # formas distintas de reaccionar al mismo silencio se desincronizan.
+    assert "vigilarMudezRef.current?.(0)" in destrabar, (
+        "el segundo intento no escala: el niño se queda hablándole a nadie"
+    )
+    assert "MARCA_DE_SORDERA" in ts, "no deja rastro en la transcripción"
+
+
+def test_TODOS_los_tools_quedan_en_el_diario():
+    """Un instrumento con agujeros manda a buscar el problema al lado equivocado.
+
+    La primera versión anotaba dentro de un helper que solo envolvía los
+    `return` de los tools que van por red. Los de la pizarra —que dibujan, y que
+    eran justo los que RBH sospechaba de tardar— no pasan por ahí, así que
+    `mostrar_en_pizarra` no aparecía en el diario de `ses_60ea3b164f17` aunque
+    la niña estaba viendo el tablero.
+
+    Se mide en el LLAMADOR: ahí pasan todos, incluido el que falla.
+    """
+    ts = _texto(USE_TUTOR)
+    llamador = ts[ts.index("llamadas.map(async") :]
+    llamador = llamador[: llamador.index("sendToolResponse")]
+    assert "performance.now()" in llamador and 't: "tool"' in llamador, (
+        "los tools se miden por dentro otra vez: los que no usan el helper "
+        "quedan fuera del diario"
+    )
+
+
 def test_el_diario_se_drena_al_cerrar():
     """El lote que falta es siempre el que explica por qué se cayó.
 
