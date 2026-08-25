@@ -1,6 +1,6 @@
 # Pendiente — retomar acá
 
-_Última poda: 2026-08-22._
+_Última poda: 2026-08-24._
 
 > Este archivo se **poda**, no solo se agrega. El 20/08 tenía 25 secciones y
 > ocho de los pendientes marcados en rojo ya estaban hechos hacía días — leerlo
@@ -16,9 +16,9 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **589 tests** de Python · **94** del front · **evals 45/45** (los 3 casos
+- **662 tests** de Python · **166** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
-- **62 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
+- **~100 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
   Live real: `python -m scripts.e2e_voz` (14/14 el 22/08)
 - **78 habilidades** (1° a 5°): 54 de matemáticas —el MEN numérico completo—,
@@ -30,15 +30,59 @@ el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
 ```bash
 cd web && npm run build && cd ..      # solo si se tocó la interfaz
-python -m scripts.servidor_pruebas    # topes soltados, para probar
+python -m uvicorn tutor.api:app --port 8000
 ```
 → **http://localhost:8000** · la pizarra suelta en **/pizarra**
+
+### ⚠️ Los dos comandos que se corren SIEMPRE (24/08)
+
+```bash
+python -m scripts.listo_para_hablar   # ANTES de entregar un enlace
+python -m scripts.revisar_sesion      # DESPUÉS de cada sesión
+```
+
+El primero abre una sesión Live de verdad. El 24/08 se entregaron cuatro
+enlaces "verificados" y ninguno servía: `POST /api/sesiones` daba 200 en los
+cuatro y Google contestaba *«prepayment credits are depleted»*. **Un 200 del
+backend no prueba que el niño pueda hablar.**
+
+El segundo junta en una pantalla lo que estaba en cinco lugares — cierre,
+aprendizaje, método, fluidez y costo. Sin él, diagnosticar una sesión costaba
+media hora y terminaba en una hipótesis; con él, diez segundos. Ese ciclo de
+forense repetida fue lo que se comió los días 23 y 24.
+
+---
+
+## 💵 Costos — medido, no estimado (24/08)
+
+Dos recargas de US$10 agotadas: **US$20 en 520 minutos → US$0,038 por minuto.**
+A 20 minutos diarios son **~US$23 al mes por niño**, que es un número de negocio
+y hay que mirarlo antes de poner precio.
+
+**US$6,89 de los US$20 se fueron en sesiones que nadie usaba** — una de 117,7
+minutos. Ya no puede volver a pasar: hay dos vigilantes distintos, el reaper
+del backend (pestaña muerta, `ABANDONO_SEG`) y el corte por inactividad del
+navegador (niño ausente con la pestaña viva, `MS_SIN_EL_NINO`). Tope por
+incidente: US$0,15.
+
+Lo que falta acá: **el gasto no se registra en dólares en ningún lado.** Hoy hay
+que reconstruirlo a mano desde `tokens_consumidos` y los minutos, y 35 de 94
+sesiones tenían `tokens_consumidos = 0` porque el navegador no alcanzaba a
+reportar. Eso último debería estar resuelto (beacon + reaper + `motivo_cierre`),
+pero hay que confirmarlo con datos nuevos antes de creerlo.
 
 ---
 
 ## 🔴 Lo único que mueve la aguja
 
 **Cinco niños que no seamos nosotros, una semana.**
+
+> **Acordado el 24/08:** antes de eso, **cinco sesiones seguidas sin tocar el
+> código entre una y otra**, corriendo `revisar_sesion` después de cada una.
+> La sesión `ses_9c5a9c436312` cerró limpia en las cinco dimensiones —banco
+> usado, dominio escrito, auditoría 4/4, cero mudeces— y aun así se sintió como
+> que no funcionaba, porque no había cómo verlo. Cinco pantallas juntas dicen
+> si hay un patrón o si estamos reaccionando a la última impresión.
 
 El cuello de botella dejó de ser técnico hace días. Falta evidencia de que
 alguien lo usa y vuelve, y eso no se simula ni se construye:

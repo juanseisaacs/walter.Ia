@@ -842,3 +842,78 @@ def test_el_onboarding_entrega_el_enlace_con_el_que_el_nino_entra(cliente_con_en
     assert c.post(
         "/api/sesiones", json={"nino_id": fin["nino_id"], "token": token}
     ).status_code == 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reconectar
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_reconectar_devuelve_token_sin_abrir_sesion_nueva(cliente):
+    """Se cayó el canal de voz, no la sesión. El niño no tiene que empezar de
+    cero porque se murió un socket (`ses_02805f3edba1`)."""
+    sid = _abrir(cliente)
+    r = cliente.post(f"/api/sesiones/{sid}/reconectar")
+
+    assert r.status_code == 200
+    datos = r.json()
+    assert datos["sesion_id"] == sid, "reconectar abrió una sesión nueva"
+    assert datos["token"], "sin token no hay voz"
+    assert datos["ejercicios"] == [], "el navegador ya los tiene: repetirlos se los pisa"
+
+
+def test_reconectar_no_expone_la_configuracion(cliente):
+    """El candado #1 vale igual acá: el navegador recibe un token, no un prompt.
+    Un camino nuevo hacia el mismo token es un camino nuevo por donde se puede
+    escapar la configuración."""
+    sid = _abrir(cliente)
+    datos = cliente.post(f"/api/sesiones/{sid}/reconectar").json()
+    assert "instruccion_sistema" not in datos
+    assert "configuracion" not in datos
+
+
+def test_reconectar_una_sesion_cerrada_da_409(cliente):
+    """409 y no 404: no es "no existe", es "esto ya no se puede recuperar,
+    abrí una nueva". El navegador los trata distinto."""
+    sid = _abrir(cliente)
+    cliente.post(f"/api/sesiones/{sid}/cerrar", json={})
+    assert cliente.post(f"/api/sesiones/{sid}/reconectar").status_code == 409
+
+
+def test_reconectar_no_quema_el_cupo_diario(cliente):
+    """Un socket que se cae no es una sesión más. Si contara, un niño con mala
+    conexión se quedaría sin tutor a media tarde por algo que no hizo."""
+    sid = _abrir(cliente)
+    for _ in range(6):
+        assert cliente.post(f"/api/sesiones/{sid}/reconectar").status_code == 200
+    # Y todavía puede abrir una sesión de verdad después.
+    cliente.post(f"/api/sesiones/{sid}/cerrar", json={})
+    assert cliente.post(
+        "/api/sesiones", json={"nino_id": "n1", "token": TOKENS["n1"]}
+    ).status_code == 200
+
+
+def test_el_latido_mantiene_la_sesion_y_no_falla_nunca(cliente):
+    """Lo que le da ojos al reaper. Un POST vacío, fuera del camino del audio."""
+    sid = _abrir(cliente)
+    assert cliente.post(f"/api/sesiones/{sid}/latido").status_code == 204
+    # Uno tardío, de una pestaña que no se enteró de que la sesión murió: no
+    # puede devolver error o el navegador se pone a reintentar contra el vacío.
+    assert cliente.post("/api/sesiones/ses_fantasma/latido").status_code == 204
+
+
+def test_cerrar_acepta_el_cuerpo_que_manda_sendBeacon(cliente):
+    """`sendBeacon` manda un Blob con `application/json`, no un fetch normal.
+
+    Es el camino que se usa cuando la PESTAÑA se va, y si el backend no lo
+    parsea la sesión queda huérfana igual — que es justo el bug que esto viene a
+    tapar (`ses_610e057cfd91`, `estado: activa` para siempre)."""
+    sid = _abrir(cliente)
+    r = cliente.post(
+        f"/api/sesiones/{sid}/cerrar",
+        content=b'{"interrumpida": true, "tokens_consumidos": 4200}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.status_code == 200
+    assert r.json()["estado"] == "interrumpida"
+    assert r.json()["tokens_consumidos"] == 4200

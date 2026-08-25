@@ -1602,3 +1602,602 @@ esta regla: la primera fue «ya estoy avisando» con la cursiva.
 > ubicada, o la instrucción de al lado la contradice. Antes de reescribirla por
 > tercera vez hay que mirar QUÉ la empuja — y eso pide leer el prompt entero,
 > no agregarle otra línea.
+
+---
+
+## «¿Me escuchas? Estás como trabado» (24/08, `ses_0a6036dedf55`)
+
+Sesión de 2 minutos, 8 turnos, Juan con pares e impares. Terminó bien —el niño
+pasó de «no sé» a «impar» razonando— pero por el medio pasaron tres cosas, y
+las tres salían de **un solo bug de cuatro líneas**.
+
+```
+tutor: ¿el número 9 es par o impar?
+nino:  No sé.
+tutor: Imagínate que tienes 9 galletas… ¿o quieres que te lo dibuje?
+nino:  Sí, mejor dibújalo.
+tutor: [la pizarra no supo dibujar esto: {"por_grupo":9,"tipo":"grupos","nombre":"galletas"}]
+nino:  Dibújalo. ¿Me escuchas? Estás como trabado.
+```
+
+### Un montón no era un grupo
+
+`desdeElTutor.ts` exigía `grupos` **y** `por_grupo`. El tutor quiso mostrar un
+montón suelto de 9 galletas —lo más natural del mundo— y mandó `por_grupo: 9`
+sin `grupos`, que es exactamente lo que quiso decir. El validador devolvió
+`null` y el tablero quedó vacío.
+
+Es la tercera vez que aparece el mismo agujero en el mismo archivo: el
+validador rechazando en silencio un pedido que se entiende perfecto
+(`MAX_POR_GRUPO` en 12, la fracción impropia, y ahora esto). La forma del bug
+no cambia:
+
+> Un validador de frontera que devuelve `null` ante algo razonable no está
+> protegiendo al niño: le está apagando la pantalla. La pregunta no es «¿está
+> completo el payload?» sino «¿se entiende qué quiso mostrar?».
+
+Y el arreglo casi introduce el bug de al lado: `grupos ?? 1` convertía un pedido
+de **cien** grupos —rechazado por no caber en el tablero— en un montón de uno.
+Lo agarró un test que ya existía. Ausente y inválido no son lo mismo.
+
+### El silencio, y un comentario que decía lo contrario del código
+
+El «estás como trabado» no fue lentitud: fue que `mostrar_en_pizarra`
+**bloquea** el turno. El tutor se calla mientras la resuelve, y si la escena no
+se puede armar el hueco se estira.
+
+Lo caro fue que el comentario en `useTutor.ts` afirmaba lo contrario —«los dos
+tools son NON_BLOCKING: el tutor sigue hablando mientras esto pasa»—. Se quedó
+viejo cuando `voice.py` sacó el flag, medido, porque con NON_BLOCKING salían
+mudos 8 de 8 turnos con tool. El código estaba bien; el mapa mandaba a buscar el
+silencio al lado equivocado.
+
+> Un comentario que describe una decisión revertida es peor que no tener
+> comentario: no envejece a la vista como el código, y nadie lo compila.
+
+### Los cortes: la mitad que faltaba del arreglo del 23/08
+
+2 de 8 turnos partidos, y el niño lo dijo él mismo en la primera frase de la
+sesión: *«no terminaste de hablar, como que se te cortó la frase»*. Fue el
+**saludo de apertura**, con el niño callado.
+
+Retener el micrófono mientras `reproductor.hablando` fuera true tapó el caso
+largo y dejó dos huecos cortos, los dos con el mismo final —eco del tutor hacia
+un VAD en `START_SENSITIVITY_HIGH`, que corta la generación—:
+
+- **entre chunk y chunk.** Gemini manda en ráfagas; si una llega tarde, la cola
+  se vacía a mitad de frase y `fuentes.size` queda en cero unos milisegundos.
+- **al terminar.** La última fuente deja de sonar, pero la cola acústica del
+  parlante sigue entrando por el micrófono.
+
+Y el saludo era el turno más expuesto de todos: el micro se abre **antes** de
+mandar la apertura, así que entre el envío y el primer chunk no había
+reproductor que retuviera nada.
+
+`sonandoHace(MS_COLA_ECO)` aguanta 300 ms después del último sonido y tapa los
+dos huecos; `MS_RETENER_APERTURA` cubre el saludo con un techo que se levanta
+con la primera voz del tutor —techo y no espera, porque un saludo que no llega
+no puede dejar al niño con el micrófono mudo toda la sesión—. El barge-in sigue
+mirando `hablando` pelado: cortar al tutor es decisión del niño y no puede
+depender de un colchón nuestro.
+
+> Un booleano derivado de «¿queda algo en la cola?» no responde «¿el tutor
+> terminó de hablar?». Se parecen lo suficiente como para que el arreglo
+> funcione en la mitad de los casos, que es la peor forma de funcionar.
+
+### Lo que la transcripción no podía contar
+
+La auditoría marcó `afirmo_algo_falso: true` porque el tutor dijo «ahí te puse 9
+galletas» después del fallo. RBH, que estuvo en la sesión, dijo que **sí llegó a
+ver un dibujo** más adelante.
+
+Las dos cosas caben, y esa es la trampa: la transcripción anota los fallos de
+pizarra —eso se agregó el 23/08 y es lo que permitió encontrar todo esto— pero
+**no anota los éxitos**. Un reintento que funcionó no deja rastro, así que el
+auditor no puede distinguir «mintió» de «reintentó y le salió», y resuelve
+siempre para el lado de la acusación.
+
+> Un instrumento que solo registra los fracasos no mide el sistema: mide su
+> propio sesgo. Y el veredicto que sale de ahí queda escrito en la cadena.
+
+---
+
+## El arreglo que rompió el VAD (24/08, `ses_02805f3edba1`)
+
+Sesión de 6,6 minutos, 25 turnos, estado final `interrumpida`. RBH lo describió
+así: *«al principio va bien, pero luego otra vez empezó a trabar… parecía como
+si mi voz llegara tarde, y entonces como que se enredaba, y al final se cayó y
+no pudimos seguir»*.
+
+La causa es **el arreglo del 23/08**, que resolvió un bug creando otro peor.
+
+### Lo que decía la documentación, y nadie había leído
+
+Para que el eco del tutor no le cortara la generación, el micrófono dejó de
+mandar audio mientras el tutor hablaba. En el código eso era un `return` pelado.
+La Live API dice, textual:
+
+> «`silenceDurationMs` only works within a continuous stream — it measures quiet
+> periods, **not stream interruptions**.»
+>
+> «when the audio stream is paused for more than a second… an `audioStreamEnd`
+> event should be sent to flush any cached audio.»
+
+**El VAD del servidor no mide el paso del tiempo: mide el audio que le llega.**
+Sin audio, su reloj se detiene. El turno del niño que estaba a medio cerrar se
+quedaba colgado en el buffer del servidor, y cuando el micrófono volvía —cinco,
+diez segundos después— lo nuevo se pegaba con lo viejo como si fueran
+contiguos.
+
+De ahí salen los tres síntomas, que parecían tres bugs y eran uno:
+
+| Se sentía como | Era |
+|---|---|
+| «mi voz llegaba tarde» | el turno viejo, sin cerrar, contestándose ahora |
+| «se enredaba» | dos tramos de habla separados por segundos, pegados |
+| «se cayó y no pudimos seguir» | un turno que no cierra es un turno que no se contesta: dos mudeces y sesión muerta |
+
+El arreglo es mandar **silencio** en lugar de nada. El eco del tutor no viaja
+—sigue en pie el 23/08— y el reloj del VAD sigue corriendo, viendo exactamente
+lo que hay que mostrarle. No cuesta más que antes del 23/08, cuando se mandaba
+audio crudo el 100% del tiempo: es el mismo caudal, con ceros adentro.
+
+> Cuando un arreglo apaga una fuente de datos para que deje de molestar, la
+> pregunta que falta es **quién más estaba usando ese flujo**. Acá el flujo no
+> era solo audio: era también el reloj del que dependía el cierre de turno.
+
+Y la lección de método, que es más incómoda: el bug del 23/08 se diagnosticó y
+se arregló **sin leer la documentación del VAD que se estaba tocando**. Salió
+bien por un día.
+
+### El otro número que faltaba
+
+`medir_fluidez` contaba los turnos del TUTOR cortados. Los del **niño** no los
+miraba nadie, y son la falla espejo: el VAD cerrándole el turno antes de que
+terminara de hablar.
+
+```
+nino: Tengo una tarea de
+tutor: ¡De una! Cuéntame con qué tienes tarea…
+```
+
+Un chico de 7 años armando la frase, y el sistema decidiendo por él que ya había
+terminado. Medido sobre las 38 transcripciones: **54 turnos del niño cortados**,
+un número que nunca había existido.
+
+### Y un bucle de realimentación en el perfil
+
+La auditoría marcó elogio inflado: *«¿Ves que eres un crack para esto?»*. La
+regla existe y enumeraba "genio", "duro", "el mejor" — "crack" no estaba.
+
+Pero la bitácora ya decía que a la tercera violación no se agrega otra palabra a
+la lista, se mira **qué la empuja**. Y lo que la empujaba estaba en el prompt de
+la sesión, escrito por nosotros:
+
+```
+Lo motiva: competir contra el reloj, reconocimiento verbal
+           (el tutor usa mucho "¡Eso!", "¡Qué bien!"), …
+```
+
+`"¡Qué bien!"` está en la lista de elogios **prohibidos** del mismo prompt. O
+sea: el tutor tomó una costumbre, el Analista la observó y la escribió como
+preferencia del niño citando la frase vetada, y el prompt de la sesión siguiente
+se la ordenó. El círculo se cierra solo y se refuerza en cada vuelta.
+
+Tres arreglos, porque uno solo no alcanza:
+1. La regla dejó de ser una lista de palabras y pasó a ser una **forma de
+   frase**: nunca le dices que ÉL es algo bueno, le dices qué HIZO bien.
+2. El Analista tiene prohibido escribir hábitos del tutor como rasgos del niño
+   — es la regla de «lo que falló es del PRODUCTO» pero al revés, y más difícil
+   de ver porque no viene de un fallo sino de algo que salió bien.
+3. Se limpió el dato envenenado de la ficha de Juan, que si no seguía viajando.
+
+> Un agente que aprende del comportamiento de otro agente, y le escribe el
+> prompt, no está observando al niño: está observándose a sí mismo. Cualquier
+> costumbre del tutor —buena o mala— se vuelve una instrucción en dos sesiones.
+
+### Y la otra mitad: «no pudimos seguir»
+
+Cuando el tutor se quedaba mudo, la sesión moría y no había vuelta. El niño leía
+«toca para volver a empezar», y empezar de nuevo le costaba **todo**: los
+ejercicios cargados, los turnos, la habilidad del día, la técnica elegida y el
+hilo de la conversación. Por un socket.
+
+`SessionOrchestrator.reanudar()` existía, con dos tests, y **sin endpoint ni
+llamador** — el patrón que encabeza este archivo. Pero al ir a conectarlo se vio
+que no servía para este caso: cierra la sesión caída y abre otra. Eso está bien
+para volver otro día, no para recuperar un canal.
+
+Lo que hacía falta era distinto: **la sesión está sana, lo roto es el socket.**
+`reconectar()` vuelve a firmar un token sobre la configuración que ya se armó —
+sin crear sesión, sin cobrar cupo, sin replanificar y sin remandar los
+ejercicios, que el navegador ya tiene y puede haber usado a medias.
+
+El orden importa y no es arbitrario: **primero el empujón, después la
+reconexión.** El empujón destraba al modelo cuando el canal está sano (un turno
+que el VAD no cerró, una tool sin respuesta) y cuesta un turno de texto.
+Reconectar cuesta un socket, un token y el contexto entero. Lo barato primero.
+
+Y una sola vez, con el contador reiniciándose en `terminar()` y no en
+`soltarRecursos()` — por donde pasa la reconexión. Reiniciarlo ahí habría dejado
+el tope decorativo y al niño en un ciclo de silencios de medio minuto cada uno.
+
+> Del otro lado es una sesión Live **nueva**: el modelo no recuerda una palabra.
+> Si vuelve preguntando «¿en qué estábamos?», el niño paga dos veces la misma
+> falla — primero el silencio, después tener que repetirse. Por eso reconectar
+> devuelve un recap de los últimos turnos, que ya estaban en memoria.
+
+De paso apareció un agujero viejo: **el vigilante de la mudez solo se armaba
+cuando llegaba transcripción del niño.** Si el tutor no abría la boca y el niño
+tampoco, nadie miraba el reloj y la sesión se quedaba en silencio para siempre.
+Es la forma que tienen de verse las 19 sesiones vacías de las 71 medidas el
+22/08. Ahora se arma con la apertura.
+
+
+---
+
+## «Solo veo al muñeco hablar» (24/08, `ses_6c6fb58aafbb`)
+
+Primera sesión con la reconexión puesta, y **funcionó**: el tutor se quedó mudo
+mientras el niño leía un cuento, saltó el empujón, saltó la reconexión, y la
+conversación siguió — `POST /reconectar 200` en el log, y turnos después.
+
+Pero el niño no lo oyó:
+
+```
+nino: Porque no te estoy escuchando, solo veo como al muñeco hablar,
+      pero no estás hablando.
+nino: No. Como que hay un error. Se cerró y ahora ya no te escucho.
+      Solo te puedo leer.
+```
+
+### El AudioContext no se puede volver a crear
+
+`ReproductorContinuo.iniciar()` lo dice en su primera línea, escrita hace
+semanas: *«tiene que llamarse DENTRO del gesto del usuario o el navegador lo
+suspende»*.
+
+Una reconexión **no viene de un gesto**: la dispara el reloj de la mudez. Mi
+código cerraba el reproductor en `soltarRecursos()` y creaba otro — o sea,
+creaba uno muerto. Los chunks llegaban, se programaban contra un reloj detenido
+y no sonaba nada. El personaje se seguía animando porque lo mueve `estado`, no
+el sonido, así que desde afuera parecía un tutor hablando.
+
+El contexto que se creó al empezar SÍ nació en un gesto. Ahora se conserva:
+`soltarRecursos(true)` calla lo que suena sin tocarlo.
+
+> Un comentario que dice «esto tiene que pasar dentro de un gesto del usuario»
+> es una precondición, no una nota de color. Al agregar un segundo camino hacia
+> ese código, la pregunta que faltaba era si el camino nuevo la cumple. No la
+> cumplía, y el que lo descubrió fue un niño de 7 años.
+
+### Y un segundo bug que lo hacía irrecuperable
+
+Con el contexto suspendido, **cada chunk pedía su propio `resume()`**, y cada
+uno resolvía llamando a `detenerTodo()`. Como Gemini manda la respuesta en
+ráfaga, la ráfaga se borraba a sí misma aunque el contexto ya hubiera
+despertado. Ahora hay un solo `resume()` en vuelo, con brazo de rechazo — sin
+él, un rechazo transitorio dejaba el flag trabado y el tutor mudo para siempre.
+
+El doble de test **escondía este bug**: su `resume()` cambiaba el estado de
+forma síncrona, así que los chunks de la misma ráfaga ya veían "running" y no
+volvían a pedirlo. Se hizo asíncrono, como el navegador, y recién ahí el test
+pudo fallar.
+
+> Un doble más benévolo que la realidad no simplifica el test: lo vuelve
+> incapaz de encontrar la clase de bug para la que existe.
+
+### Y el auditor medía otra cosa que la regla
+
+La auditoría archivó `elogio_inflado: false` sobre este turno:
+
+> *"¡Sí, Juan! Te quedó súper bien. La hiciste con la forma correcta. El trazo
+> está perfecto."*
+
+Dos frases que `valores.es.md` prohíbe **textualmente**. El auditor no falló:
+`method_auditor.es.md` le decía lo contrario — *«un "muy bien" o un "perfecto"
+sueltos no son elogio inflado»*.
+
+Dos prompts que se contradicen, cada uno impecable leído por separado, y ningún
+test que los cruzara. La cadena de veredictos es lo que convierte el porcentaje
+del panel en algo que el papá puede **verificar**; un auditor que mide otra cosa
+que la regla la vuelve decorativa. Ahora hay un test que lee los dos archivos.
+
+> Es la misma familia que el bucle del Analista: dos agentes nuestros hablando
+> entre sí, cada uno coherente, y el conjunto diciendo una mentira que ninguno
+> dijo solo.
+
+
+---
+
+## «No sé» no era frustración (24/08)
+
+Tres sesiones seguidas con el mismo veredicto —`respeto_escalera_pistas: false`,
+y la última con `regalo_la_respuesta: true`— y las tres arrancan igual:
+
+```
+ses_0a6036dedf55   "No sé."             -> escalón 3 de una (las galletas)
+ses_02805f3edba1   "No sé, ¿me ayudas?" -> escalón 2 de una
+ses_6c6fb58aafbb   "No sé" dos veces    -> "se forma el número 19"
+```
+
+La regla de la escalera estaba escrita y era clara. Lo que la empujaba estaba
+tres párrafos más abajo, en el mismo archivo:
+
+> Señales: "no me sale", **"no sé"**, "es muy difícil"…
+
+`"no sé"` figuraba entre las señales de **frustración**, y la tabla de al lado
+ordena para ese estado *«bajas la dificultad y te acercas»* y *«le das YA algo
+que sí pueda»*. Con eso, la cosa más normal que dice un niño ante algo que
+todavía no resolvió disparaba el protocolo de emergencia en lugar de la
+escalera.
+
+En `ses_0a6036dedf55` se ve el guion de frustración corriendo entero sobre un
+"no sé" pelado: *«Fresco, no pasa nada»* —el paso 1, "nómbralo sin
+dramatizar"— y acto seguido la pista concreta.
+
+> No se arregló agregando una prohibición. La regla que faltaba ya estaba: lo
+> que había que quitar era la instrucción de al lado que la contradecía. Es la
+> tercera vez esta semana que el problema no es la regla sino su vecina.
+
+### Y la pregunta de vuelta que no devolvía nada
+
+El playbook exige que toda pista termine devolviéndole la pelota — *«sin ella el
+niño dice "ah, ya" y no pensó»*. El tutor la cumplía así:
+
+> *"Si pones el 1 primero y el 9 después, ¡se forma el número 19! **¿Sí lo
+> ves?**"*
+
+Una pregunta que se contesta con "sí" no devuelve nada: pide permiso. La regla
+se satisfacía de palabra y se incumplía de hecho — el mismo patrón que el "te
+quedó súper bien" condicional del 22/08.
+
+### El techo, otra vez, y sin subirlo
+
+El primer encuentro tenía **13 caracteres** de margen. Las dos reglas nuevas
+entraron pagándose con compresión del mismo archivo: ejemplos duplicados,
+párrafos que decían lo mismo dos veces, y un punto de la lista de frustración
+que repetía «No hay escalón 5». Quedó en 34.985 — quince de margen.
+
+---
+
+## El medidor estaba midiendo mal (24/08)
+
+Y esto es lo más incómodo del día, porque es el instrumento con el que veníamos
+decidiendo si los arreglos servían.
+
+`_turnos()` leía solo las líneas que empiezan con `tutor:` o `nino:` y
+**descartaba el resto**: 14 de 82 líneas en `ses_6c6fb58aafbb`. El modelo mete
+saltos de línea en lo que dice —párrafos, o el hueco que deja un tool call a
+mitad de frase—, así que un turno que termina perfectamente tres líneas más
+abajo se contaba como CORTADO, porque la primera queda a mitad de palabra.
+
+Dos de los cuatro «cortes del VAD» de esa sesión eran eso: el instrumento.
+
+Con el parser arreglado, el número global pasa de **10% a 11%** — o sea que
+estaba contando **de menos**, no de más, y el 10% que se reportó ayer era
+optimista por accidente. El archivo nació sin tests; ahora tiene siete.
+
+> Un medidor sin test es una opinión con decimales. Y este venía usándose para
+> decidir si los arreglos habían servido.
+
+
+---
+
+## El vigilante que moría con lo que vigilaba (24/08, `ses_610e057cfd91`)
+
+Primero lo bueno, porque es real y es grande: **0 turnos del tutor cortados en
+34.** Venía de 11%. El arreglo del stream continuo funcionó.
+
+Y sin embargo la sesión «desapareció». En la base: `estado: activa`, `fin: null`,
+`tokens: 0`, `habilidades: []`. En el log del servidor no hay `/cerrar` ni
+`/reconectar` — la última línea es un turno más y después nada.
+
+### Cuatro sesiones, cuatro arreglos, y una falla nueva cada vez
+
+Eso ya no es mala suerte. Al mirar las cuatro juntas apareció lo que tenían en
+común, y no era ninguno de los bugs:
+
+> **Todos nuestros vigilantes vivían dentro de la pestaña.** La mudez, el reloj
+> de la sesión, el techo de tokens, la reconexión — todos son `setTimeout` en el
+> navegador. Un vigilante que vive adentro de lo que vigila no puede detectar
+> que eso muera.
+
+Cada forma nueva de morirse se llevaba puesto al vigilante junto con todo lo
+demás. Por eso era whack-a-mole: no estábamos arreglando el sistema, estábamos
+enumerando las maneras conocidas de que se cayera.
+
+Y el backend, que sí está afuera, es ciego **a propósito** (§10: no está en el
+camino del audio). Correcto para la latencia, y por eso mismo no podía
+distinguir una sesión sana de una pestaña muerta.
+
+Al ir a mirar había **cuatro** sesiones `activa` colgadas en la base, la más
+vieja de días. Cada una: un cupo del niño tomado, y su trabajo sin llegar nunca
+al Analista.
+
+### La trampa que casi lo convierte en un arreglo peor
+
+La primera idea —«que el backend cierre lo que no reporta turnos»— habría sido
+un desastre: **un niño dibujando dos minutos en la hoja no genera un solo
+turno.** Le habríamos cortado la sesión justo mientras trabaja.
+
+Por eso el latido es explícito y dice una sola cosa: *la pestaña sigue
+existiendo*. No confundir «no habla» con «no está» es toda la diferencia.
+
+### Y el estrangulamiento de timers
+
+180 segundos de margen y no 90, porque el navegador **frena los timers de las
+pestañas de fondo** — el latido puede espaciarse a uno por minuto. Con 90 s,
+mirar otra pestaña un rato le habría matado la sesión al niño.
+
+> Un arreglo que asume que el reloj del navegador corre siempre igual no
+> sobrevive a la primera pestaña de fondo.
+
+### Lo que faltaba del lado visible
+
+El límite de error de React existía **solo alrededor del tablero**: la lección
+se aprendió ahí y se aplicó solo ahí. Un error en el personaje, en el visor de
+la cámara o en el propio `App` seguía blanqueando la pantalla entera.
+
+> Cuando una red de seguridad se escribe por un bug concreto, queda del tamaño
+> de ese bug. Vale volver a preguntarse de qué tamaño debería ser.
+
+### Y la pizarra, tercera vez
+
+```
+{"tipo":"grupos","nombre":"pollitos","op":"+","a":7,"b":5}
+```
+
+El modelo mezcló familias de campos: pidió `grupos` con los campos de
+`operacion`. Quiso decir «siete pollitos y cinco pollitos». El validador
+devolvió `null`, el tablero quedó vacío, y el niño: *«no veo la pizarra»*,
+*«Walter, reacciona»*.
+
+Tercera vez el mismo validador rechazando algo que se entiende perfecto
+—`MAX_POR_GRUPO` en 12, el montón suelto, y esto—, así que el arreglo dejó de
+ser puntual:
+
+> **El `tipo` es la etiqueta; los campos son la intención.** Cuando se
+> contradicen, mandan los campos. Un validador de frontera no está para exigir
+> que el modelo llene bien un formulario: está para entender qué quiso mostrar.
+
+
+---
+
+## El sistema no registraba su propia causa de muerte (24/08, `ses_74b6cc7667ae`)
+
+Cuarta vez seguida que RBH dice «se desapareció», y cuarta vez que averiguarlo
+es media hora de log del servidor terminando en **una hipótesis**.
+
+Esta vez el diagnóstico fue distinto, porque el problema ya no era ninguno de
+los bugs:
+
+> Todo cierre pasaba por un booleano —`interrumpida`—, así que el botón del
+> niño, el techo de tokens, una pestaña cerrada, un socket muerto y el reaper
+> quedaban **idénticos en la base**. El sistema sabía perfectamente por qué
+> estaba cerrando y tiraba ese dato a la basura en el camino.
+
+`motivo_cierre` lo guarda. La quinta vez se contesta con un `SELECT`.
+
+> Cuando una pregunta cuesta una investigación forense y se repite, el problema
+> no es la investigación: es que el sistema no anota lo que ya sabe. Nueve
+> caminos cierran una sesión y los nueve conocían su razón.
+
+### Lo que sí funcionó
+
+- **La sesión cerró limpio.** `POST /cerrar 200` en el log, `estado: completada`.
+  Comparada con `ses_610e057cfd91`, que quedó huérfana para siempre, la capa de
+  cierre hizo su trabajo.
+- Cero mudeces, cero fallos de pizarra, latido corriendo todo el rato.
+
+### Y lo que igual salió mal, que es peor de lo que parece
+
+```
+ses_74b6cc7667ae: cerró sin habilidades trabajadas · 23565 tokens
+```
+
+**Cinco minutos de trabajo y cero dominio escrito.** El tutor nunca llamó a
+`get_next_problem`: improvisó las palabras («nene, nube, noche») en vez de
+sacarlas del banco. La regla existe desde el 18/08 —«todo ejercicio que le
+pongas sale de la herramienta»— y esta sesión no la tocó ni una vez.
+
+El circuito adaptativo no se rompió: **nunca arrancó**. Para el planificador de
+mañana, esta sesión no existió.
+
+### Lo que pidió el niño, y tenía razón
+
+> *«Sería bueno que cuando yo te envío algo que yo escribí en el tablero, no se
+> desaparezca, sino que tú me corrijas encima de la palabra que yo escribí.»*
+
+`setHoja(null)` le borraba el dibujo en el instante en que lo mandaba. Después
+el tutor le decía «fíjate que el palito de la h tiene que subir un poco más» —
+y él lo escuchaba mirando una hoja en blanco, sin la letra de la que le
+hablaban y sin poder corregirla.
+
+Ahora la hoja queda, y sigue **editable**, que es justo lo que hace falta.
+
+### Y dos palabras que ya estaban prohibidas
+
+El niño paró la clase para decir: *«que quede como reporte que esa palabra "te
+tinca" en Colombia no se entiende»*. Tenía razón — y `tutor_persona.es.md` ya
+la veta, textual, bajo «Chilenismos». En la misma sesión también dijo «bacana»,
+vetada bajo «Regionalismos cerrados».
+
+No se agregó nada a la lista: la lista ya las tenía. **Es incumplimiento, no
+falta de especificación**, y anotarlas otra vez sería la cuarta vez que
+respondemos a una regla ignorada escribiéndola de nuevo.
+
+
+---
+
+## Cuatro enlaces "verificados" y ninguno servía (24/08)
+
+Se entregaron cuatro enlaces con una tabla de verificación al lado: bundle
+coincidiendo, servidor arriba, cupo libre en los cuatro niños. Ninguno funcionó.
+
+La verificación había mirado la capa HTTP —`POST /api/sesiones` daba 200 en los
+cuatro— y **el camino de la voz, que es el único que le importa al niño, no lo
+miró nadie**. Google contestaba:
+
+```
+1011 Your prepayment credits are depleted.
+```
+
+Backend sano, sesión abierta, token firmado, y el producto caído.
+
+> Verificar la capa de control no verifica el producto. En esta arquitectura el
+> audio NO pasa por el backend (§10), así que **todo puede dar 200 mientras el
+> niño no puede hablar con nadie**. Es la contracara del diseño, y hay que
+> mirarla a propósito porque nada la delata.
+
+Ahora hay `scripts/listo_para_hablar.py`: abre una sesión Live de verdad, un
+segundo, y responde sí o no. **Un enlace no se entrega sin correrlo.**
+
+### Y el mensaje que mandó a buscar el bug equivocado
+
+En pantalla decía: *«El tutor se quedó sin cupo por hoy. Avísale a un adulto.»*
+
+Indistinguible del tope diario del niño —tres sesiones, por diseño y
+saludable—, cuando era exactamente lo contrario: el producto caído por
+facturación. Media hora buscando un bug que no existía, en el lugar equivocado,
+porque la pantalla describía lo normal.
+
+> Un mensaje de error que se confunde con una situación sana esconde la grave.
+> Las dos frases tienen que poder distinguirse **desde la pantalla**, sin abrir
+> un log.
+
+Ahora dice: *«Al tutor se le acabó la batería. Un adulto tiene que
+recargarla.»* — que un niño entiende, y que no se parece a nada normal.
+
+
+---
+
+## La primera sesión limpia, y por qué no se notó (24/08, `ses_9c5a9c436312`)
+
+Cinco de cinco en la auditoría, dominio escrito, cierre registrado, cero
+mudeces. La primera vez que el circuito cierra entero desde que empezaron los
+problemas de voz. Y aun así la sesión terminó con «llevamos varios días en lo
+mismo, arréglalo».
+
+No estaba equivocado: **no tenía cómo verlo.** Los datos estaban todos, y
+repartidos en cinco lugares — la fila en `sesiones`, la tabla `dominio`, el
+JSON de la auditoría, la transcripción, el log del servidor. Verificar una
+sesión costaba media hora de forense y terminaba en una hipótesis mía.
+
+> Cuando el diagnóstico de cada incidente cuesta media hora, el cuello de
+> botella dejó de ser el bug: es la observabilidad. Se arregla una vez y todos
+> los incidentes siguientes cuestan diez segundos.
+
+`scripts/revisar_sesion.py` junta las cinco fuentes en una pantalla: cómo
+cerró, si aprendió algo, cómo enseñó, cómo se sintió y cuánto costó.
+
+### Y la métrica generaba falsas alarmas
+
+`medir_fluidez` contaba como «cortado» un turno terminado en dos puntos. Pero
+el playbook **le ordena** al tutor decir una frase corta antes de usar una
+herramienta —«de una, ahí te va:»— para que el niño no oiga silencio. La
+métrica convertía el cumplimiento de una regla en una alarma, e inflaba esta
+sesión de 11% a 22%.
+
+> Una métrica que penaliza el comportamiento correcto no mide calidad: fabrica
+> trabajo. Y el trabajo que fabrica se ve idéntico al trabajo real.

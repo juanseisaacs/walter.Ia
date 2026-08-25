@@ -148,6 +148,9 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Agregar o cambiar una **forma de enseñar** | `knowledge/tecnicas/*.yaml`. Van de a pares rivales, y ninguna entra sin bloque de evidencia |
 | Cambiar cómo se calcula el dominio | `src/tutor/pedagogy.py` |
 | Agregar un tool del tutor | `src/tutor/tools.py` **y** el `case` en `web/src/voz/useTutor.ts`. El test de contrato falla si se hace solo uno |
+| Saber POR QUÉ terminó una sesión | `sesiones.motivo_cierre` en la base. Cada camino que cierra dice su razón — sin eso, cada «se desapareció» es una investigación forense |
+| Cambiar cuánto tarda el backend en dar por muerta una pestaña | `ABANDONO_SEG` en `src/tutor/session.py`. Es el **único vigilante fuera del navegador**; el latido que lo alimenta vive en `useTutor.ts` |
+| Cambiar qué pasa cuando el tutor se queda mudo | `MS_MUDEZ` y `RECONEXIONES_ANTES_DE_RENDIRSE` en `web/src/voz/useTutor.ts`. Primero empuja, después reconecta sobre la MISMA sesión (`SessionOrchestrator.reconectar`), y recién ahí se rinde |
 | Cambiar dónde se guardan los datos | `src/tutor/storage.py` (solo ese archivo) |
 | Cambiar de modelo de voz | `src/tutor/voice.py` (solo ese archivo) |
 | Ajustar presupuestos o retención | `src/tutor/config.py` |
@@ -176,18 +179,20 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 616 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 662 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
-| `cd web && npm test` | 142 tests del front: audio, micrófono, pizarra, hoja, mudez | no |
+| `cd web && npm test` | 166 tests del front: audio, micrófono, pizarra, hoja, mudez | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
 | `python -m scripts.demo_persistencia` | El ciclo completo, de la sesión al dominio | no |
 | `python -m scripts.demo_tecnicas` | El motor de técnicas sesión a sesión, con tres niños simulados | no |
 | `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
-| `python -m scripts.medir_fluidez` | Cuánto se traba la conversación: turnos cortados, retomas y mudeces, contados sobre las transcripciones. Es el número que le faltaba a «no está fluida» | no |
-| `python -m scripts.verificar_tokens` | Que el prompt de sesión siga bajo el techo | no |
+| `python -m scripts.listo_para_hablar` | **Antes de entregar un enlace.** ¿El servidor responde Y Gemini acepta una sesión Live? Un `POST /api/sesiones` con 200 no prueba nada: el 24/08 los cuatro enlaces daban 200 y el producto estaba caído por créditos agotados | **sí** (una conexión de 1 s) |
+| `python -m scripts.revisar_sesion` | **Lo primero después de cada sesión.** Cierre, aprendizaje, método, fluidez y costo de la última sesión, en una pantalla. Existe para no volver a reconstruir a mano lo que ya está en cinco lugares | no |
+| `python -m scripts.medir_fluidez` | Cuánto se traba la conversación: turnos cortados **del tutor y del niño**, retomas y mudeces, contados sobre las transcripciones. Es el número que le faltaba a «no está fluida» | no |
+| `python -m scripts.verificar_tokens` | Si `totalTokenCount` es acumulado o por request. **Abre sesión Live real** — el techo del prompt lo cubre `pytest tests/test_voice.py`, que no gasta nada | **sí** |
 | `python -m scripts.build_exercise_bank` | Reconstruye el banco. El validador impide voseo y enunciados largos — eso no lo sostiene el prompt | **sí** |
 | `python -m evals.runner` | Las 4 suites de YC, 48 casos, contra el modelo real | **sí** |
 | `python -m scripts.verificar_gemini` | Los supuestos de la Live API contra la API real | **sí** |
@@ -253,7 +258,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **616** de Python + **142** del front, en verde. Lint en cero |
+| Tests | **662** de Python + **166** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

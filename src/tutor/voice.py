@@ -357,7 +357,9 @@ DECLARACIONES_TOOLS: list[dict] = [
             "que se lo hagas más visual, se lo muestras acá. "
             "Cómo se traduce lo que el niño pide (son ejemplos de FORMATO, no "
             "cosas para mostrar ahora): si hablan de 2 canastas con 9 manzanas → "
-            "grupos=2, por_grupo=9, nombre='canastas'; si escriben 56 más 38 → "
+            "grupos=2, por_grupo=9, nombre='canastas'; si es UN montón suelto de "
+            "9 galletas → por_grupo=9, nombre='galletas', sin grupos; "
+            "si escriben 56 más 38 → "
             "operacion a=56 b=38 op='+'; si saltan del 7 al 12 → recta desde=0 "
             "hasta=20 marca=7 salta_a=12; si es una fracción → numerador y "
             "denominador; si es una letra → texto con SOLO esa letra en "
@@ -428,7 +430,13 @@ DECLARACIONES_TOOLS: list[dict] = [
                     ),
                 },
                 "llevada": {"type": "number", "description": "operacion: la que se lleva"},
-                "grupos": {"type": "number", "description": "grupos: cuántos grupos"},
+                "grupos": {
+                    "type": "number",
+                    "description": (
+                        "grupos: cuántos grupos. Si es UN SOLO montón —«9 galletas»— "
+                        "no lo mandes o manda 1, y pon el total en por_grupo"
+                    ),
+                },
                 "por_grupo": {"type": "number", "description": "grupos: cuántos en cada uno"},
                 "cantidades": {
                     "type": "array",

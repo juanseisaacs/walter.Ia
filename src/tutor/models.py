@@ -321,6 +321,17 @@ class Sesion(BaseModel):
     tokens_consumidos: int = 0
     analizada: bool = False
 
+    motivo_cierre: str | None = None
+    """POR QUÉ terminó. Lo dice quien la cierra, y se guarda tal cual.
+
+    Todo cierre pasaba por `interrumpida: bool`, así que una sesión que el niño
+    terminó, una que se pasó del techo, una pestaña cerrada y un socket muerto
+    quedaban idénticas en la base. Averiguar cuál había sido era una
+    investigación forense sobre el log, y terminaba en una hipótesis — cuatro
+    veces seguidas. Con esto se contesta con un `SELECT`.
+
+    `None` en las sesiones anteriores: de esas no sabemos, y no se inventa."""
+
     tecnica_id: str | None = None
     """Con qué técnica se enseñó. La elige el backend al abrir, igual que la
     habilidad — ver `tecnicas.py`. `None` en las sesiones anteriores al motor."""

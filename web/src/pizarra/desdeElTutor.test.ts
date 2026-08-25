@@ -381,3 +381,68 @@ describe("lo que el tutor cree que escribió", () => {
     expect(dicho.toLowerCase()).toContain("cursiva");
   });
 });
+
+describe("un montón solo: por_grupo sin grupos", () => {
+  it("9 galletas — EL CASO QUE FALLÓ (ses_0a6036dedf55)", () => {
+    // El tutor quiso mostrarle 9 galletas para que el niño intentara
+    // repartirlas en dos platos. Mandó `{tipo:"grupos", por_grupo:9,
+    // nombre:"galletas"}` —que es exactamente lo que quiso decir— y el
+    // validador exigía `grupos`: devolvió null y el tablero quedó vacío.
+    //
+    // El niño había pedido el dibujo («sí, mejor dibújalo»), no vio nada, y el
+    // silencio lo leyó como que el tutor se había colgado: «¿me escuchas?
+    // estás como trabado». Un montón ES un grupo.
+    const c = aCuadro({ tipo: "grupos", por_grupo: 9, nombre: "galletas" });
+    expect(c?.escena).toMatchObject({ tipo: "grupos", grupos: 1, porGrupo: 9 });
+  });
+
+  it("al tutor se le cuenta como un montón, no como '1 grupos con 9'", () => {
+    // De esto sale la frase con la que le habla al niño. Si le decimos "1
+    // galletas con 9 en cada uno", eso es lo que va a repetir en voz alta.
+    const dicho = describir(aCuadro({ tipo: "grupos", por_grupo: 9, nombre: "galletas" })!);
+    expect(dicho).toContain("9 galletas");
+    expect(dicho).not.toContain("en cada uno");
+  });
+
+  it("al revés NO se adivina: grupos sin por_grupo no es ningún dibujo", () => {
+    // "Tres cajas de no se sabe cuánto" no se puede dibujar, y rellenarlo con
+    // un 1 le mostraría al niño algo que nadie pidió.
+    expect(aCuadro({ tipo: "grupos", grupos: 3, nombre: "cajas" })).toBeNull();
+  });
+
+  it("un montón sigue respetando los topes", () => {
+    expect(aCuadro({ tipo: "grupos", por_grupo: 5000 })).toBeNull();
+    expect(aCuadro({ tipo: "grupos", por_grupo: 0 })).toBeNull();
+  });
+});
+
+describe("cuando la etiqueta y los campos se contradicen, mandan los campos", () => {
+  it("grupos con a/b — EL CASO QUE FALLÓ (ses_610e057cfd91)", () => {
+    // El modelo mezcló familias: pidió `grupos` con los campos de `operacion`.
+    //     {"tipo":"grupos","nombre":"pollitos","op":"+","a":7,"b":5}
+    // Quiso decir "siete pollitos y cinco pollitos". El validador devolvió null,
+    // el tablero quedó vacío, y el niño tuvo que decir «no veo la pizarra» y
+    // después «Walter, reacciona».
+    const c = aCuadro({ tipo: "grupos", nombre: "pollitos", op: "+", a: 7, b: 5 });
+    expect(c?.escena).toMatchObject({ tipo: "grupos", cantidades: [7, 5], nombre: "pollitos" });
+  });
+
+  it("se lo cuenta al tutor como montones, no como una cuenta", () => {
+    const dicho = describir(aCuadro({ tipo: "grupos", nombre: "pollitos", a: 7, b: 5 })!);
+    expect(dicho).toContain("7 + 5");
+    expect(dicho).toContain("pollitos");
+  });
+
+  it("`cantidades` explícito le gana a a/b", () => {
+    // Si el modelo mandó las dos cosas, la que dice lo que quiere es la
+    // específica: `cantidades`. `a`/`b` solo se usan cuando no hay nada mejor.
+    const c = aCuadro({ tipo: "grupos", cantidades: [3, 4, 5], a: 7, b: 5 });
+    expect(c?.escena).toMatchObject({ cantidades: [3, 4, 5] });
+  });
+
+  it("una operación de verdad sigue siendo una operación", () => {
+    // El arreglo no puede convertir cuentas en columna en montoncitos.
+    const c = aCuadro({ tipo: "operacion", a: 56, b: 38, op: "+" });
+    expect(c?.escena).toMatchObject({ tipo: "operacion", a: 56, b: 38 });
+  });
+});

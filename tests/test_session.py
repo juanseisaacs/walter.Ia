@@ -20,6 +20,7 @@ from tutor.models import (
     TextoLocalizado,
 )
 from tutor.session import (
+    ABANDONO_SEG,
     GRACIA_CLIENTE_VIVO_SEG,
     ErrorPresupuesto,
     ErrorSesion,
@@ -603,3 +604,205 @@ def test_una_sesion_sin_tecnica_previa_no_inventa_historial(orq, repo):
 
     a = orq.abrir("n1", ahora=AHORA)  # no debe reventar ni contar la vieja
     assert a.sesion_id
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reconectar — la otra mitad de «se cayó y no pudimos seguir»
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_reconectar_devuelve_token_nuevo_sobre_la_misma_sesion(orq):
+    """Se cayó el canal de voz, no la sesión.
+
+    Los ejercicios están cargados, los turnos registrados, la habilidad y la
+    técnica elegidas. Tirar todo eso para volver a empezar es hacerle pagar al
+    niño una falla nuestra (`ses_02805f3edba1`).
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("estábamos en la tabla del tres"))
+
+    b = orq.reconectar(a.sesion_id, ahora=AHORA + timedelta(minutes=2))
+
+    assert b.sesion_id == a.sesion_id, "reconectar NO abre una sesión nueva"
+    assert b.token and b.token != a.token, "hay que firmar un token nuevo"
+    assert b.habilidad_id == a.habilidad_id, "el objetivo del día no cambia"
+
+
+def test_reconectar_no_vuelve_a_mandar_los_ejercicios(orq):
+    """El navegador ya los tiene y quizá usó la mitad. Repetirlos se los pisa."""
+    a = orq.abrir("n1", ahora=AHORA)
+    assert a.ejercicios, "la sesión abre con banco"
+    assert orq.reconectar(a.sesion_id, ahora=AHORA).ejercicios == []
+
+
+def test_reconectar_no_cobra_presupuesto_de_nuevo(orq, repo):
+    """Un socket que se cae no es una sesión más.
+
+    Si reconectar contara contra el cupo diario, un niño con mala conexión se
+    quedaría sin tutor a media tarde por algo que no hizo.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    antes = len(repo.sesiones_de("n1", AHORA - timedelta(days=1), AHORA))
+
+    for _ in range(5):
+        orq.reconectar(a.sesion_id, ahora=AHORA)
+
+    despues = len(repo.sesiones_de("n1", AHORA - timedelta(days=1), AHORA))
+    assert despues == antes, "reconectar creó sesiones y quemó cupo"
+
+
+def test_el_tutor_vuelve_sabiendo_de_qué_hablaban(orq):
+    """Del otro lado es una sesión Live NUEVA: el modelo no recuerda nada.
+
+    Si vuelve preguntando «¿en qué estábamos?», el niño paga dos veces la misma
+    falla: primero el silencio, después tener que repetirse.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("la tabla del tres"))
+
+    apertura = orq.reconectar(a.sesion_id, ahora=AHORA).apertura
+
+    assert "tabla del tres" in apertura, "vuelve sin el hilo de la conversación"
+    assert "RETOMA" in apertura
+    # Y que no le pida al niño que se lo cuente él.
+    assert "en qué estaban" in apertura, "falta la prohibición explícita"
+
+
+def test_sin_conversacion_previa_no_se_inventa_un_hilo(orq):
+    """Se cayó antes de que dijeran nada. Fingir que hay algo que retomar sería
+    inventar, y el tutor no afirma lo que no está en los datos."""
+    a = orq.abrir("n1", ahora=AHORA)
+    apertura = orq.reconectar(a.sesion_id, ahora=AHORA).apertura
+    assert "Saluda corto" in apertura
+    assert "lo último que se dijeron" not in apertura
+
+
+def test_no_se_reconecta_una_sesion_ya_cerrada(orq):
+    """Sin configuración en memoria no hay nada que volver a firmar. Lo honesto
+    es decirlo y que el niño empiece una nueva, no fingir que se recuperó."""
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.cerrar(a.sesion_id, ahora=AHORA, interrumpida=True)
+    with pytest.raises(ErrorSesion):
+        orq.reconectar(a.sesion_id, ahora=AHORA)
+
+
+def test_reconectar_cuenta_como_actividad(orq):
+    """Si no, `_cerrar_sesiones_activas` puede barrerla por parecer abandonada
+    justo mientras el niño está esperando que el tutor vuelva."""
+    a = orq.abrir("n1", ahora=AHORA)
+    luego = AHORA + timedelta(minutes=10)
+    orq.reconectar(a.sesion_id, ahora=luego)
+    assert orq._ultima_actividad[a.sesion_id] == luego
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# El vigilante de afuera — la pestaña que desaparece
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_una_sesion_sin_latido_se_cierra_sola(orq, repo):
+    """LA PESTAÑA SE FUE Y NADIE SE ENTERÓ (`ses_610e057cfd91`).
+
+    Quedó `activa`, sin `fin` y con 0 tokens. En el log del servidor no hay
+    `/cerrar` ni `/reconectar`: la pestaña desapareció y el backend siguió
+    creyendo que el niño estaba ahí — ocupándole un cupo y sin mandar su trabajo
+    al Analista.
+
+    Todos los vigilantes que teníamos viven DENTRO de la pestaña (`setTimeout`
+    en el navegador), así que mueren con ella. Este es el único que está afuera.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("estábamos en la tabla del tres"))
+    # `registrar_turnos` marca actividad con el reloj real, no con el inyectado.
+    # Este es el último latido antes de que la pestaña desaparezca.
+    orq.latido(a.sesion_id, ahora=AHORA)
+
+    muerta = AHORA + timedelta(seconds=ABANDONO_SEG + 1)
+    cerradas = orq.cerrar_abandonadas(ahora=muerta)
+
+    assert [s.id for s in cerradas] == [a.sesion_id]
+    guardada = repo.obtener_sesion(a.sesion_id)
+    assert guardada.estado == EstadoSesion.INTERRUMPIDA
+    assert guardada.fin is not None, "quedó sin fin: sigue pareciendo viva"
+    assert guardada.analizada is False, "el trabajo del niño tiene que llegar al Analista"
+
+
+def test_el_latido_mantiene_viva_la_sesion(orq):
+    """EL CASO QUE NO SE PUEDE ROMPER: el niño dibujando en la hoja.
+
+    Dos minutos sin decir una palabra son dos minutos sin turnos. Si el reaper
+    mirara solo los turnos, le cortaría la sesión justo mientras trabaja — un
+    arreglo peor que el bug. Por eso el latido es explícito.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    ahora = AHORA
+    for _ in range(15):  # cinco minutos latiendo, sin decir una palabra
+        ahora += timedelta(seconds=20)
+        orq.latido(a.sesion_id, ahora=ahora)
+        assert orq.cerrar_abandonadas(ahora=ahora) == [], "cerró una sesión que late"
+
+
+def test_el_reaper_no_toca_lo_que_ya_esta_cerrado(orq):
+    """Cerrar dos veces rompería la idempotencia del análisis: `session_id` es
+    llave, y una sesión no se analiza dos veces."""
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.cerrar(a.sesion_id, ahora=AHORA)
+    assert orq.cerrar_abandonadas(ahora=AHORA + timedelta(hours=1)) == []
+
+
+def test_un_latido_a_una_sesion_que_no_existe_no_revienta(orq):
+    """Llega tarde, de una pestaña que no se enteró. No puede tumbar nada."""
+    orq.latido("ses_que_no_existe")
+
+
+def test_al_arrancar_se_cierran_las_huerfanas_de_procesos_viejos(orq, repo):
+    """El reaper solo ve lo que tiene EN MEMORIA, así que un huérfano de ayer
+    viviría para siempre. Al escribir esto había cuatro en la base.
+
+    Que no haya estado en memoria ES la prueba de que nadie la usa: el navegador
+    que la abrió habla con un proceso que ya no existe."""
+    a = orq.abrir("n1", ahora=AHORA)
+    # Simula el reinicio: la fila queda, la memoria no.
+    orq._ultima_actividad.pop(a.sesion_id)
+
+    cerradas = orq.cerrar_huerfanas_de_arranque(ahora=AHORA + timedelta(hours=5))
+
+    assert [s.id for s in cerradas] == [a.sesion_id]
+    guardada = repo.obtener_sesion(a.sesion_id)
+    assert guardada.estado == EstadoSesion.INTERRUMPIDA
+    assert guardada.analizada is False, "el trabajo del niño no puede perderse"
+
+
+def test_al_arrancar_NO_se_tocan_las_sesiones_de_este_proceso(orq, repo):
+    """Un niño hablando ahora mismo tiene estado en memoria. Cerrársela sería
+    el bug del 18/08 otra vez: 99 segundos hablándole a una sesión muerta."""
+    a = orq.abrir("n1", ahora=AHORA)
+    assert orq.cerrar_huerfanas_de_arranque(ahora=AHORA) == []
+    assert repo.obtener_sesion(a.sesion_id).estado == EstadoSesion.ACTIVA
+
+
+def test_cada_cierre_dice_POR_QUE(orq, repo):
+    """FIN DE LAS INVESTIGACIONES FORENSES.
+
+    Todo cierre pasaba por `interrumpida: bool`, así que el botón del niño, el
+    techo de tokens, una pestaña cerrada y un socket muerto quedaban idénticos
+    en la base. Cada «se desapareció» costaba media hora de log y terminaba en
+    una hipótesis — cuatro veces seguidas. Ahora se contesta con un SELECT.
+    """
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.cerrar(a.sesion_id, ahora=AHORA, motivo="techo_tokens")
+    assert repo.obtener_sesion(a.sesion_id).motivo_cierre == "techo_tokens"
+
+
+def test_los_cierres_del_backend_ya_traen_su_motivo(orq, repo):
+    """Los que decide el backend no dependen de que el navegador los etiquete:
+    ya sabe por qué está cerrando."""
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.latido(a.sesion_id, ahora=AHORA)
+    orq.cerrar_abandonadas(ahora=AHORA + timedelta(seconds=ABANDONO_SEG + 1))
+    assert repo.obtener_sesion(a.sesion_id).motivo_cierre == "sin_latido"
+
+    b = orq.abrir("n1", ahora=AHORA)
+    orq._ultima_actividad.pop(b.sesion_id)
+    orq.cerrar_huerfanas_de_arranque(ahora=AHORA)
+    assert repo.obtener_sesion(b.sesion_id).motivo_cierre == "huerfana_de_arranque"

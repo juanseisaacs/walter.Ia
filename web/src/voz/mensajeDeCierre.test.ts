@@ -15,12 +15,19 @@ import { describe, expect, it } from "vitest";
 import { mensajeDeCierre } from "./useTutor";
 
 describe("cuando la sesión se cierra antes de abrirse", () => {
-  it("dice que se acabó el cupo, sin código de error", () => {
+  it("los créditos agotados NO suenan al tope diario del niño", () => {
+    // Decía «El tutor se quedó sin cupo por hoy», y eso es indistinguible del
+    // tope de tres sesiones diarias — que es normal, por diseño y saludable.
+    // Esto es lo contrario: el producto CAÍDO por facturación.
+    //
+    // El 24/08 esa ambigüedad costó media hora buscando un bug que no existía,
+    // con cuatro enlaces entregados que fallaban todos por lo mismo. Un
+    // mensaje que se confunde con lo normal esconde lo grave.
     const dicho = mensajeDeCierre({
       code: 1011,
       reason: "Your prepayment credits are depleted. Please go to AI Studio",
     });
-    expect(dicho).toContain("cupo");
+    expect(dicho).not.toContain("cupo");
     expect(dicho).toContain("adulto");
     expect(dicho).not.toContain("1011");
     expect(dicho).not.toContain("prepayment");

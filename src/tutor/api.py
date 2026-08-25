@@ -13,6 +13,7 @@ El audio NO pasa por acá (ARCHITECTURE.md §10). Este es el plano de control:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import secrets
@@ -62,7 +63,63 @@ async def _ciclo_de_vida(_app: FastAPI):
             calentar()
         except Exception as e:  # noqa: BLE001 — es optimización, no requisito
             print(f"[arranque] no se pudo precalentar el emisor: {e}")
-    yield
+
+    # Lo que quedó ACTIVA de un proceso anterior no lo usa nadie: el navegador
+    # que lo abrió habla con un proceso que ya no existe. Se cierra acá porque
+    # el reaper solo ve lo que tiene en memoria, y si no, un huérfano de ayer
+    # vive para siempre — ocupando cupo y sin llegar nunca al Analista.
+    try:
+        for vieja in _orquestador.cerrar_huerfanas_de_arranque():
+            print(f"[arranque] {vieja.id} había quedado huérfana: cerrada")
+    except Exception as e:  # noqa: BLE001 — limpiar no puede impedir arrancar
+        print(f"[arranque] no se pudieron cerrar las huérfanas: {e}")
+
+    reaper = asyncio.create_task(_barrer_abandonadas())
+    try:
+        yield
+    finally:
+        reaper.cancel()
+
+
+SEGUNDOS_ENTRE_BARRIDOS = 30
+
+
+async def _barrer_abandonadas() -> None:
+    """EL ÚNICO VIGILANTE QUE VIVE FUERA DE LA PESTAÑA.
+
+    Todos los demás —la mudez, el reloj de sesión, el techo de tokens, la
+    reconexión— son `setTimeout` en el navegador. **Un vigilante que vive
+    adentro de lo que vigila no puede detectar que eso muera**, y por eso cada
+    forma nueva de morirse nos tomaba por sorpresa: se llevaba puesto al
+    vigilante junto con todo lo demás.
+
+    `ses_610e057cfd91` quedó `activa`, sin `fin` y con 0 tokens. En el log no
+    hay `/cerrar` ni `/reconectar`: la pestaña desapareció y el backend nunca se
+    enteró. Esa sesión seguía ocupando un cupo del niño y su trabajo no había
+    llegado al Analista.
+
+    Esto corre en su propio reloj, sin depender de que haya alguien del otro
+    lado. Y encola al Analista, que es la mitad que importa: al niño no puede
+    costarle el dominio que ganó el que se le haya caído el navegador.
+    """
+    while True:
+        try:
+            await asyncio.sleep(SEGUNDOS_ENTRE_BARRIDOS)
+            for sesion in _orquestador.cerrar_abandonadas():
+                print(f"[reaper] {sesion.id} sin latido: cerrada como interrumpida")
+                if _HAY_ANALISTA:
+                    # En un hilo: el Analista habla con la API de Anthropic y
+                    # bloquear el loop dejaría sin atender a los niños que sí
+                    # están conectados.
+                    await asyncio.to_thread(
+                        procesar_sesion, _repo, _grafo, sesion, _cliente_analista
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001
+            # Un barrido que revienta no puede matar al reaper: sin él volvemos
+            # a quedar ciegos ante la pestaña que se cae.
+            print(f"[reaper] falló un barrido: {e}")
 
 
 app = FastAPI(title="RBH Tutor", version="0.1.0", lifespan=_ciclo_de_vida)
@@ -323,9 +380,42 @@ def recargar(sesion_id: str) -> list[Ejercicio]:
         raise HTTPException(409, str(e)) from e
 
 
+@app.post("/api/sesiones/{sesion_id}/latido", status_code=204, tags=["niño"])
+def latido(sesion_id: str):
+    """La pestaña avisa que sigue ahí. Lo que le da ojos al reaper.
+
+    No alcanza con mirar los turnos: un niño dibujando dos minutos en la hoja no
+    dice nada, y sin latido el reaper lo tomaría por muerto justo mientras
+    trabaja. Ver `SessionOrchestrator.latido` y `ABANDONO_SEG`.
+
+    No falla nunca: si la sesión ya no existe, un latido de más no rompe nada y
+    devolver un error solo pondría al navegador a reintentar contra el vacío.
+    """
+    _orquestador.latido(sesion_id)
+
+
+@app.post("/api/sesiones/{sesion_id}/reconectar", tags=["niño"])
+def reconectar(sesion_id: str):
+    """Un token de voz nuevo para la misma sesión, cuando se cae el canal.
+
+    El niño no tiene que empezar de cero porque se murió un socket. No cobra
+    presupuesto ni replanifica: es la misma sesión, con el mismo objetivo y los
+    mismos ejercicios ya cargados. Ver `SessionOrchestrator.reconectar`.
+
+    409 y no 404: que no se pueda reconectar no es "no existe" — es "esto ya no
+    se puede recuperar, abrí una nueva". El navegador los trata distinto.
+    """
+    try:
+        return _orquestador.reconectar(sesion_id)
+    except ErrorSesion as e:
+        raise HTTPException(409, str(e)) from e
+
+
 class CerrarSesion(BaseModel):
     interrumpida: bool = False
     tokens_consumidos: int = 0
+    motivo: str | None = None
+    """POR QUÉ terminó, dicho por quien la cierra. Ver `Sesion.motivo_cierre`."""
 
 
 @app.post("/api/sesiones/{sesion_id}/cerrar", tags=["niño"])
@@ -335,6 +425,7 @@ def cerrar_sesion(sesion_id: str, cuerpo: CerrarSesion, fondo: BackgroundTasks):
             sesion_id,
             interrumpida=cuerpo.interrumpida,
             tokens_consumidos=cuerpo.tokens_consumidos,
+            motivo=cuerpo.motivo,
         )
     except ErrorSesion as e:
         raise HTTPException(404, str(e)) from e

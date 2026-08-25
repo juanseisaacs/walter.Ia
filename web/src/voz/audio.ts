@@ -41,6 +41,10 @@ export class ReproductorContinuo {
   private proximoInicio = 0;
   private fuentes = new Set<AudioBufferSourceNode>();
   private alVolverAlFrente = () => this.asegurarActivo();
+  /** Cuándo se vació la cola (`Date.now()`). 0 = no viene de hablar. */
+  private finDeHabla = 0;
+  /** ¿Hay un `resume()` en vuelo? Evita encolar uno por chunk. */
+  private despertando = false;
 
   /** Tiene que llamarse DENTRO del gesto del usuario o el navegador lo suspende. */
   iniciar(): void {
@@ -72,7 +76,22 @@ export class ReproductorContinuo {
   private asegurarActivo(): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== "suspended") return;
+
+    // UN SOLO `resume()` A LA VEZ.
+    //
+    // Gemini manda la respuesta en ráfaga: con el contexto suspendido, cada
+    // chunk entraba acá y encolaba su propio `resume()`. Al resolverse todos,
+    // `detenerTodo()` corría una vez por chunk — y cada corrida borraba lo que
+    // las anteriores acababan de programar. El resultado es que la ráfaga
+    // entera se perdía aunque el contexto ya hubiera despertado.
+    //
+    // Se ve como un tutor que "vuelve" pero no suena, y es lo que hacía más
+    // difícil recuperarse de un contexto suspendido (`ses_6c6fb58aafbb`).
+    if (this.despertando) return;
+    this.despertando = true;
+
     void ctx.resume().then(() => {
+      this.despertando = false;
       // El reloj estuvo detenido: lo encolado quedó en un futuro que ya no
       // corresponde. Se descarta para que la próxima frase suene YA.
       //
@@ -80,6 +99,13 @@ export class ReproductorContinuo {
       // programadas, vuelven a sonar encima de lo que venga y el niño oye dos
       // tutores. Lo que se dijo mientras nadie escuchaba ya no sirve.
       this.detenerTodo();
+    }, (e) => {
+      // El navegador puede rechazar el resume (política de autoplay, contexto
+      // ya cerrado). Sin este brazo, `despertando` se quedaba en true para
+      // siempre y NUNCA se volvía a intentar: el tutor quedaba mudo el resto de
+      // la sesión por un rechazo transitorio.
+      this.despertando = false;
+      console.warn("[audio] no se pudo despertar el contexto:", e);
     });
   }
 
@@ -115,9 +141,13 @@ export class ReproductorContinuo {
     this.proximoInicio = inicio + buffer.duration;
 
     this.fuentes.add(fuente);
+    this.finDeHabla = 0; // vuelve a haber audio programado
     fuente.onended = () => {
       this.fuentes.delete(fuente);
-      if (this.fuentes.size === 0) this.alTerminar?.();
+      if (this.fuentes.size === 0) {
+        this.finDeHabla = Date.now();
+        this.alTerminar?.();
+      }
     };
   }
 
@@ -138,10 +168,43 @@ export class ReproductorContinuo {
     }
     this.fuentes.clear();
     this.proximoInicio = this.ctx?.currentTime ?? 0;
+    // Sin cola de guarda: acá el tutor no terminó, lo CALLARON. Lo que venga
+    // por el micrófono es el niño interrumpiendo y tiene que salir ya.
+    this.finDeHabla = 0;
   }
 
   get hablando(): boolean {
     return this.fuentes.size > 0;
+  }
+
+  /**
+   * Como `hablando`, pero aguantando `colaMs` después del último sonido.
+   *
+   * Existe porque `hablando` cae a false en dos momentos en los que el tutor
+   * NO terminó de hablar:
+   *
+   *   · **entre chunks.** Gemini manda en ráfagas; si una llega tarde, la cola
+   *     se vacía a mitad de frase y el set queda en cero por unos milisegundos.
+   *   · **justo al terminar.** La última fuente deja de sonar, pero la cola
+   *     acústica del parlante sigue entrando por el micrófono.
+   *
+   * En los dos casos el micrófono soltaba audio con el eco del propio tutor
+   * adentro, y del otro lado el VAD del servidor —en `START_SENSITIVITY_HIGH`,
+   * a propósito, para que el niño que habla bajito abra turno— lo leía como
+   * "el niño empezó a hablar" y CORTABA LA GENERACIÓN.
+   *
+   * Es la mitad que faltaba del arreglo del 23/08: retener mientras
+   * `hablando` sea true tapó el caso largo y dejó abiertos los huecos cortos.
+   * En `ses_0a6036dedf55` el saludo de apertura quedó partido a mitad de frase
+   * —«¿tienes alguna»— y el niño lo dijo él mismo: «no terminaste de hablar,
+   * como que se te cortó la frase».
+   *
+   * NO se usa para el barge-in: ahí manda `hablando` pelado, porque cortar al
+   * tutor es decisión del niño y no puede depender de un colchón nuestro.
+   */
+  sonandoHace(colaMs: number): boolean {
+    if (this.fuentes.size > 0) return true;
+    return this.finDeHabla > 0 && Date.now() - this.finDeHabla < colaMs;
   }
 
   alTerminar?: () => void;
@@ -152,6 +215,9 @@ export class ReproductorContinuo {
     if (this.ctx) this.ctx.onstatechange = null;
     void this.ctx?.close();
     this.ctx = null;
+    // Si quedó un resume en vuelo sobre el contexto que acabamos de cerrar, su
+    // flag no puede sobrevivir: bloquearía el próximo despertar.
+    this.despertando = false;
   }
 }
 
@@ -182,4 +248,39 @@ export function aPcm16Base64(muestras: Float32Array): string {
   let binario = "";
   for (let i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
   return btoa(binario);
+}
+
+/**
+ * Un bloque de silencio PCM16 del largo pedido, listo para mandar.
+ *
+ * EXISTE PORQUE EL VAD DE GEMINI NECESITA UN STREAM CONTINUO, y esa es la
+ * causa raíz de que la conversación se enredara y terminara cayéndose
+ * (`ses_02805f3edba1`). La documentación de la Live API lo dice sin
+ * ambigüedad:
+ *
+ *   «`silenceDurationMs` only works within a continuous stream — it measures
+ *    quiet periods, not stream interruptions.»
+ *
+ * El arreglo del 23/08 dejó de mandar audio mientras el tutor habla, para que
+ * su propio eco no le cortara la generación. Resolvió eso y rompió el supuesto
+ * de abajo: **el reloj del VAD dejó de correr**. El servidor se quedaba con
+ * audio en caché sin cerrar, y al volver el micrófono pegaba lo de antes con lo
+ * nuevo como si fueran contiguos — la voz del niño llegando tarde y las frases
+ * enredándose una con otra.
+ *
+ * Mandar silencio en vez de nada resuelve las dos cosas a la vez: el eco del
+ * tutor no viaja (sigue el arreglo del 23/08) y el reloj del VAD sigue
+ * corriendo, viendo exactamente lo que hay — silencio.
+ *
+ * Se cachea por largo: son siempre los mismos dos o tres tamaños, y esto corre
+ * cada ~64 ms en el hilo del navegador.
+ */
+const silencios = new Map<number, string>();
+
+export function silencioPcm16Base64(muestras: number): string {
+  const guardado = silencios.get(muestras);
+  if (guardado !== undefined) return guardado;
+  const b64 = aPcm16Base64(new Float32Array(muestras));
+  silencios.set(muestras, b64);
+  return b64;
 }

@@ -923,3 +923,134 @@ El ánimo `esperando` (el niño lleva 10 s callado) está construido y se ve en 
 banco, pero **no llega desde la sesión**: `useTutor` no expone `mudo`. Es una
 línea, y se dejó afuera a propósito para no tocar `useTutor.ts` mientras otra
 sesión trabajaba ahí.
+
+---
+
+## 21. El canal de voz se cae: por qué se reconecta y no se reabre
+
+**Decisión (24/08):** cuando el tutor se queda mudo, se pide un **token nuevo
+sobre la misma sesión** en vez de abrir una nueva.
+
+### El problema
+
+La sesión de voz (el socket Live con Gemini) y la sesión del tutor (la fila en
+la base, el banco de ejercicios, los turnos, la habilidad del día) son dos cosas
+distintas con vidas distintas. La primera se cae sola —hay al menos tres formas
+conocidas—; la segunda no.
+
+Hasta el 24/08 las tratábamos como una: si moría el socket, se cerraba todo y el
+niño leía «toca para volver a empezar». Empezar de nuevo significaba replanificar
+la habilidad, recargar 80 ejercicios, elegir otra técnica y perder el hilo de la
+conversación — todo por un socket.
+
+### Por qué no `reanudar()`
+
+Existía desde la fase 5, con tests y sin llamador. Cierra la sesión caída y abre
+una nueva. Eso es lo correcto cuando el niño **vuelve otro rato**: hay que
+replanificar, porque pasó el tiempo y la evidencia cambió.
+
+No es lo correcto cuando pasaron ocho segundos. Ahí no hay nada que replanificar:
+lo que había decidido el planificador hace tres minutos sigue siendo válido.
+
+### Cómo queda
+
+| | `reconectar()` | `reanudar()` |
+|---|---|---|
+| Crea sesión | no | sí |
+| Cobra cupo diario | no | sí |
+| Replanifica habilidad y técnica | no | sí |
+| Devuelve ejercicios | no (el navegador los tiene) | sí |
+| Para qué | el socket se cayó ahora | el niño vuelve más tarde |
+
+`reconectar` guarda la `ConfiguracionSesion` al abrir —cuando ya se hizo el
+trabajo pesado— y solo vuelve a firmarla. Es la misma decisión de §9: durante la
+sesión no se piensa, se ejecuta.
+
+**No cobra presupuesto**, y eso es una decisión de producto, no un descuido: un
+niño con mala conexión no puede quedarse sin tutor a media tarde por algo que no
+hizo. Los tokens que gaste sí cuentan — eso lo reporta el navegador al cerrar.
+
+### Lo que sí se pierde, y qué se hace al respecto
+
+Del otro lado es una sesión Live **nueva**: el modelo arranca sin una palabra de
+contexto. Por eso `reconectar` devuelve un recap de los últimos turnos como
+`apertura`. Sale de `self._turnos`, que ya estaba en memoria — sin consultar la
+base y sin costo.
+
+Si vuelve preguntando «¿en qué estábamos?», el niño paga dos veces la misma
+falla: primero el silencio, después tener que repetirse.
+
+### El orden, que es la parte que se puede romper sin darse cuenta
+
+**Empujón primero, reconexión después.** El empujón es un turno de texto y
+destraba al modelo cuando el canal está sano; la reconexión cuesta un socket, un
+token y el contexto entero. Lo barato primero.
+
+Y la reconexión está **acotada a una**, con el contador reiniciándose en
+`terminar()` —no en `soltarRecursos()`, por donde pasa la propia reconexión—.
+Puesto en el lugar equivocado, el tope sería decorativo y el niño quedaría en un
+ciclo de silencios de medio minuto cada uno. Hay un test de contrato que lo mira.
+
+
+---
+
+## 22. Nadie vigila desde adentro: el latido y el reaper
+
+**Decisión (24/08):** el backend tiene un vigilante propio que corre en su
+reloj, alimentado por un latido del navegador.
+
+### El patrón que se repetía
+
+Cuatro sesiones seguidas, cuatro fallas distintas, cuatro arreglos que
+funcionaron — y una falla nueva cada vez. La causa no era ninguno de los bugs:
+
+> **Todos nuestros vigilantes vivían dentro de la pestaña.** La mudez, el reloj
+> de sesión, el techo de tokens, la reconexión: todos son `setTimeout` en el
+> navegador. Un vigilante que vive adentro de lo que vigila no puede detectar
+> que eso muera.
+
+Cada forma nueva de morirse se llevaba puesto al vigilante junto con todo lo
+demás. Por eso era whack-a-mole: no estábamos arreglando el sistema, estábamos
+tapando las maneras conocidas de que se cayera.
+
+`ses_610e057cfd91` lo mostró entero: `estado: activa`, `fin: null`, 0 tokens, y
+en el log ni `/cerrar` ni `/reconectar`. Para el backend seguía viva. Al mirar,
+había **cuatro** así en la base.
+
+### Las cuatro capas, de adentro hacia afuera
+
+| Capa | Qué agarra | Dónde vive |
+|---|---|---|
+| Límite de error de React | un crash de render que blanquea la pantalla | pestaña |
+| `pagehide` + `sendBeacon` | la pestaña que se cierra bien | pestaña |
+| Latido cada 20 s | — (alimenta al de abajo) | pestaña |
+| **Reaper cada 30 s** | **crash, suspensión, sin internet, todo lo demás** | **backend** |
+| Barrido de arranque | huérfanas de procesos anteriores | backend |
+
+Las tres primeras siguen muriendo con la pestaña, y está bien: cubren el caso
+común y son baratas. La cuarta es la que cambia la naturaleza del problema,
+porque **no comparte destino con lo que vigila**.
+
+### Por qué latido y no "mirar los turnos"
+
+Es la trampa que casi convierte esto en un arreglo peor que el bug. Un niño
+dibujando dos minutos en la hoja no genera un solo turno. Con un reaper que
+mirara actividad de turnos, le cortaríamos la sesión **justo mientras trabaja**.
+
+El latido es explícito y dice una sola cosa: *la pestaña sigue existiendo*.
+
+### Los números y por qué
+
+- **Latido cada 20 s.** Un POST vacío. Fuera del camino del audio: la regla de
+  §9 es sobre la respuesta hablada, no sobre un ping de control.
+- **Abandono a los 180 s.** Nueve latidos perdidos. Holgado a propósito, porque
+  el navegador **estrangula los timers de las pestañas de fondo** —pueden bajar
+  a uno por minuto— y porque el precio de equivocarse sigue siendo asimétrico:
+  cerrar una sesión viva le corta la conversación al niño.
+- **Barrido cada 30 s.** El peor caso entre morir y cerrarse es ~3,5 minutos.
+
+### Lo que recupera, que es lo que importa
+
+Una sesión huérfana no es solo una fila fea: es un cupo del día tomado y, sobre
+todo, **trabajo del niño que nunca llega al Analista** — el dominio que ganó, no
+se le escribe. Al encender esto, las cuatro huérfanas entraron a la cola.

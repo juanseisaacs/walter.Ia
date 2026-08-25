@@ -74,6 +74,23 @@ Holgado a propósito: el precio de equivocarse es asimétrico. Dejar viva una
 sesión de más cuesta un lugar del cupo; cerrar una que el niño está usando le
 corta la conversación y borra lo que dijo."""
 
+ABANDONO_SEG = 180
+"""Sin latido por más de esto, la pestaña ya no está y la sesión se cierra sola.
+
+Es el ÚNICO vigilante que vive fuera del navegador, y por eso existe: todos los
+demás —la mudez, el reloj de sesión, el techo de tokens, la reconexión— son
+`setTimeout` dentro de la pestaña. **Un vigilante que vive adentro de lo que
+vigila no puede detectar que eso muera.** Cuando el tab se cae, se caen con él.
+
+`ses_610e057cfd91` quedó `activa`, sin `fin` y con 0 tokens: en el log no hay
+`/cerrar` ni `/reconectar`. Para el backend esa sesión seguía viva, contando un
+cupo y sin llegar nunca al Analista — el trabajo del niño perdido.
+
+Tres minutos y no noventa segundos como `GRACIA_CLIENTE_VIVO_SEG`, por dos
+razones: el navegador ESTRANGULA los timers de una pestaña de fondo (el latido
+puede espaciarse a uno por minuto), y el precio de equivocarse sigue siendo
+asimétrico — cerrar una sesión viva le corta la conversación al niño."""
+
 VENTANA_SESIONES_HUERFANAS_DIAS = 1
 """Hasta dónde mirar atrás buscando sesiones que quedaron ACTIVA.
 
@@ -217,6 +234,12 @@ class Orquestador:
         self._alertas: dict[str, list[EvaluacionSeguridad]] = {}
         self._reportado_desde_recarga: dict[str, int] = {}
         self._ultima_actividad: dict[str, datetime] = {}
+        # Lo que hace falta para volver a emitir un token de la MISMA sesión si
+        # se cae el canal de voz. Se guarda al abrir —cuando ya se hizo todo el
+        # trabajo pesado— para que reconectar no tenga que rehacer nada: ni
+        # elegir habilidad, ni técnica, ni releer el grafo. Ver `reconectar`.
+        self._config: dict[str, ConfiguracionSesion] = {}
+        self._objetivo: dict[str, tuple[str, str]] = {}
 
     # ── Elegir cómo enseñar ──────────────────────────────────────────────────
 
@@ -327,6 +350,8 @@ class Orquestador:
         self._alertas[sesion.id] = []
         self._reportado_desde_recarga[sesion.id] = 0
         self._ultima_actividad[sesion.id] = ahora
+        self._config[sesion.id] = configuracion
+        self._objetivo[sesion.id] = (objetivo.id, objetivo.nombre.es)
 
         return SesionAbierta(
             sesion_id=sesion.id,
@@ -415,9 +440,7 @@ class Orquestador:
         # abrio y se corto -sin internet, un boton tocado sin querer- no puede
         # quemarle un cupo del dia a un chico que no aprendio nada.
         usadas = [
-            s
-            for s in self.repo.sesiones_de(nino_id, inicio_dia, ahora)
-            if s.habilidades_trabajadas
+            s for s in self.repo.sesiones_de(nino_id, inicio_dia, ahora) if s.habilidades_trabajadas
         ]
 
         if len(usadas) >= cfg.MAX_SESIONES_DIA:
@@ -470,9 +493,7 @@ class Orquestador:
         self._alertas[sesion_id].extend(alertas)
         return alertas
 
-    def recargar_ejercicios(
-        self, sesion_id: str, ahora: datetime | None = None
-    ) -> list[Ejercicio]:
+    def recargar_ejercicios(self, sesion_id: str, ahora: datetime | None = None) -> list[Ejercicio]:
         """Solo recarga si hubo reporte desde la última vez.
 
         Un cliente que deja de reportar se queda sin ejercicios. No es
@@ -497,9 +518,7 @@ class Orquestador:
         objetivo = siguiente_habilidad(nino, self.grafo)
         nuevos = self._precargar(nino, objetivo) if objetivo else []
 
-        self._bancos[sesion_id] = BancoDeSesion(
-            nuevos, principal=objetivo.id if objetivo else None
-        )
+        self._bancos[sesion_id] = BancoDeSesion(nuevos, principal=objetivo.id if objetivo else None)
         self._reportado_desde_recarga[sesion_id] = 0
         return nuevos
 
@@ -523,8 +542,16 @@ class Orquestador:
         ahora: datetime | None = None,
         interrumpida: bool = False,
         tokens_consumidos: int = 0,
+        motivo: str | None = None,
     ) -> Sesion:
-        """Persiste y encola para el Analista. `analizada` queda en False."""
+        """Persiste y encola para el Analista. `analizada` queda en False.
+
+        `motivo` dice POR QUÉ terminó, y no es un lujo: hasta hoy todo cierre
+        pasaba por `interrumpida: bool`, así que el botón del niño, el techo de
+        tokens, la pestaña cerrada y un socket muerto quedaban idénticos en la
+        base. Cada «se desapareció» costaba una investigación forense sobre el
+        log y terminaba en una hipótesis. Ahora se contesta con un `SELECT`.
+        """
         sesion = self.repo.obtener_sesion(sesion_id)
         if sesion is None:
             raise ErrorSesion(f"No existe la sesión '{sesion_id}'")
@@ -532,20 +559,106 @@ class Orquestador:
         sesion.fin = ahora or datetime.now()
         sesion.estado = EstadoSesion.INTERRUMPIDA if interrumpida else EstadoSesion.COMPLETADA
         sesion.tokens_consumidos = tokens_consumidos
+        sesion.motivo_cierre = motivo
 
         banco = self._bancos.get(sesion_id)
         if banco and banco.entregados:
-            sesion.habilidades_trabajadas = sorted(
-                {e.habilidad_id for e in banco.entregados}
-            )
+            sesion.habilidades_trabajadas = sorted({e.habilidad_id for e in banco.entregados})
 
         self.repo.guardar_transcripcion(sesion_id, self._transcribir(sesion_id))
         self.repo.actualizar_sesion(sesion)
         self._olvidar(sesion_id)
         return sesion
 
+    def reconectar(self, sesion_id: str, ahora: datetime | None = None) -> SesionAbierta:
+        """Un token de voz nuevo para la MISMA sesión, sin perder nada.
+
+        Es la otra mitad de «se cayó y no pudimos seguir» (`ses_02805f3edba1`).
+        Cuando el tutor se queda mudo, el canal de voz está roto — pero la
+        sesión no: los ejercicios están cargados, los turnos registrados, la
+        habilidad y la técnica elegidas. Tirar todo eso para volver a empezar es
+        hacerle pagar al niño una falla nuestra.
+
+        **No es `reanudar`.** Aquella cierra la sesión caída y abre una nueva,
+        que es lo correcto cuando el niño vuelve otro día. Esta no crea sesión:
+        vuelve a firmar un token sobre la configuración que ya se armó.
+
+        Y por eso NO cobra presupuesto ni vuelve a planificar: es la misma
+        sesión, con el mismo objetivo. Cobrarla dos veces castigaría al niño por
+        un socket que se cayó. Los tokens que gaste sí cuentan — eso lo reporta
+        el navegador al cerrar, como siempre.
+
+        La conversación anterior sí se pierde: del otro lado es una sesión Live
+        nueva y arranca sin contexto. Por eso se devuelve una `apertura` que lo
+        pone al día — ver `_recap`.
+        """
+        if sesion_id not in self._config:
+            # Sin configuración en memoria no hay nada que volver a firmar: o la
+            # sesión ya se cerró, o el proceso se reinició. En los dos casos lo
+            # honesto es que el niño empiece una nueva.
+            raise ErrorSesion(f"Sesión '{sesion_id}' no está abierta")
+
+        sesion = self.repo.obtener_sesion(sesion_id)
+        if sesion is None:
+            raise ErrorSesion(f"No existe la sesión '{sesion_id}'")
+        if sesion.estado != EstadoSesion.ACTIVA:
+            raise ErrorSesion("Solo se reconecta una sesión activa")
+
+        ahora = ahora or datetime.now()
+        # Que no la barra `_cerrar_sesiones_activas` por parecer abandonada
+        # justo mientras el niño está esperando que vuelva.
+        self._ultima_actividad[sesion_id] = ahora
+
+        configuracion = self._config[sesion_id]
+        token = self.emisor.emitir(configuracion)
+        habilidad_id, habilidad_nombre = self._objetivo[sesion_id]
+
+        return SesionAbierta(
+            sesion_id=sesion_id,
+            token=token.token,
+            modelo=token.modelo,
+            deteccion=configuracion.deteccion,
+            habilidad_id=habilidad_id,
+            habilidad_nombre=habilidad_nombre,
+            # El banco YA está en memoria y el navegador ya lo tiene: mandarlo
+            # otra vez sería pisarle los ejercicios que quizá ya usó a medias.
+            ejercicios=[],
+            apertura=self._recap(sesion_id),
+        )
+
+    def _recap(self, sesion_id: str) -> str:
+        """Con qué frase vuelve el tutor después de una reconexión.
+
+        Del otro lado es una sesión Live nueva: el modelo no recuerda una sola
+        palabra de lo que venían hablando. Si vuelve preguntando «¿en qué
+        estábamos?», el niño paga otra vez la falla.
+
+        Los últimos turnos alcanzan y son los que tenemos en memoria. Van pocos
+        y recortados a propósito — esto se concatena a un prompt que ya tiene
+        techo, y lo que importa es el hilo, no la transcripción.
+        """
+        ultimos = self._turnos.get(sesion_id, [])[-6:]
+        hilo = " · ".join(f"{t.quien}: {t.texto[:90]}" for t in ultimos if t.texto)
+        if not hilo:
+            # Se cayó antes de que dijeran nada: no hay hilo que retomar y
+            # fingir que sí lo hay sería inventar.
+            return (
+                "[Sistema: se cayó la conexión y volviste. Saluda corto y "
+                "arranca. No menciones este aviso.]"
+            )
+        return (
+            "[Sistema: se cayó la conexión y volviste; no recuerdas la "
+            "conversación. Esto es lo último que se dijeron: "
+            f"{hilo}. RETOMA AHÍ MISMO, en una frase, sin pedir disculpas "
+            "largas y sin preguntarle en qué estaban — eso lo sabes tú. No "
+            "menciones este aviso.]"
+        )
+
     def reanudar(self, sesion_id: str) -> SesionAbierta:
-        """Retoma una sesión interrumpida sin que el niño pierda su trabajo."""
+        """Retoma una sesión interrumpida sin que el niño pierda su trabajo.
+
+        Distinta de `reconectar`: acá la sesión YA se cerró y se abre una nueva.
+        Sirve para volver otro rato, no para recuperar un canal caído."""
         sesion = self.repo.obtener_sesion(sesion_id)
         if sesion is None:
             raise ErrorSesion(f"No existe la sesión '{sesion_id}'")
@@ -587,7 +700,9 @@ class Orquestador:
                 continue
             if self._tiene_cliente_vivo(previa.id, ahora):
                 continue
-            self.cerrar(previa.id, ahora=ahora, interrumpida=True)
+            self.cerrar(
+                previa.id, ahora=ahora, interrumpida=True, motivo="otra_sesion_del_mismo_nino"
+            )
             cerradas.append(previa.id)
         return cerradas
 
@@ -612,10 +727,77 @@ class Orquestador:
             return False
         return (ahora - visto) < timedelta(seconds=GRACIA_CLIENTE_VIVO_SEG)
 
+    def latido(self, sesion_id: str, ahora: datetime | None = None) -> None:
+        """La pestaña avisa que sigue ahí. Barato y fuera del camino del audio.
+
+        Hace falta un latido EXPLÍCITO y no alcanza con mirar los turnos: un
+        niño dibujando dos minutos en la hoja no dice nada, y sin esto el reaper
+        lo tomaría por muerto y le cortaría la sesión justo mientras trabaja.
+        """
+        if sesion_id in self._ultima_actividad:
+            self._ultima_actividad[sesion_id] = ahora or datetime.now()
+
+    def cerrar_huerfanas_de_arranque(self, ahora: datetime | None = None) -> list[Sesion]:
+        """Al arrancar, cierra lo que quedó ACTIVA de procesos anteriores.
+
+        Si el proceso se reinició, no hay estado en memoria de esas sesiones —y
+        eso ES la prueba de que nadie las está usando: el navegador que las
+        abrió habla con un proceso que ya no existe. Es el mismo razonamiento de
+        `_tiene_cliente_vivo`, aplicado una vez al arrancar.
+
+        Hacía falta porque el reaper solo ve lo que tiene en memoria, así que
+        una sesión huérfana de ayer viviría para siempre. Al escribir esto había
+        **cuatro** en la base, la más vieja de días: cuatro cupos tomados y
+        cuatro sesiones de trabajo que nunca llegaron al Analista.
+
+        Se marcan INTERRUMPIDA porque eso es lo que fueron, y quedan
+        `analizada=False`: el niño trabajó y ese dominio se le debe.
+        """
+        ahora = ahora or datetime.now()
+        cerradas = []
+        for sesion in self.repo.sesiones_sin_analizar():
+            if sesion.estado != EstadoSesion.ACTIVA:
+                continue
+            if sesion.id in self._ultima_actividad:
+                continue  # de ESTE proceso: la maneja el reaper
+            cerradas.append(
+                self.cerrar(
+                    sesion.id, ahora=ahora, interrumpida=True, motivo="huerfana_de_arranque"
+                )
+            )
+        return cerradas
+
+    def cerrar_abandonadas(self, ahora: datetime | None = None) -> list[Sesion]:
+        """EL VIGILANTE DE AFUERA. Cierra lo que dejó de latir.
+
+        Corre en el backend, en un reloj propio, sin depender de que ninguna
+        pestaña esté viva — que es exactamente lo que no podía hacer ninguno de
+        los vigilantes que teníamos. Ver `ABANDONO_SEG`.
+
+        Devuelve las sesiones cerradas para que la API las encole al Analista:
+        el niño trabajó, y que se le haya caído el navegador no puede costarle
+        el dominio que ganó.
+        """
+        ahora = ahora or datetime.now()
+        limite = timedelta(seconds=ABANDONO_SEG)
+        # Sobre una copia: `cerrar()` llama a `_olvidar()`, que muta el dict.
+        vencidas = [
+            sid for sid, visto in list(self._ultima_actividad.items()) if ahora - visto > limite
+        ]
+        cerradas = []
+        for sid in vencidas:
+            try:
+                cerradas.append(
+                    self.cerrar(sid, ahora=ahora, interrumpida=True, motivo="sin_latido")
+                )
+            except ErrorSesion:
+                # La fila ya no está (borrada a mano, otra instancia). Se limpia
+                # la memoria igual: si no, se reintenta para siempre.
+                self._olvidar(sid)
+        return cerradas
+
     def _transcribir(self, sesion_id: str) -> str:
-        return "\n".join(
-            f"{t.quien}: {t.texto}" for t in self._turnos.get(sesion_id, [])
-        )
+        return "\n".join(f"{t.quien}: {t.texto}" for t in self._turnos.get(sesion_id, []))
 
     def _olvidar(self, sesion_id: str) -> None:
         for estado in (
@@ -624,5 +806,7 @@ class Orquestador:
             self._alertas,
             self._reportado_desde_recarga,
             self._ultima_actividad,
+            self._config,
+            self._objetivo,
         ):
             estado.pop(sesion_id, None)

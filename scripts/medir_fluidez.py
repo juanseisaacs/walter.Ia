@@ -18,6 +18,11 @@ que son tres cosas distintas y se confundían entre sí:
               volvió a arrancar. Cada uno es una frase que el niño oyó dos veces
               a medias.
   · MUDEZ     `MARCA_DE_MUDEZ`: se quedó callado y hubo que empujarlo.
+  · NIÑO✂     el turno del NIÑO termina a mitad de frase. Este mira para el otro
+              lado: el VAD del servidor le cerró el turno antes de que
+              terminara de hablar. «Tengo una tarea de» (`ses_02805f3edba1`) es
+              un chico de 7 años pensando cómo seguir, y el sistema decidió por
+              él que ya había terminado.
 
 No necesita API key ni red: lee `data/transcripts/`. Correrlo después de cada
 sesión es la forma de saber si un cambio mejoró algo o solo lo movió de lugar.
@@ -38,7 +43,14 @@ TRANSCRIPTS = cfg.RAIZ / "data" / "transcripts"
 # Un turno que no termina en signo de cierre quedó a mitad de frase. Los puntos
 # suspensivos cuentan como cierre: el tutor los usa a propósito al dejar algo
 # abierto.
-CIERRES = '.!?"»)]…'
+#
+# Y los DOS PUNTOS también, que es un falso positivo que costó tiempo: el
+# playbook le ORDENA al tutor decir una frase corta antes de usar una
+# herramienta —«a ver, déjame busco...», «de una, ahí te va:»— para que el niño
+# no oiga silencio mientras se resuelve. Contar eso como "se cortó" convertía
+# el cumplimiento de una regla en una alarma, y mandaba a buscar un bug donde
+# había buen comportamiento.
+CIERRES = '.!?"»)]…:'
 
 # Lo que el navegador escribe cuando el tutor se queda callado. Vive en
 # `useTutor.ts` (`MARCA_DE_MUDEZ`) y se lee de ahí para que no se desincronice.
@@ -51,12 +63,33 @@ def _marca_de_mudez() -> str:
 
 
 def _turnos(texto: str) -> list[tuple[str, str]]:
-    salida = []
+    """Un turno puede ocupar VARIAS líneas, y eso rompía la medición entera.
+
+    El modelo mete saltos de línea en lo que dice —párrafos, o el hueco que
+    deja un tool call en medio de la frase—. La primera versión de esto leía
+    solo las líneas que empiezan con `tutor:` o `nino:` y **descartaba el
+    resto**: 14 de 82 líneas en `ses_6c6fb58aafbb`.
+
+    El efecto era doble y en la misma dirección: un turno que termina bien tres
+    líneas más abajo se contaba como CORTADO, porque la primera línea queda a
+    mitad de palabra. Así, «…Vamos con las letras pues. A ver, déjame busco»
+    figuraba como corte del VAD cuando en realidad seguía —«…la primera.
+    Espérame un momentico.»— y era el silencio de un tool call.
+
+    O sea que el número de cortes estaba inflado por el propio instrumento, y
+    dos de los cuatro «cortes» que se le atribuyeron al VAD eran esto.
+    """
+    salida: list[tuple[str, str]] = []
     for linea in texto.splitlines():
         if linea.startswith("tutor:"):
             salida.append(("tutor", linea[6:].strip()))
         elif linea.startswith("nino:"):
             salida.append(("nino", linea[5:].strip()))
+        elif salida:
+            # Continuación del turno anterior. Se pega con un espacio: acá
+            # interesa dónde TERMINA el turno, no cómo estaba maquetado.
+            quien, dicho = salida[-1]
+            salida[-1] = (quien, f"{dicho} {linea.strip()}".strip())
     return salida
 
 
@@ -65,6 +98,25 @@ def medir(texto: str, marca_mudez: str) -> dict:
     del_tutor = [t for quien, t in turnos if quien == "tutor" and t]
 
     cortados = [t for t in del_tutor if t and t[-1] not in CIERRES]
+
+    # Los del niño, que son la falla espejo: acá el VAD le cerró el turno ANTES
+    # de que terminara de hablar.
+    #
+    # Dos exclusiones, y las dos son casos legítimos que sin ellas se contaban
+    # como cortes y tapaban los de verdad:
+    #   · menos de tres palabras — "impar", "nueve", "bueno sí": una respuesta
+    #     corta no lleva punto y está completa.
+    #   · contar en voz alta — "1 2 3 4 5 6 7 8 9 10 11 12" es un niño contando
+    #     hasta el final, no un niño interrumpido.
+    del_nino = [t for quien, t in turnos if quien == "nino" and t]
+    cortados_nino = [
+        t
+        for t in del_nino
+        if t
+        and t[-1] not in CIERRES
+        and len(t.split()) >= 3
+        and not all(p.isdigit() for p in t.split())
+    ]
 
     # Dos turnos del tutor seguidos: se cortó y retomó.
     retomas = sum(
@@ -80,7 +132,9 @@ def medir(texto: str, marca_mudez: str) -> dict:
         "cortados": len(cortados),
         "retomas": retomas,
         "mudeces": mudeces,
+        "cortados_nino": len(cortados_nino),
         "ejemplos": ["…" + t[-34:] for t in cortados[:2]],
+        "ejemplos_nino": ["…" + t[-34:] for t in cortados_nino[:2]],
     }
 
 
@@ -105,31 +159,47 @@ def main() -> int:
     print("=" * 78)
     print("  FLUIDEZ — lo que el niño siente, contado sobre las transcripciones")
     print("=" * 78)
-    print(f"\n{'sesión':22}{'turnos':>7}{'cortados':>10}{'retomas':>9}{'mudez':>7}")
+    print(
+        f"\n{'sesión':22}{'turnos':>7}{'cortados':>10}{'retomas':>9}{'mudez':>7}"
+        f"{'niño✂':>8}"
+    )
 
-    total = {"turnos": 0, "cortados": 0, "retomas": 0, "mudeces": 0}
+    total = {"turnos": 0, "cortados": 0, "retomas": 0, "mudeces": 0, "cortados_nino": 0}
     peores: list[tuple[str, list[str]]] = []
+    peores_nino: list[tuple[str, list[str]]] = []
     for f in archivos:
         m = medir(f.read_text(encoding="utf-8"), marca)
         if not m["turnos"]:
             continue
         for k in total:
             total[k] += m[k]
-        print(f"{f.stem:22}{m['turnos']:>7}{m['cortados']:>10}{m['retomas']:>9}{m['mudeces']:>7}")
+        print(
+            f"{f.stem:22}{m['turnos']:>7}{m['cortados']:>10}{m['retomas']:>9}"
+            f"{m['mudeces']:>7}{m['cortados_nino']:>8}"
+        )
         if m["ejemplos"]:
             peores.append((f.stem, m["ejemplos"]))
+        if m["ejemplos_nino"]:
+            peores_nino.append((f.stem, m["ejemplos_nino"]))
 
     t = max(total["turnos"], 1)
     print("\n" + "-" * 78)
     print(
         f"  {total['cortados']}/{total['turnos']} turnos cortados "
         f"({100 * total['cortados'] / t:.0f}%) · "
-        f"{total['retomas']} retomas · {total['mudeces']} mudeces"
+        f"{total['retomas']} retomas · {total['mudeces']} mudeces · "
+        f"{total['cortados_nino']} turnos del niño cortados"
     )
 
     if peores:
         print("\n  Dónde se cortó (últimas):")
         for sesion, ejemplos in peores[-3:]:
+            for e in ejemplos:
+                print(f"    {sesion}  {e}")
+
+    if peores_nino:
+        print("\n  Dónde se le cortó AL NIÑO (el VAD le cerró el turno antes):")
+        for sesion, ejemplos in peores_nino[-3:]:
             for e in ejemplos:
                 print(f"    {sesion}  {e}")
 

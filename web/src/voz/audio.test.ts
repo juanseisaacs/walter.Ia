@@ -373,3 +373,101 @@ describe("conversión de muestras", () => {
     expect(buffer.duration).toBeCloseTo(0.5, 6);
   });
 });
+
+describe("cola de guarda contra el eco (sonandoHace)", () => {
+  /* Los dos huecos por los que el eco del tutor le cortaba la frase: entre
+     chunk y chunk, y la cola del parlante justo después del último. Ver
+     `ReproductorContinuo.sonandoHace` y `ses_0a6036dedf55`. */
+
+  it("aguanta después de la última muestra, cuando el parlante todavía suena", () => {
+    vi.useFakeTimers();
+    try {
+      reproductor.iniciar();
+      const ctx = contexto();
+
+      reproductor.programar(chunkDe(0.2));
+      ctx.fuentes[0].terminar();
+
+      // `hablando` ya dice que no, pero el micrófono sigue oyendo al tutor.
+      expect(reproductor.hablando).toBe(false);
+      expect(reproductor.sonandoHace(300)).toBe(true);
+
+      vi.advanceTimersByTime(299);
+      expect(reproductor.sonandoHace(300)).toBe(true);
+      vi.advanceTimersByTime(2);
+      expect(reproductor.sonandoHace(300)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tapa el hueco entre chunks: el turno no terminó, solo llegó tarde", () => {
+    vi.useFakeTimers();
+    try {
+      reproductor.iniciar();
+      const ctx = contexto();
+
+      reproductor.programar(chunkDe(0.2));
+      ctx.fuentes[0].terminar(); // la cola se vació a mitad de frase
+      vi.advanceTimersByTime(80); // Gemini manda en ráfagas: este llegó tarde
+      expect(reproductor.sonandoHace(300)).toBe(true);
+
+      reproductor.programar(chunkDe(0.2));
+      expect(reproductor.sonandoHace(300)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("un barge-in APAGA la cola: la voz del niño no espera 300 ms más", () => {
+    vi.useFakeTimers();
+    try {
+      reproductor.iniciar();
+      reproductor.programar(chunkDe(0.2));
+
+      // Acá al tutor lo callaron, no terminó solo. Lo que venga por el
+      // micrófono es el niño interrumpiendo y tiene que salir ya.
+      reproductor.detenerTodo();
+      expect(reproductor.sonandoHace(300)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sin haber hablado nunca, no hay cola que aguantar", () => {
+    reproductor.iniciar();
+    expect(reproductor.sonandoHace(300)).toBe(false);
+  });
+});
+
+describe("despertar el contexto sin borrar la ráfaga (ses_6c6fb58aafbb)", () => {
+  it("un solo resume aunque lleguen muchos chunks suspendido", () => {
+    reproductor.iniciar();
+    const ctx = contexto();
+    ctx.suspender();
+
+    // Gemini manda la respuesta en ráfaga. Cada chunk pedía su propio resume,
+    // y cada uno resolvía llamando a detenerTodo(): la ráfaga entera se
+    // borraba a sí misma aunque el contexto ya hubiera despertado.
+    for (let i = 0; i < 5; i++) reproductor.programar(chunkDe(0.2));
+
+    expect(ctx.reanudaciones).toBe(1);
+  });
+
+  it("si el navegador rechaza el resume, se puede volver a intentar", async () => {
+    // Sin el brazo de rechazo, el flag quedaba en true para siempre y el tutor
+    // se quedaba mudo el resto de la sesión por un rechazo transitorio.
+    reproductor.iniciar();
+    const ctx = contexto();
+    ctx.rechazarResume = true;
+    ctx.suspender();
+
+    reproductor.programar(chunkDe(0.2));
+    await esperarMicrotareas();
+    expect(ctx.reanudaciones).toBe(1);
+
+    ctx.rechazarResume = false;
+    reproductor.programar(chunkDe(0.2));
+    expect(ctx.reanudaciones, "quedó trabado: no reintentó nunca más").toBe(2);
+  });
+});

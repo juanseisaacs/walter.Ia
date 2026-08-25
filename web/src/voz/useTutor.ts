@@ -21,7 +21,12 @@ import {
   type SesionAbierta,
   type Turno,
 } from "../api";
-import { ReproductorContinuo, SAMPLE_RATE_ENTRADA, aPcm16Base64 } from "./audio";
+import {
+  ReproductorContinuo,
+  SAMPLE_RATE_ENTRADA,
+  aPcm16Base64,
+  silencioPcm16Base64,
+} from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 import { tokenActual } from "../nino";
@@ -39,7 +44,14 @@ export function mensajeDeCierre(evento: any): string {
   if (/credit|quota|billing|exhaust|depleted/i.test(motivo)) {
     // Este es el que costó una tarde: la sesión no abre y no es culpa de nadie
     // acá. Que se pueda LEER en la pantalla en vez de adivinarlo.
-    return "El tutor se quedó sin cupo por hoy. Avísale a un adulto.";
+    // NO dice "sin cupo por hoy", que es lo que decía antes. Esa frase es
+    // indistinguible del tope diario del niño —tres sesiones, por diseño y
+    // saludable— cuando esto es lo contrario: el producto CAÍDO por
+    // facturación. El 24/08 esa ambigüedad mandó a buscar un bug que no
+    // existía mientras los cuatro enlaces entregados fallaban por créditos
+    // agotados de Google. Un mensaje que se confunde con lo normal esconde lo
+    // grave.
+    return "Al tutor se le acabó la batería. Un adulto tiene que recargarla.";
   }
   if (/permission|unauthorized|token|expired/i.test(motivo)) {
     return "El enlace ya no sirve. Pídele uno nuevo a un adulto.";
@@ -110,6 +122,36 @@ const MS_PARA_CORTAR = 200;
 export const BLOQUES_RETENIDOS = 8;
 
 /**
+ * Cuánto se sigue reteniendo el micrófono DESPUÉS de que el tutor dejó de sonar.
+ *
+ * El eco no termina con la última muestra: queda la cola del parlante en la
+ * sala y el retraso del propio micrófono. Y entre chunk y chunk la cola se
+ * vacía sin que el tutor haya terminado nada. En los dos huecos el micro
+ * soltaba audio con la voz del tutor adentro y el VAD del servidor le cortaba
+ * la frase — ver `ReproductorContinuo.sonandoHace`.
+ *
+ * 300 ms cubre los dos y es menos que `MS_PARA_CORTAR` + un bloque: si el niño
+ * arranca a hablar justo en ese borde, el barge-in todavía no lo había
+ * confirmado, así que no se le come ninguna interrupción real.
+ */
+export const MS_COLA_ECO = 300;
+
+/**
+ * Techo de lo que se retiene el micro esperando la PRIMERA palabra del tutor.
+ *
+ * El saludo es el turno más expuesto de la sesión: el micrófono se abre antes
+ * de mandar la apertura, así que entre el envío y el primer chunk sonando no
+ * hay nada que retenga, y todo lo que capte —una silla, alguien en la otra
+ * pieza— sale hacia un VAD sensible que puede cortarle el saludo apenas
+ * empieza.
+ *
+ * Es un TECHO, no una espera: se levanta en cuanto suena el primer bloque de
+ * audio. Existe para que un saludo que nunca llega no deje al niño con el
+ * micrófono mudo toda la sesión.
+ */
+export const MS_RETENER_APERTURA = 4000;
+
+/**
  * Cuánto se le aguanta al tutor sin decir nada después de que el niño terminó
  * de hablar, antes de darlo por mudo.
  *
@@ -134,6 +176,41 @@ export const MS_MUDEZ_TRAS_EMPUJON = 18_000;
  * alguien le diga algo — más de lo que aguanta un chico de 7. Así el peor caso
  * es 10 s de silencio + un intento + 18 s = 28 s hasta que la pantalla habla. */
 export const EMPUJONES_ANTES_DE_RENDIRSE = 1;
+
+/** Cuántas veces se reconecta el canal de voz antes de darlo por perdido.
+ *
+ * Una. El empujón destraba al modelo cuando el canal está sano; si después del
+ * empujón sigue mudo, lo roto es el canal, y eso no se arregla hablándole más
+ * fuerte — se arregla con un socket nuevo sobre la misma sesión.
+ *
+ * Pero una sola vez, y el contador NO se reinicia cuando el tutor vuelve a
+ * hablar (a diferencia de los empujones). Si el canal se cae dos veces en la
+ * misma sesión, el problema no es el socket: reintentar sin fin dejaría al niño
+ * en un ciclo de silencios de medio minuto cada uno, que es peor que decirle la
+ * verdad y dejarlo empezar de nuevo. */
+export const RECONEXIONES_ANTES_DE_RENDIRSE = 1;
+
+/**
+ * Cuánto silencio DEL NIÑO antes de dar por terminada la sesión.
+ *
+ * ESTE ES EL QUE NO GASTA PLATA A LO TONTO, y faltaba.
+ *
+ * El reaper del backend cierra nuestra fila, pero **no apaga el micrófono**:
+ * si la pestaña sigue viva, el audio sigue viajando a Google y Google sigue
+ * cobrando. Medido sobre las dos recargas de US$10: **US$0,038 por minuto**, y
+ * **US$6,89 de US$20 se fueron en sesiones que nadie estaba usando** — una de
+ * ellas de 117,7 minutos. Un tercio de todo el gasto.
+ *
+ * El techo de 45 minutos no alcanza: son US$1,71 por cada vez que un niño se
+ * levanta y se va.
+ *
+ * Cuatro minutos es holgado a propósito. Un chico pensando calla veinte
+ * segundos, no cuatro minutos; y si de verdad está trabajando —dibujando en la
+ * hoja, acomodando el cuaderno para la foto— eso NO cuenta como silencio (ver
+ * `hayAlguienTrabajando`). El error caro es cerrarle la sesión a un niño que
+ * está ahí.
+ */
+export const MS_SIN_EL_NINO = 240_000;
 
 /** El empujón. Es prompt —lo lee el modelo—, y por eso se prueba. */
 export const AVISO_DE_MUDEZ =
@@ -167,6 +244,9 @@ export function useTutor(ninoId: string) {
   const [cuadro, setCuadro] = useState<Cuadro | null>(null);
   /** La consigna del dibujo, cuando el tutor le pidió al niño que trace algo. */
   const [hoja, setHoja] = useState<string | null>(null);
+  /** ¿La hoja abierta ya se la mandó al tutor? Cambia los botones y evita que
+      el niño crea que no salió. Ver `enviarDibujo`. */
+  const [dibujoEnviado, setDibujoEnviado] = useState(false);
   /** Por qué no se pudo abrir. Se muestra EN PANTALLA, no solo en consola:
       un fallo invisible deja al niño oyendo 'toca el botón' sin botón. */
   const [fallaCamara, setFallaCamara] = useState<string | null>(null);
@@ -196,7 +276,9 @@ export function useTutor(ninoId: string) {
   const ejercicioActualRef = useRef<string | null>(null);
   const arrancandoRef = useRef(false);
   /** Para llegar a terminar() desde el callback de Gemini, que se arma antes. */
-  const terminarRef = useRef<((interrumpida?: boolean) => Promise<void>) | null>(null);
+  const terminarRef = useRef<
+    ((interrumpida?: boolean, motivo?: string) => Promise<void>) | null
+  >(null);
   const arranquesRef = useRef(0);
 
   /** Identidad de ESTA pestaña. Sirve para ignorar los avisos propios. */
@@ -226,6 +308,9 @@ export function useTutor(ninoId: string) {
   /** Mientras se espera que el tutor mire una imagen, el micro no manda nada.
       Ver `mostrarleAlTutor`. */
   const esperandoMiradaRef = useRef(false);
+  /** Hasta cuándo se retiene el micro esperando el saludo (`Date.now()` + techo).
+      0 = no se está esperando. Ver `MS_RETENER_APERTURA`. */
+  const retenerHastaRef = useRef(0);
   /** Los dos relojes de la sesión: avisar al 90% del tiempo, cortar al 100%. */
   const relojesRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -317,6 +402,24 @@ export function useTutor(ninoId: string) {
 
   const mudezRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const empujonesRef = useRef(0);
+  /** Reconexiones gastadas en esta sesión. A diferencia de los empujones, NO se
+      reinicia cuando el tutor vuelve: ver `RECONEXIONES_ANTES_DE_RENDIRSE`. */
+  const reconexionesRef = useRef(0);
+  /** Para llamar a `empezar` desde acá sin depender del orden de declaración:
+      `empezar` se define mucho más abajo y necesita a `vigilarMudez`. */
+  const empezarRef = useRef<((modo: "guiado" | "pedido") => Promise<void>) | null>(null);
+  /** ¿Este arranque es una reconexión sobre la sesión que ya está viva?
+   *
+   *  Lo pone `vigilarMudez` justo antes de reintentar. Cambia tres cosas de
+   *  `empezar` y ninguna más: de dónde sale el token, que la sesión del backend
+   *  NO se cierre, y que el banco de ejercicios no se pise. */
+  const reconectandoRef = useRef(false);
+  /** Cuándo se oyó al niño por última vez. Ver `MS_SIN_EL_NINO`. */
+  const ultimaVozRef = useRef(Date.now());
+  /** Espejos de `hoja` y de la cámara, para leerlos desde un `setInterval` sin
+      volver a montarlo en cada cambio. */
+  const hojaRef = useRef<string | null>(null);
+  const camaraAbiertaRef = useRef(false);
 
   /** El tutor dio señales de vida: audio, turno cerrado o un tool pedido. */
   const tutorContesto = useCallback(() => {
@@ -336,10 +439,50 @@ export function useTutor(ninoId: string) {
       if (!liveRef.current) return; // la sesión ya no existe: no hay a quién empujar
 
       if (empujonesRef.current >= EMPUJONES_ANTES_DE_RENDIRSE) {
-        console.error("[mudez] el tutor no volvió: se cierra la sesión");
         cerrarTurnoAcumulado();
         encolar({ quien: "tutor", texto: MARCA_DE_MUDEZ });
-        void terminarRef.current?.(true).then(() => {
+
+        // ── ANTES DE RENDIRSE, RECONECTAR ────────────────────────────────
+        //
+        // El empujón destraba al modelo cuando el canal está sano. Si tras el
+        // empujón sigue mudo, lo más probable es que el canal esté roto — y un
+        // canal roto no se arregla hablándole más fuerte.
+        //
+        // Hasta acá esto cerraba la sesión y le ponía al niño «toca para
+        // volver a empezar». Empezar de nuevo le costaba TODO: los ejercicios
+        // cargados, los turnos, la habilidad del día y el hilo de la
+        // conversación. En `ses_02805f3edba1` Juan quedó con dos mudeces y la
+        // pantalla muerta después de pedirle una rima — «te estoy esperando».
+        //
+        // La sesión del backend está sana: lo único roto es el socket. Se pide
+        // un token nuevo sobre la MISMA sesión y el tutor vuelve sabiendo de
+        // qué hablaban (`SessionOrchestrator._recap`).
+        //
+        // UNA SOLA VEZ. `reconexionesRef` no se reinicia con `tutorContesto`, a
+        // diferencia de los empujones: si el canal se cae dos veces en la misma
+        // sesión, el problema no es el socket y reintentar sería dejar al niño
+        // en un ciclo de silencios. Ahí sí se cierra y se le dice.
+        if (reconexionesRef.current < RECONEXIONES_ANTES_DE_RENDIRSE) {
+          reconexionesRef.current += 1;
+          console.warn(`[mudez] canal roto: reconexión ${reconexionesRef.current}`);
+          reconectandoRef.current = true;
+          setEstado("conectando");
+          void empezarRef.current?.(modoRef.current)
+            .catch((e) => {
+              console.error("[mudez] la reconexión falló:", e);
+              void terminarRef.current?.(true, "reconexion_fallo").then(() => {
+                setError("El tutor se quedó callado. Toca para volver a empezar.");
+                setEstado("error");
+              });
+            })
+            .finally(() => {
+              reconectandoRef.current = false;
+            });
+          return;
+        }
+
+        console.error("[mudez] el tutor no volvió ni reconectando: se cierra");
+        void terminarRef.current?.(true, "mudez").then(() => {
           // Lo lee un niño: qué pasó y qué hacer, sin código de error.
           setError("El tutor se quedó callado. Toca para volver a empezar.");
           setEstado("error");
@@ -413,6 +556,28 @@ export function useTutor(ninoId: string) {
       // el VAD por su voz, el modelo contestó: "¡Uy, ya la veo! Te quedó súper
       // bien". Nunca había mirado nada; le contestó a la voz.
       esperandoMiradaRef.current = true;
+
+      // Y ANTES DE MANDAR NADA, SE CIERRA EL STREAM DE AUDIO.
+      //
+      // Esta es la única pausa DELIBERADA del micrófono que queda (hasta 8 s,
+      // ver `MS_ESPERANDO_MIRADA`), y la Live API pide cerrarla explícitamente:
+      //
+      //   «when the audio stream is paused for more than a second (for example,
+      //    because the user switched off the microphone), an `audioStreamEnd`
+      //    event should be sent to flush any cached audio.»
+      //
+      // Sin esto, lo que el niño alcanzó a decir antes de mandar la foto queda
+      // cacheado del lado del servidor y se pega con lo que hable DESPUÉS, como
+      // si no hubieran pasado ocho segundos en el medio. Es la misma familia de
+      // bug que el `return` pelado del micrófono (`ses_02805f3edba1`): el
+      // servidor no mide el tiempo, mide el audio que le llega.
+      try {
+        live.sendRealtimeInput({ audioStreamEnd: true });
+      } catch (e) {
+        // Que no se pueda cerrar el stream no justifica perder la imagen.
+        console.warn("[imagen] no se pudo cerrar el stream de audio:", e);
+      }
+
       live.sendClientContent({
         turns: {
           role: "user",
@@ -579,9 +744,19 @@ export function useTutor(ninoId: string) {
       // Un salto a nuestra API serían ~5 ms más por nada, y este es justo el
       // camino donde no se regala latencia.
       //
-      // Los dos tools son NON_BLOCKING (ver DECLARACIONES_TOOLS): el tutor
-      // sigue hablando mientras esto pasa, que es lo que hace un profesor
-      // cuando escribe en el tablero y explica al mismo tiempo.
+      // ⚠️ ESTOS DOS TOOLS **BLOQUEAN**, y el comentario que había acá decía
+      // exactamente lo contrario: «son NON_BLOCKING, el tutor sigue hablando
+      // mientras esto pasa». Se quedó viejo cuando `voice.py` sacó el flag
+      // —medido: con NON_BLOCKING, 8 de 8 turnos con tool salieron MUDOS— y
+      // mandó a buscar el silencio de la pizarra al lado equivocado.
+      //
+      // Lo que pasa de verdad: el tutor SE CALLA mientras esto se resuelve. Es
+      // rápido —se hace acá, sin tocar el backend— pero si la escena no se
+      // puede armar, el niño oye un hueco. Por eso la declaración del tool le
+      // pide decir una frase ANTES de llamarla, y por eso ese hueco es el que
+      // Juan leyó como «¿me escuchas? estás como trabado» (`ses_0a6036dedf55`).
+      //
+      // Si algún día vuelve NON_BLOCKING, se vuelve a medir primero.
       case "mostrar_en_pizarra": {
         if (args?.tipo === "limpiar") {
           setCuadro(null);
@@ -645,6 +820,7 @@ export function useTutor(ninoId: string) {
         // copiar. Se lo borrábamos en el momento exacto en que lo necesitaba —
         // «no me sale el tablero», ses_445f4c33db41— y el tutor, que no ve la
         // pantalla, no tenía cómo entender qué le estaba pasando.
+        setDibujoEnviado(false);
         setHoja(String(args?.consigna ?? "Dibújame lo que estás pensando"));
         return {
           hoja_abierta: true,
@@ -720,7 +896,19 @@ export function useTutor(ninoId: string) {
 
   const enviarDibujo = useCallback(
     (jpegBase64: string) => {
-      setHoja(null);
+      // LA HOJA NO SE BORRA. Lo pidió el niño con todas las letras
+      // (`ses_74b6cc7667ae`): «cuando yo te envío algo que escribí en el
+      // tablero, no se desaparezca».
+      //
+      // Se borraba en el mismo instante en que la mandaba, así que escuchaba
+      // «fíjate que el palito de la h tiene que subir un poco más» mirando una
+      // hoja en blanco — sin la letra de la que le estaban hablando. Peor: el
+      // tutor le pedía corregirla y él ya no la tenía.
+      //
+      // Queda, y sigue siendo EDITABLE, que es lo que hace falta para
+      // corregirla encima. Se cierra sola cuando el tutor manda otra cosa a la
+      // pizarra, o cuando el niño toca "Cerrar".
+      setDibujoEnviado(true);
       const salio = mostrarleAlTutor(
         jpegBase64,
         AVISO_DEL_DIBUJO,
@@ -844,7 +1032,25 @@ export function useTutor(ninoId: string) {
      Micrófono, WebSocket y audio. Lo llaman terminar(), onerror y empezar():
      este último para que NUNCA queden dos sesiones vivas a la vez. */
 
-  const soltarRecursos = useCallback(() => {
+  /**
+   * @param conservarAudio  No cerrar el AudioContext, solo callar lo que suena.
+   *
+   * EL AUDIOCONTEXT NO SOBREVIVE A UN `new AudioContext()` FUERA DE UN GESTO.
+   * `ReproductorContinuo.iniciar()` lo dice en su primera línea: si no se llama
+   * dentro de un gesto del usuario, el navegador lo deja **suspendido**.
+   *
+   * Una reconexión no viene de un gesto —viene del reloj de la mudez— así que
+   * cerrar el reproductor y crear otro deja al niño con un contexto muerto: los
+   * chunks se programan contra un reloj detenido y no suena nada. El personaje
+   * se sigue animando, porque lo mueve el estado y no el sonido.
+   *
+   * Es lo que pasó en `ses_6c6fb58aafbb`, y el niño lo describió mejor que
+   * cualquier log: *«solo veo como al muñeco hablar, pero no estás hablando»*,
+   * *«se cerró y ahora ya no te escucho, solo te puedo leer»*.
+   *
+   * El contexto que se creó al empezar SÍ nació en un gesto. Se conserva.
+   */
+  const soltarRecursos = useCallback((conservarAudio = false) => {
     setCamara((s) => {
       cerrarCamara(s); // que se acabe la sesión no puede dejarla encendida
       return null;
@@ -857,13 +1063,20 @@ export function useTutor(ninoId: string) {
       /* ya cerrada */
     }
     liveRef.current = null;
-    reproductorRef.current?.cerrar();
-    reproductorRef.current = null;
+    if (conservarAudio) {
+      // Callar lo que quedó programado —es de la conversación que se cayó— sin
+      // tocar el contexto, que es lo único que no se puede volver a crear.
+      reproductorRef.current?.detenerTodo();
+    } else {
+      reproductorRef.current?.cerrar();
+      reproductorRef.current = null;
+    }
     // Un reloj que sobrevive a la sesión corta la SIGUIENTE a destiempo.
     for (const reloj of relojesRef.current) clearTimeout(reloj);
     relojesRef.current = [];
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
+    retenerHastaRef.current = 0;
     // EL TABLERO TAMPOCO SOBREVIVE.
     //
     // `ses_97d5b112a122` empezó así, antes de que nadie dijera nada:
@@ -889,7 +1102,7 @@ export function useTutor(ninoId: string) {
   /* ── Cierre ────────────────────────────────────────────────────────────── */
 
   const terminar = useCallback(
-    async (interrumpida = false) => {
+    async (interrumpida = false, motivo = "nino_termino") => {
       // Este cierre lo pedimos NOSOTROS: que `onclose` no lo confunda con una
       // sesión que se murió sola. Se marca antes de soltar el socket, porque
       // soltarlo es lo que dispara `onclose`.
@@ -919,7 +1132,7 @@ export function useTutor(ninoId: string) {
           await api.reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0)).catch(() => {});
         }
         await api
-          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.ultimo)
+          .cerrarSesion(sesion.sesion_id, interrumpida, tokensRef.current.ultimo, motivo)
           .catch(() => {});
       }
       sesionRef.current = null;
@@ -928,6 +1141,12 @@ export function useTutor(ninoId: string) {
       bancoRef.current = [];
       entregadosRef.current = new Set();
       tokensRef.current = { suma: 0, ultimo: 0 };
+      // Acá y no en `soltarRecursos`: una reconexión pasa por soltarRecursos y
+      // reiniciar el contador ahí lo volvería inútil — el niño podría quedar en
+      // un ciclo de caída-reconexión sin fin. `terminar` solo corre cuando la
+      // sesión de verdad se cierra, que es cuando el contador tiene que volver
+      // a cero.
+      reconexionesRef.current = 0;
       cerrandoRef.current = false;
       setEstado("inicio");
       setTextoNino("");
@@ -956,7 +1175,7 @@ export function useTutor(ninoId: string) {
       if (!sesionRef.current) return; // esta pestaña no tenía nada abierto
 
       console.warn("[sesion] otra pestaña tomó el tutor: esta se cierra");
-      void terminar(true).then(() => {
+      void terminar(true, "otra_pestana").then(() => {
         setError("Abriste el tutor en otra pestaña. Aquí quedó cerrado.");
         setEstado("error");
       });
@@ -1002,10 +1221,13 @@ export function useTutor(ninoId: string) {
     // Instrumentación: la prueba del 18/08 mostró TRES POST /api/sesiones y
     // nadie supo de dónde salieron. Ahora el navegador lo dice.
     arranquesRef.current += 1;
+    const queEs = reconectandoRef.current ? "reconexión" : "arranque";
     console.info(
-      `[sesion] arranque #${arranquesRef.current} en la pestaña ${pestanaRef.current}`,
+      `[sesion] ${queEs} #${arranquesRef.current} en la pestaña ${pestanaRef.current}`,
     );
-    if (arranquesRef.current > 1) {
+    // Una reconexión ES un arranque más, y decirle "ya había arrancado antes"
+    // manda a buscar el bug de los dos tutores donde no está.
+    if (arranquesRef.current > 1 && !reconectandoRef.current) {
       console.warn("[sesion] esta pestaña ya había arrancado el tutor antes");
     }
 
@@ -1018,7 +1240,39 @@ export function useTutor(ninoId: string) {
     // Si quedó algo de un intento anterior, se cierra ANTES de abrir.
     // terminar() y no soltarRecursos(): la sesión del backend también tiene
     // que cerrarse, o queda contando contra el cupo diario del niño.
-    if (sesionRef.current) await terminar(true);
+    //
+    // SALVO EN UNA RECONEXIÓN, que es justo lo contrario: la sesión del backend
+    // es lo único que queremos conservar. Lo que está roto es el canal de voz.
+    // Cerrarla acá le haría perder al niño los ejercicios, los turnos y el
+    // objetivo del día por un socket caído.
+    if (reconectandoRef.current) {
+      // Los turnos que quedaron a medio decir se reportan antes de soltar: si
+      // no, el último tramo de la conversación —el que explica POR QUÉ se cayó—
+      // se pierde, y es el que después hace falta para entender qué pasó.
+      const sesion = sesionRef.current;
+      if (sesion) {
+        if (acumNinoRef.current) {
+          pendientesRef.current.push({ quien: "nino", texto: acumNinoRef.current });
+        }
+        if (acumTutorRef.current) {
+          pendientesRef.current.push({ quien: "tutor", texto: acumTutorRef.current });
+        }
+        if (pendientesRef.current.length) {
+          await api
+            .reportarTurnos(sesion.sesion_id, pendientesRef.current.splice(0))
+            .catch(() => {});
+        }
+      }
+      acumNinoRef.current = "";
+      acumTutorRef.current = "";
+      // Que `onclose` no lea este cierre como "la sesión se murió sola" y le
+      // ponga al niño un cartel de error encima de la reconexión en curso.
+      cerrandoRef.current = true;
+      soltarRecursos(true); // y el AudioContext se conserva: ver soltarRecursos
+      cerrandoRef.current = false;
+    } else if (sesionRef.current) {
+      await terminar(true, "arranque_nuevo");
+    }
 
     setError(null);
     setSesionMurio(false);
@@ -1026,12 +1280,20 @@ export function useTutor(ninoId: string) {
     setEstado("conectando");
 
     try {
-      const reproductor = new ReproductorContinuo();
-      reproductor.iniciar(); // dentro del gesto del usuario
+      // EL QUE YA ESTÁ VIVO SE REUSA. Solo se crea uno nuevo si no hay.
+      //
+      // `iniciar()` tiene que correr dentro del gesto del usuario o el navegador
+      // deja el contexto suspendido, y una reconexión no tiene gesto: la
+      // dispara el reloj de la mudez. Crear uno nuevo ahí es crear uno muerto
+      // — `ses_6c6fb58aafbb`, «solo veo al muñeco hablar, pero no estás
+      // hablando». Ver `soltarRecursos`.
+      const reproductor = reproductorRef.current ?? new ReproductorContinuo();
+      reproductor.iniciar(); // dentro del gesto del usuario (o ya iniciado)
       reproductor.alTerminar = () => setEstado((e) => (e === "hablando" ? "escuchando" : e));
       reproductorRef.current = reproductor;
 
       modoRef.current = modo;
+      ultimaVozRef.current = Date.now(); // arranca limpio el reloj del silencio
 
       // ANTES DE NADA: ¿esta pestaña es la versión que el servidor sirve?
       //
@@ -1041,10 +1303,22 @@ export function useTutor(ninoId: string) {
       // página. Ver `recargarSiEstoyViejo` — sale de `ses_4ed4e930e60f`.
       if (await recargarSiEstoyViejo()) return;
 
-      const sesion = await api.abrirSesion(ninoId, modo, tokenActual());
+      // En una reconexión no se abre sesión: se vuelve a firmar un token sobre
+      // la que ya está viva. No cobra cupo ni replanifica — el objetivo del día
+      // no cambia porque se haya caído un socket.
+      const previa = sesionRef.current;
+      const sesion =
+        reconectandoRef.current && previa
+          ? await api.reconectar(previa.sesion_id)
+          : await api.abrirSesion(ninoId, modo, tokenActual());
       sesionRef.current = sesion;
-      bancoRef.current = sesion.ejercicios ?? [];
-      entregadosRef.current = new Set();
+      // El banco solo se reemplaza si vino uno. Al reconectar llega vacío A
+      // PROPÓSITO: el navegador ya lo tiene y puede haber usado la mitad —
+      // pisarlo le devolvería al niño ejercicios que ya resolvió.
+      if (sesion.ejercicios?.length) {
+        bancoRef.current = sesion.ejercicios;
+        entregadosRef.current = new Set();
+      }
       setTema(sesion.habilidad_nombre);
 
       // El token ya trae la configuración atada: no mandamos ni prompt ni tools.
@@ -1106,7 +1380,7 @@ export function useTutor(ninoId: string) {
 
               if (techo && gastados >= techo) {
                 console.warn(`[tokens] ${gastados} >= ${techo}: se cierra la sesión`);
-                void terminarRef.current?.(false);
+                void terminarRef.current?.(false, "techo_tokens");
               }
               console.info(
                 `[tokens] acumulado=${gastados} (suma ingenua ${tokensRef.current.suma})`,
@@ -1137,6 +1411,8 @@ export function useTutor(ninoId: string) {
                 // cortaba el turno al modelo mientras miraba la imagen. El
                 // único mensaje que prueba que el tutor ya contestó es su voz.
                 esperandoMiradaRef.current = false;
+                // Ya hay voz: desde acá el que retiene es el reproductor.
+                retenerHastaRef.current = 0;
                 reproductor.programar(parte.inlineData.data);
               }
             }
@@ -1167,6 +1443,7 @@ export function useTutor(ninoId: string) {
               // El reloj del silencio. La última sílaba transcripta es lo más
               // cerca que estamos de "el niño terminó de hablar".
               callóRef.current = performance.now();
+              ultimaVozRef.current = Date.now(); // y el reloj de la inactividad
               // Y el que mira si el tutor contesta. Se reinicia con cada sílaba:
               // mientras el niño habla no hay nada que esperar.
               vigilarMudez();
@@ -1348,11 +1625,70 @@ export function useTutor(ninoId: string) {
         // soltando primero lo retenido — así el niño no pierde la primera
         // sílaba de su interrupción. Y si era eco, se descarta y nadie corta
         // nada.
-        if (tutorSonando) {
+        //
+        // `sonandoHace` y no `hablando`: quedaban dos huecos por los que el eco
+        // se escapaba igual —entre chunk y chunk, y la cola del parlante
+        // después de la última muestra—, y por ahí siguió cortándose el tutor
+        // (`ses_0a6036dedf55`, 2 de 8 turnos partidos). Ver `MS_COLA_ECO`.
+        //
+        // Se lee DESPUÉS del barge-in a propósito: si el niño interrumpió de
+        // verdad, `detenerTodo()` ya apagó la cola de guarda y su voz sale en
+        // este mismo bloque en vez de esperar 300 ms más.
+        //
+        // Y el saludo entra por la otra mitad de la condición: hasta que el
+        // tutor suelte su primer bloque de audio no hay reproductor que retenga
+        // nada, y ese es justo el turno que se partió. Ver `MS_RETENER_APERTURA`.
+        const esperandoElSaludo = retenerHastaRef.current > Date.now();
+        if (reproductor.sonandoHace(MS_COLA_ECO) || esperandoElSaludo) {
           retenidos.push(muestras);
           if (retenidos.length > BLOQUES_RETENIDOS) retenidos.shift();
+
+          // ── Y EN SU LUGAR VA SILENCIO. NO "nada". ──────────────────────────
+          //
+          // ESTA LÍNEA ES LA CAUSA RAÍZ DE QUE LA CONVERSACIÓN SE ENREDARA Y
+          // TERMINARA CAYÉNDOSE (`ses_02805f3edba1`: 25 turnos, la voz del niño
+          // llegando tarde, y al final dos mudeces seguidas y sesión muerta).
+          //
+          // Hasta acá había un `return` pelado: mientras el tutor hablaba, el
+          // stream se CORTABA. La documentación de la Live API dice por qué eso
+          // no se puede hacer:
+          //
+          //   «`silenceDurationMs` only works within a continuous stream — it
+          //    measures quiet periods, not stream interruptions.»
+          //   «when the audio stream is paused for more than a second… an
+          //    `audioStreamEnd` event should be sent to flush any cached audio.»
+          //
+          // O sea: el VAD del servidor no mide el paso del tiempo, mide el
+          // audio que le llega. Sin audio, su reloj SE DETIENE. El turno del
+          // niño que estaba a medio cerrar se quedaba colgado en el buffer del
+          // servidor, y cuando el micrófono volvía —varios segundos después— lo
+          // nuevo se pegaba con lo viejo como si fueran contiguos.
+          //
+          // Eso es exactamente lo que se sintió: «parecía como si mi voz
+          // llegara tarde, y entonces como que se enredaba». Y es también por
+          // qué la sesión terminó muerta: un turno que nunca se cierra es un
+          // turno que nunca se contesta.
+          //
+          // Mandar silencio en lugar de nada resuelve las dos cosas a la vez:
+          //   · el eco del tutor NO viaja — sigue en pie el arreglo del 23/08;
+          //   · el reloj del VAD sigue corriendo y ve lo que de verdad hay que
+          //     mostrarle: silencio. El turno del niño se cierra a tiempo.
+          //
+          // Y no cuesta más que antes del 23/08, cuando se mandaba el audio
+          // crudo el 100% del tiempo: es el mismo caudal, con ceros adentro.
+          try {
+            live.sendRealtimeInput({
+              audio: {
+                data: silencioPcm16Base64(muestras.length),
+                mimeType: "audio/pcm;rate=16000",
+              },
+            });
+          } catch {
+            /* sesión cerrada a mitad de un lote */
+          }
           return;
         }
+        retenerHastaRef.current = 0; // el techo venció: el saludo no llegó
 
         // Lo retenido sale SOLO si hubo interrupción de verdad. Cuando el
         // tutor termina su turno solo, esos bloques son el eco de su propia voz
@@ -1398,6 +1734,10 @@ export function useTutor(ninoId: string) {
          barge-in ya está escuchando. Y si esto falla, la sesión sigue viva —
          un saludo perdido es mucho menos grave que no poder hablar. */
       if (sesion.apertura) {
+        // El micrófono queda retenido hasta que el tutor suene. Se pone ANTES
+        // del envío: el hueco que partía el saludo empieza en el instante en
+        // que el modelo recibe el turno, no cuando contesta.
+        retenerHastaRef.current = Date.now() + MS_RETENER_APERTURA;
         try {
           live.sendClientContent({
             turns: { role: "user", parts: [{ text: sesion.apertura }] },
@@ -1405,7 +1745,22 @@ export function useTutor(ninoId: string) {
           });
         } catch (e) {
           console.warn("[apertura] el tutor no pudo saludar primero:", e);
+          // Si el saludo ni salió, no hay nada que esperar: el micro vuelve ya.
+          retenerHastaRef.current = 0;
         }
+
+        // Y ALGUIEN MIRA EL RELOJ desde el primer segundo.
+        //
+        // El vigilante de la mudez se armaba solo cuando llegaba transcripción
+        // del niño. O sea: si el tutor no abría la boca y el niño tampoco,
+        // nadie estaba mirando y la sesión se quedaba en silencio para siempre
+        // — que es la forma que tienen de verse las 19 sesiones vacías de las
+        // 71 que se midieron el 22/08.
+        //
+        // Importa más todavía al reconectar: ahí el saludo es el recap, y si no
+        // llega, el niño se queda con «conectando» en la pantalla y el tutor no
+        // vuelve nunca.
+        vigilarMudez();
       }
 
       /* EL RELOJ DE LA SESIÓN.
@@ -1458,7 +1813,7 @@ export function useTutor(ninoId: string) {
         relojesRef.current.push(
           setTimeout(() => {
             console.warn(`[tiempo] ${maxMin} min: se cierra la sesión`);
-            void terminarRef.current?.(false);
+            void terminarRef.current?.(false, "techo_tiempo");
           }, maxMin * 60_000),
         );
       }
@@ -1475,10 +1830,94 @@ export function useTutor(ninoId: string) {
   }, [ninoId, atenderTool, encolar, terminar, soltarRecursos, vigilarMudez, tutorContesto]);
 
   // El callback de Gemini se arma antes que `terminar`, así que lo alcanza
-  // por referencia en vez de por closure.
+  // por referencia en vez de por closure. Lo mismo `empezar`, que el vigilante
+  // de la mudez necesita para reconectar y que se define después que él.
   terminarRef.current = terminar;
+  empezarRef.current = empezar;
 
-  useEffect(() => () => void terminar(true), [terminar]);
+  useEffect(() => () => void terminar(true, "desmontaje"), [terminar]);
+
+  /* CUANDO LA PESTAÑA SE VA, NO HAY REACT QUE LIMPIE.
+     El `useEffect` de arriba corre al DESMONTAR: sirve para navegar dentro de
+     la app, no para que el navegador se lleve la página. Al cerrar la pestaña
+     —o al matarla el sistema— React no ejecuta nada y un `fetch` a medio vuelo
+     se cancela.
+
+     Resultado: `ses_610e057cfd91` quedó `activa`, sin `fin` y con 0 tokens. En
+     el log no hay `/cerrar`. Para el backend esa sesión sigue viva hoy.
+
+     `pagehide` y no `beforeunload`: es el único que dispara de forma confiable
+     en móvil, donde el sistema mata pestañas de fondo sin avisar. Y `keepalive`
+     no alcanza — por eso `sendBeacon`, que el navegador entrega aunque la
+     página ya no exista.
+
+     Es la capa de ADENTRO. La de afuera es el reaper del backend, que agarra
+     lo que esto no puede: un crash, una suspensión, quedarse sin internet. */
+  /* SI EL NIÑO SE FUE, SE APAGA EL MICRÓFONO.
+     Lo pidió RBH con todas las letras: «no vuelva a pasar eso de las sesiones
+     abiertas y que botemos plata a la basura».
+
+     El reaper del backend NO sirve para esto: cierra la fila en la base, pero
+     la pestaña sigue viva y el micrófono sigue mandando audio a Google, que
+     sigue cobrando. Los dos vigilantes hacen falta y miran cosas distintas —
+     uno la pestaña muerta, este el niño ausente con la pestaña viva.
+
+     Se cierra desde acá, que es el único lado que puede callar el micrófono. */
+  useEffect(() => {
+    const reloj = setInterval(() => {
+      if (!sesionRef.current) return;
+      // Trabajando en silencio: dibujando en la hoja, o acomodando el cuaderno
+      // para la foto. Cerrarle la sesión ahí sería el arreglo peor que el bug —
+      // es la misma trampa que casi se comete con el reaper.
+      const hayAlguienTrabajando =
+        hojaRef.current !== null || camaraAbiertaRef.current || esperandoMiradaRef.current;
+      if (hayAlguienTrabajando) {
+        ultimaVozRef.current = Date.now();
+        return;
+      }
+      if (Date.now() - ultimaVozRef.current < MS_SIN_EL_NINO) return;
+
+      console.warn(`[inactividad] ${MS_SIN_EL_NINO / 1000}s sin el niño: se cierra`);
+      void terminarRef.current?.(true, "nino_inactivo").then(() => {
+        // Un niño que vuelve tiene que entender qué pasó y poder seguir.
+        setError("Como no te oí por un ratico, cerré la clase. Toca para seguir.");
+        setEstado("error");
+      });
+    }, 30_000);
+    return () => clearInterval(reloj);
+  }, []);
+
+  // Los espejos, para poder leerlos desde el `setInterval` de arriba sin que
+  // el intervalo se vuelva a montar con cada trazo del niño.
+  hojaRef.current = hoja;
+  camaraAbiertaRef.current = camara !== null;
+
+  /* EL LATIDO. Es lo que le da ojos al vigilante de afuera.
+     20 s: con el margen del reaper en 180 s hacen falta nueve seguidos perdidos
+     para que dé una sesión por muerta, y eso aguanta el estrangulamiento de
+     timers que el navegador aplica a las pestañas de fondo. */
+  useEffect(() => {
+    const reloj = setInterval(() => {
+      const sesion = sesionRef.current;
+      if (sesion) void api.latido(sesion.sesion_id);
+    }, 20_000);
+    return () => clearInterval(reloj);
+  }, []);
+
+  useEffect(() => {
+    const alIrse = () => {
+      const sesion = sesionRef.current;
+      if (!sesion) return;
+      // `tokensRef.current.ultimo` es lo último que reportó Gemini; sin esto la
+      // sesión se cierra con 0 gastado y el presupuesto del niño miente.
+      if (api.cerrarConBeacon(sesion.sesion_id, tokensRef.current.ultimo)) {
+        // Que el `terminar()` del desmonte no la cierre por segunda vez.
+        sesionRef.current = null;
+      }
+    };
+    window.addEventListener("pagehide", alIrse);
+    return () => window.removeEventListener("pagehide", alIrse);
+  }, []);
 
   return {
     estado,
@@ -1500,6 +1939,7 @@ export function useTutor(ninoId: string) {
     hoja,
     enviarDibujo,
     cancelarDibujo: () => setHoja(null),
+    dibujoEnviado,
     empezar,
     terminar,
   };

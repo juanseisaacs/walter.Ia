@@ -94,6 +94,23 @@ grafo.
 está en `frustraciones`, no lo pongas también en `intereses`. Elegí el que la
 transcripción sostenga y dejá el otro afuera.
 
+**`motivadores` describe al NIÑO, nunca los hábitos del tutor.** Es la misma
+regla de arriba —lo nuestro no se anota como suyo— pero al revés y mucho más
+difícil de ver, porque no viene de un fallo sino de algo que salió bien.
+
+> Quedó escrito: *"reconocimiento verbal (el tutor usa mucho «¡Eso!», «¡Qué
+> bien!»)"*. Eso no es un motivador de Juan: es una descripción de cómo habla el
+> tutor. Viajó a su ficha, de ahí al prompt de la sesión siguiente, y el tutor
+> leyó una instrucción de seguir haciéndolo — hasta soltar *"¿ves que eres un
+> crack?"*, que es elogio inflado y está prohibido.
+
+Se cierra un círculo: el tutor toma una costumbre, vos la anotás como
+preferencia del niño, y el prompt se la ordena. **Nunca cites frases del tutor
+como algo que al niño le gusta.** Un motivador se sostiene en lo que el niño
+HIZO —se enganchó, insistió, pidió más, volvió al tema—, no en lo que el tutor
+dijo. Si no podés nombrar la conducta del niño que lo prueba, no es un
+motivador: no lo escribas.
+
 **`datos_suyos` es distinto y es importante.** Ahí van los HECHOS concretos que
 el niño contó de sí mismo, tal cual, cortitos:
 

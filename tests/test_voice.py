@@ -957,3 +957,82 @@ def test_los_prompts_del_tutor_tampoco_vosean():
         for ln in lineas:
             if (m := voseo.search(ln)):
                 raise AssertionError(f"voseo en {nombre}.es.md: {m.group()!r} — {ln.strip()[:70]}")
+
+
+def test_el_auditor_mide_LO_MISMO_que_el_tutor_tiene_prohibido():
+    """DOS PROMPTS QUE SE CONTRADECÍAN, Y NADIE LOS CRUZABA.
+
+    `valores.es.md` le prohíbe al tutor "te quedó súper bien" y "perfecto" como
+    veredicto suelto. `method_auditor.es.md` decía lo contrario — *«un "muy
+    bien" o un "perfecto" sueltos no son elogio inflado»*— así que el auditor
+    daba por buena la frase exacta que el tutor tiene vedada.
+
+    En `ses_6c6fb58aafbb` el tutor dijo *"Te quedó súper bien… el trazo está
+    perfecto"* sobre una letra, y la auditoría archivó `elogio_inflado: false`.
+
+    Eso no es un matiz: la cadena de auditorías es lo que convierte el
+    porcentaje del panel en algo que el papá puede **verificar** en vez de
+    creer. Un auditor que mide otra cosa que la regla la vuelve decorativa.
+
+    Este test cruza los dos archivos, que es lo único que puede atrapar una
+    contradicción entre prompts: cada uno por separado se lee perfecto.
+    """
+    valores = cargar_prompt("valores").lower()
+    auditor = cargar_prompt("method_auditor").lower()
+
+    # Lo que el tutor tiene prohibido, el auditor lo tiene que marcar.
+    for frase in ["te quedó súper bien", "perfecto"]:
+        assert frase in valores, f"la regla del tutor ya no veta: {frase}"
+        assert frase in auditor, (
+            f"el auditor no reconoce '{frase}' como elogio inflado, y el tutor "
+            f"la tiene prohibida: la cadena archivaría un false sobre una "
+            f"violación real"
+        )
+
+    # Y la prueba que las une: ¿nombra algo concreto?
+    assert "nombra algo concreto" in auditor, (
+        "sin criterio, el auditor vuelve a inventarse el suyo"
+    )
+
+
+def test_no_se_NO_es_una_senal_de_frustracion():
+    """LO QUE EMPUJABA AL TUTOR A REGALAR LA RESPUESTA.
+
+    El playbook listaba `"no sé"` entre las señales de frustración, y la tabla
+    de al lado ordena, para ese estado, *«bajas la dificultad y te acercas»* y
+    *«le das YA algo que sí pueda»*. Con eso, un "no sé" —lo más normal que dice
+    un niño ante algo que todavía no resolvió— disparaba el protocolo de
+    emergencia en vez de la escalera.
+
+    Tres sesiones seguidas, el mismo patrón:
+
+      · `ses_0a6036dedf55`  "No sé."            → escalón 3 de una
+      · `ses_02805f3edba1`  "No sé, ¿me ayudas?" → escalón 2 de una
+      · `ses_6c6fb58aafbb`  "No sé" dos veces    → *"se forma el número 19"*
+
+    No se arregló agregando otra prohibición: la regla que faltaba ya estaba
+    escrita —la escalera— y lo que había que quitar era la instrucción de al
+    lado que la contradecía.
+    """
+    playbook = cargar_prompt("socratic_playbook")
+    frustracion = playbook[playbook.index("Cuando se frustra"):]
+    frustracion = frustracion[: frustracion.index("---")]
+    assert '"no sé"' not in frustracion.lower().replace('**"no sé" no está acá**', ""), (
+        'el playbook volvió a clasificar "no sé" como frustración: con eso el '
+        "tutor salta escalones y termina dando el resultado"
+    )
+    assert '"No sé" pide UN escalón' in playbook, "falta la regla que lo reemplaza"
+
+
+def test_la_pregunta_de_vuelta_no_puede_ser_retorica():
+    """El playbook exige devolverle la pelota, y el tutor lo cumplía con
+    «¿sí lo ves?» DESPUÉS de haber dado la respuesta (`ses_6c6fb58aafbb`).
+
+    Una pregunta que se contesta con "sí" no devuelve nada: pide permiso. Sin
+    esto, la regla de la pista se satisface de palabra y se incumple de hecho —
+    el mismo patrón que el "te quedó súper bien" condicional del 22/08."""
+    playbook = cargar_prompt("socratic_playbook")
+    assert "¿sí ves?" in playbook or "¿sí lo ves?" in playbook, (
+        "el playbook no nombra la pregunta retórica, que es la que el modelo usa"
+    )
+    assert 'se contesta\ncon "sí"' in playbook or 'se contesta con "sí"' in playbook

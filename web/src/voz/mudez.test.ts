@@ -21,6 +21,8 @@ import {
   MARCA_DE_MUDEZ,
   MS_MUDEZ,
   MS_MUDEZ_TRAS_EMPUJON,
+  MS_SIN_EL_NINO,
+  RECONEXIONES_ANTES_DE_RENDIRSE,
 } from "./useTutor";
 
 describe("cuánto se espera", () => {
@@ -103,5 +105,68 @@ describe("la marca en la transcripción", () => {
   it("va entre corchetes, como el resto de las marcas de sistema", () => {
     expect(MARCA_DE_MUDEZ.startsWith("[")).toBe(true);
     expect(MARCA_DE_MUDEZ.endsWith("]")).toBe(true);
+  });
+});
+
+describe("reconectar antes de rendirse", () => {
+  /* Hasta el 24/08, tras el empujón la sesión se cerraba y el niño leía «toca
+     para volver a empezar». Empezar de nuevo le costaba TODO: los ejercicios
+     cargados, los turnos, la habilidad del día y el hilo de la conversación.
+
+     En `ses_02805f3edba1` Juan pidió una rima, dijo «te estoy esperando», y se
+     quedó con dos mudeces y la pantalla muerta. La sesión del backend estaba
+     sana: lo único roto era el socket. */
+
+  it("se reconecta una sola vez: un ciclo de silencios es peor que la verdad", () => {
+    // Cada vuelta le cuesta al niño MS_MUDEZ + MS_MUDEZ_TRAS_EMPUJON de
+    // silencio antes de que algo pase. Dos vueltas son casi un minuto mirando
+    // una pantalla que no dice nada — a esa altura, decirle que se cayó y
+    // dejarlo empezar de nuevo es más honesto que seguir intentando.
+    expect(RECONEXIONES_ANTES_DE_RENDIRSE).toBe(1);
+  });
+
+  it("primero empuja, después reconecta", () => {
+    // El orden importa y no es arbitrario: el empujón destraba al modelo cuando
+    // el canal está SANO (un turno que el VAD no cerró, una tool sin
+    // respuesta), y cuesta un turno de texto. Reconectar cuesta un socket
+    // nuevo, un token nuevo y el contexto de la conversación. Lo barato primero.
+    expect(EMPUJONES_ANTES_DE_RENDIRSE).toBeGreaterThanOrEqual(1);
+  });
+
+  it("el peor caso sigue siendo tolerable para un chico de 7", () => {
+    // 10 s de silencio + empujón + 18 s + reconexión. Si esto se pasara de
+    // largo, el arreglo sería peor que el bug: un niño esperando un minuto es
+    // un niño que ya se fue.
+    const peorCaso = MS_MUDEZ + MS_MUDEZ_TRAS_EMPUJON;
+    expect(peorCaso).toBeLessThanOrEqual(30_000);
+  });
+});
+
+describe("si el niño se fue, no se sigue pagando", () => {
+  /* Lo pidió RBH después de ver la factura: «no vuelva a pasar eso de las
+     sesiones abiertas y que botemos plata a la basura».
+
+     Medido sobre dos recargas de US$10: US$0,038 por minuto, y US$6,89 de los
+     US$20 se fueron en sesiones que nadie usaba — una de 117,7 minutos. */
+
+  it("corta antes que el techo de 45 minutos, que cuesta US$1,71", () => {
+    // El techo de sesión existía y no alcanzaba: 45 min de una sala vacía son
+    // casi dos dólares. Este reloj tiene que dispararse mucho antes.
+    expect(MS_SIN_EL_NINO).toBeLessThan(45 * 60_000);
+    expect(MS_SIN_EL_NINO / 60_000).toBeLessThanOrEqual(5);
+  });
+
+  it("le deja al niño tiempo de sobra para pensar", () => {
+    // El error caro no es dejar corriendo una sesión vacía: es cerrarle la
+    // clase a un chico que está pensando. Un silencio de dos minutos tiene que
+    // ser seguro.
+    expect(MS_SIN_EL_NINO).toBeGreaterThan(2 * 60_000);
+  });
+
+  it("es más largo que lo que se le aguanta al TUTOR callado", () => {
+    // Si fuera al revés, la sesión se cerraría por inactividad del niño
+    // mientras el vigilante de la mudez todavía está intentando recuperar al
+    // tutor — y el niño pagaría el fallo con su clase.
+    expect(MS_SIN_EL_NINO).toBeGreaterThan(MS_MUDEZ + MS_MUDEZ_TRAS_EMPUJON);
   });
 });

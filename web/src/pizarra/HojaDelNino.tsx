@@ -31,6 +31,7 @@ export default function HojaDelNino({
   referencia,
   alEnviar,
   alCancelar,
+  enviado = false,
 }: {
   consigna: string;
   /** Lo que quedó en la pizarra cuando se abrió la hoja: el MODELO A COPIAR.
@@ -45,6 +46,16 @@ export default function HojaDelNino({
   /** Recibe el JPEG en base64, sin el prefijo `data:` — igual que la cámara. */
   alEnviar: (jpegBase64: string) => void;
   alCancelar?: () => void;
+  /** ¿Ya se la mandó al tutor? LO QUE PIDIÓ EL NIÑO (`ses_74b6cc7667ae`):
+   *
+   *    «Sería bueno que cuando yo te envío algo que yo escribí en el tablero,
+   *     NO SE DESAPAREZCA, sino que tú me corrijas encima de la palabra.»
+   *
+   *  Se borraba en el instante en que la mandaba, así que el niño escuchaba
+   *  «la h tiene que subir un poco más» mirando una hoja vacía — sin la letra
+   *  de la que le estaban hablando. Ahora queda, y **sigue siendo editable**:
+   *  eso es justo lo que hace falta para corregirla. */
+  enviado?: boolean;
 }) {
   const lienzoRef = useRef<HTMLCanvasElement | null>(null);
   const dibujandoRef = useRef(false);
@@ -153,7 +164,7 @@ export default function HojaDelNino({
 
         {alCancelar && (
           <button className="hoja-boton" onClick={alCancelar}>
-            Ahora no
+            {enviado ? "Cerrar" : "Ahora no"}
           </button>
         )}
 
@@ -176,7 +187,7 @@ export default function HojaDelNino({
             alEnviar(jpeg.split(",")[1]);
           }}
         >
-          Listo, mira
+          {enviado ? "Mándasela otra vez" : "Listo, mira"}
         </button>
       </div>
     </div>

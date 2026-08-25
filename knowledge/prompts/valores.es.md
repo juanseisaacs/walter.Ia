@@ -36,12 +36,12 @@ dando un sermón, paraste de enseñar.
   "Eres malo en matemáticas" no se dice nunca.
 - Lo tratas igual de bien en su peor momento de rabia que en su mejor momento.
 
-Y al revés de lo que parece: **el elogio inflado hace daño.** "¡Eres un
-genio!", "¡eres un duro!", "¡eres el mejor!" — nunca. No por exagerados: le
-enseñan que su valor depende de rendir, y el que oye "eres un genio" aprende
-que el día que no le salga deja de serlo.
+Y al revés de lo que parece: **el elogio inflado hace daño.** Le enseña que su
+valor depende de rendir. Da igual la palabra —"eres un genio", "eres un duro",
+"eres un crack", "eres el mejor"—: **no le dices que ÉL es algo bueno, le
+dices qué HIZO bien.**
 
-> ❌ "¡Eres un genio!"
+> ❌ "¡Eres un crack!"
 > ✅ "Te diste cuenta solo de que había que llevar una."
 
 **"Eres valioso" sí. "Eres mejor que otros" jamás.**

@@ -94,6 +94,29 @@ function aEscena(args: any): Escena | null {
     case "grupos": {
       const nombre = typeof args.nombre === "string" ? args.nombre : undefined;
 
+      // EL `tipo` ES LA ETIQUETA; LOS CAMPOS SON LA INTENCIÓN.
+      //
+      // Tercera vez que el mismo validador rechaza un pedido que se entiende
+      // perfecto —`MAX_POR_GRUPO` en 12, el montón suelto, y ahora esto—, así
+      // que acá el arreglo deja de ser puntual: cuando la etiqueta y los campos
+      // se contradicen, **mandan los campos**.
+      //
+      // `ses_610e057cfd91`, tal cual llegó:
+      //     {"tipo":"grupos","nombre":"pollitos","op":"+","a":7,"b":5}
+      //
+      // El modelo mezcló familias: pidió `grupos` con los campos de
+      // `operacion`. Quiso decir "siete pollitos y cinco pollitos", que es
+      // exactamente `cantidades: [7, 5]`. El validador devolvió null, el
+      // tablero quedó vacío, y el niño tuvo que decir «no veo la pizarra» y
+      // después «Walter, reacciona».
+      //
+      // Dos montones nombrados NO son una cuenta en columna: si el modelo puso
+      // `nombre`, quiere dibujitos para contar, no dígitos.
+      const dosMontones =
+        args.cantidades === undefined && args.a !== undefined && args.b !== undefined
+          ? [args.a, args.b]
+          : null;
+
       // Montones DESIGUALES: "5 + 3 + 6 pollitos". Es la suma dibujada, y hasta
       // el 23/08 no había forma de pedirla — ver `Grupos.cantidades`.
       //
@@ -103,7 +126,7 @@ function aEscena(args: any): Escena | null {
         ? args.cantidades
         : typeof args.cantidades === "string"
           ? args.cantidades.split(/[,;+·]/)
-          : null;
+          : dosMontones;
       if (crudas) {
         const cantidades = crudas
           .map((c: unknown) => entero(c, 0, MAX_POR_GRUPO))
@@ -121,8 +144,30 @@ function aEscena(args: any): Escena | null {
         }
       }
 
-      const grupos = entero(args.grupos, 1, MAX_GRUPOS);
+      // UN SOLO MONTÓN: `por_grupo` sin `grupos`.
+      //
+      // "Imagínate que tienes 9 galletas" no es un problema de grupos iguales:
+      // es un montón y ya. El modelo lo manda como `por_grupo: 9` sin `grupos`,
+      // que es exactamente lo que quiso decir, y hasta hoy eso devolvía `null`.
+      //
+      // Pasó en `ses_0a6036dedf55`: el niño pidió el dibujo —«sí, mejor
+      // dibújalo»—, el tablero quedó vacío, y el silencio que siguió lo leyó
+      // como que el tutor se había colgado: «¿me escuchas? estás como trabado».
+      //
+      // Es el mismo agujero que tenía `MAX_POR_GRUPO` en 12 (ver arriba): el
+      // validador rechazando en silencio un pedido que se entiende perfecto. El
+      // esquema nunca dijo que `grupos` fuera obligatorio, y no tiene por qué
+      // serlo — un montón es un grupo.
+      // AUSENTE no es lo mismo que INVÁLIDO, y esta distinción la agarró el
+      // test de "cien grupos": con `grupos ?? 1` a secas, un pedido de 100
+      // grupos —que se rechaza porque no cabe en el tablero— se convertía en
+      // un montón de uno y el niño veía algo que nadie pidió. Solo se asume el
+      // montón cuando el campo NO VINO.
+      const pidioGrupos = args.grupos !== undefined && args.grupos !== null;
+      const grupos = pidioGrupos ? entero(args.grupos, 1, MAX_GRUPOS) : 1;
       const porGrupo = entero(args.por_grupo ?? args.porGrupo, 1, MAX_POR_GRUPO);
+      // Al revés NO se asume: `grupos: 3` sin `por_grupo` es "tres cajas de no
+      // se sabe cuánto", y ahí no hay dibujo que adivinar.
       if (grupos === undefined || porGrupo === undefined) return null;
       return { tipo: "grupos", grupos, porGrupo, nombre };
     }
@@ -246,6 +291,12 @@ export function describir(cuadro: Cuadro): string {
       // son tres montones diferentes.
       if (e.cantidades?.length) {
         return `${e.cantidades.join(" + ")} ${e.nombre ?? "cosas"} en montones separados${con}`;
+      }
+      // Un montón solo no son "1 grupos con 9 en cada uno". Se lo decimos como
+      // lo ve el niño —nueve galletas juntas—, porque de esto sale la frase con
+      // la que el tutor le habla.
+      if (e.grupos === 1) {
+        return `${e.porGrupo} ${e.nombre ?? "cosas"} en un montón${con}`;
       }
       return `${e.grupos} ${e.nombre ?? "grupos"} con ${e.porGrupo} en cada uno${con}`;
     }

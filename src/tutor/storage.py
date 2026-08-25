@@ -166,7 +166,7 @@ class Repositorio(ABC):
 # Esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
-VERSION_ESQUEMA = 6
+VERSION_ESQUEMA = 7
 
 _ESQUEMA_V1 = """
 CREATE TABLE ninos (
@@ -251,6 +251,22 @@ CREATE TABLE enlaces (
 );
 CREATE INDEX idx_enlaces_vence ON enlaces(vence);
 """
+
+_ESQUEMA_V7 = """
+ALTER TABLE sesiones ADD COLUMN motivo_cierre TEXT;
+"""
+"""POR QUÉ terminó la sesión. Antes se perdía, y eso costaba caro.
+
+Todo cierre pasaba por un booleano —`interrumpida`— así que una sesión que el
+niño terminó, una que se pasó del techo de tokens, una pestaña que se cerró y un
+socket muerto quedaban todas iguales en la base.
+
+Cada vez que RBH decía «se desapareció», averiguar por qué era una investigación
+forense de media hora sobre el log del servidor, y terminaba en una hipótesis.
+Cuatro veces seguidas. La quinta se contesta con un `SELECT`.
+
+Aditiva y sin default: lo anterior queda en NULL, que es la verdad — de esas
+sesiones no sabemos por qué terminaron y no vamos a inventarlo."""
 
 _ESQUEMA_V6 = """
 ALTER TABLE ninos ADD COLUMN token_acceso TEXT;
@@ -391,6 +407,8 @@ class RepositorioSQLite(Repositorio):
                 con.executescript(_ESQUEMA_V5)
             if version < 6:
                 con.executescript(_ESQUEMA_V6)
+            if version < 7:
+                con.executescript(_ESQUEMA_V7)
             if version < VERSION_ESQUEMA:
                 con.execute(f"PRAGMA user_version = {VERSION_ESQUEMA}")
 
@@ -543,6 +561,7 @@ class RepositorioSQLite(Repositorio):
             analizada=bool(fila["analizada"]),
             tecnica_id=fila["tecnica_id"],
             dominio_inicial=fila["dominio_inicial"],
+            motivo_cierre=fila["motivo_cierre"],
         )
 
     def crear_sesion(self, sesion: Sesion) -> None:
@@ -569,7 +588,7 @@ class RepositorioSQLite(Repositorio):
                 UPDATE sesiones SET
                     estado = ?, fin = ?, habilidades_trabajadas = ?,
                     tokens_consumidos = ?, analizada = ?,
-                    tecnica_id = ?, dominio_inicial = ?
+                    tecnica_id = ?, dominio_inicial = ?, motivo_cierre = ?
                 WHERE id = ?
                 """,
                 (
@@ -580,6 +599,7 @@ class RepositorioSQLite(Repositorio):
                     int(sesion.analizada),
                     sesion.tecnica_id,
                     sesion.dominio_inicial,
+                    sesion.motivo_cierre,
                     sesion.id,
                 ),
             )

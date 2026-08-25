@@ -75,6 +75,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
     cancelarFoto,
     cuadro,
     hoja,
+    dibujoEnviado,
     enviarDibujo,
     cancelarDibujo,
     empezar,
@@ -146,6 +147,7 @@ function Tutor({ ninoId }: { ninoId: string }) {
                 referencia={cuadro}
                 alEnviar={enviarDibujo}
                 alCancelar={cancelarDibujo}
+                enviado={dibujoEnviado}
               />
             ) : (
               <Pizarra cuadro={cuadro} />

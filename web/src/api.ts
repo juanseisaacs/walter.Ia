@@ -184,10 +184,84 @@ export const api = {
       body: JSON.stringify({ turnos }),
     }),
 
-  cerrarSesion: (sesionId: string, interrumpida = false, tokensConsumidos = 0) =>
+  /** Un token de voz nuevo para la MISMA sesión, cuando se cae el canal.
+   *
+   *  No abre sesión: no cobra cupo, no replanifica y no vuelve a mandar los
+   *  ejercicios (el navegador ya los tiene). Contesta 409 cuando la sesión ya
+   *  no se puede recuperar — ahí lo que corresponde es empezar de nuevo.
+   *
+   *  Va con el mismo tope que abrir sesión: emitir el token habla con Google, y
+   *  ese es justo el momento en que el niño ya está esperando. */
+  reconectar: (sesionId: string) =>
+    pedir<SesionAbierta>(`/sesiones/${sesionId}/reconectar`, { method: "POST" }, MS_TOPE_SESION),
+
+  /** «Sigo acá». Lo que le da ojos al reaper del backend.
+   *
+   *  Sin esto, el backend no puede distinguir una sesión sana de una pestaña
+   *  muerta, y por eso `ses_610e057cfd91` quedó `activa` para siempre. Mirar
+   *  los turnos no alcanza: un niño dibujando dos minutos en la hoja no dice
+   *  nada y parecería muerto.
+   *
+   *  Es un POST vacío cada 20 s — nada al lado del audio, y fuera del camino de
+   *  la voz. Si falla se ignora: un latido perdido lo cubre el siguiente, y el
+   *  margen del reaper son tres minutos. */
+  latido: (sesionId: string) =>
+    fetch(`/api/sesiones/${sesionId}/latido`, { method: "POST" }).catch(() => {}),
+
+  /** Cierra la sesión cuando la PESTAÑA se va, que es cuando `fetch` ya no sirve.
+   *
+   *  `ses_610e057cfd91` terminó con `estado: activa`, `fin: null` y 0 tokens: en
+   *  el log no hay `/cerrar` ni `/reconectar`, la sesión simplemente dejó de
+   *  existir. Es lo que RBH describió como *«al final desapareció»*.
+   *
+   *  La razón es que **todo nuestro cierre vive dentro de la pestaña**: el
+   *  `useEffect` de limpieza corre al desmontar React, pero NO cuando el
+   *  navegador se lleva la página entera —cerrar la pestaña, navegar, un
+   *  crash—. Ahí un `fetch` normal se cancela a mitad de vuelo.
+   *
+   *  `sendBeacon` existe exactamente para esto: el navegador se compromete a
+   *  entregarlo aunque la página ya no esté. No devuelve respuesta y no se
+   *  puede esperar — no importa, acá nadie va a leerla.
+   *
+   *  No reemplaza al reaper del backend: esto tapa el caso común (la pestaña se
+   *  cierra bien), y el reaper tapa el resto (crash, suspensión, sin internet).
+   *  Son dos capas a propósito, porque la de adentro muere con lo que vigila. */
+  cerrarConBeacon: (sesionId: string, tokensConsumidos = 0, motivo = "pestana_cerrada"): boolean => {
+    if (typeof navigator === "undefined" || !navigator.sendBeacon) return false;
+    try {
+      return navigator.sendBeacon(
+        `/api/sesiones/${sesionId}/cerrar`,
+        // Blob y no string: sin el tipo, el navegador manda `text/plain` y
+        // FastAPI no lo parsea como JSON.
+        new Blob(
+          [
+            JSON.stringify({
+              interrumpida: true,
+              tokens_consumidos: tokensConsumidos,
+              motivo,
+            }),
+          ],
+          {
+            type: "application/json",
+          },
+        ),
+      );
+    } catch {
+      return false;
+    }
+  },
+
+  /** `motivo` no es opcional en la práctica: sin él, cada «se desapareció»
+   *  vuelve a costar una investigación forense sobre el log del servidor. */
+  cerrarSesion: (
+    sesionId: string,
+    interrumpida = false,
+    tokensConsumidos = 0,
+    motivo = "sin_especificar",
+  ) =>
     pedir(`/sesiones/${sesionId}/cerrar`, {
       method: "POST",
-      body: JSON.stringify({ interrumpida, tokens_consumidos: tokensConsumidos }),
+      body: JSON.stringify({ interrumpida, tokens_consumidos: tokensConsumidos, motivo }),
     }),
 
   /* ── Tools ─────────────────────────────────────────────────────────────

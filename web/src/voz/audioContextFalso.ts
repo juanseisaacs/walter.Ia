@@ -125,8 +125,22 @@ export class AudioContextFalso {
     return nodo;
   }
 
+  /** El navegador puede negarse a despertar el contexto (política de autoplay,
+      contexto ya cerrado). Perilla del doble para probar ese camino. */
+  rechazarResume = false;
+
   async resume(): Promise<void> {
     this.reanudaciones++;
+    if (this.rechazarResume) throw new Error("not allowed to start");
+    // El cambio de estado va DESPUÉS del await, como en el navegador: `resume()`
+    // devuelve una promesa y el contexto sigue suspendido hasta que resuelve.
+    //
+    // Lo hacía síncrono, y eso escondía un bug entero: con el estado cambiando
+    // en el acto, los chunks que llegaban en la misma ráfaga ya veían "running"
+    // y no volvían a pedir resume. En el navegador sí lo pedían —uno por
+    // chunk— y cada uno resolvía llamando a `detenerTodo()`, borrando lo que
+    // los otros acababan de programar. Ver `ses_6c6fb58aafbb`.
+    await Promise.resolve();
     this.state = "running";
   }
 
