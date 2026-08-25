@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **676 tests** de Python · **195** del front · **evals 45/45** (los 3 casos
+- **683 tests** de Python · **195** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **~100 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
@@ -75,6 +75,20 @@ muda, con el minuto en que pasó cada cosa. Lo que hay que mirar ahí:
   a buscar la respuesta». Es la hipótesis abierta de `ses_fd1b97ff577e`, todavía
   sin confirmar con datos.
 - **`voz_muda`** → tiene que ser cero.
+
+---
+
+## 🟢 La pizarra no sabe mostrar una RESTA de objetos (25/08)
+
+`ses_60ea3b164f17`: Camila pidió ver «7 estrellas − 4 estrellas». La pizarra
+dibujó las siete (`tipo: grupos`) y aparte la cuenta (`tipo: operacion`), pero
+no hay forma de mostrar el **quitar**: siete estrellas con cuatro tachadas, o
+separadas del grupo. Ella lo dijo tal cual: *«ahí dice siete estrellas, pero ¿y
+cuál es la resta? O sea, no entiendo»*.
+
+Es el hueco entre lo concreto y lo simbólico, que es donde vive la resta en 1° y
+2°. `grupos` ya sabe dibujar montones; falta un parámetro tipo `quitar: 4` que
+tache los últimos.
 
 ---
 

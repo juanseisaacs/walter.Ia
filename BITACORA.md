@@ -2536,3 +2536,57 @@ instrumento no veía.
 
 Se mide ahora en el llamador, donde pasan todos —incluido el que falla—, y hay
 un test que lo fija.
+
+---
+
+## El auditor acusó al tutor de algo que no hizo (25/08, `ses_60ea3b164f17`)
+
+La auditoría marcó `afirmo_algo_falso: true` con esta nota:
+
+> «El tutor afirmó estar mostrando estrellas en la pizarra cuando el niño le
+> pidió explícitamente que dibujara estrellas en lugar de solo números… el
+> tutor insistió en que estaba mostrando lo que no estaba mostrando.»
+
+**Es falso, y lo desmiente la propia transcripción.** RBH lo cazó leyéndola:
+
+```
+nino: Ahí me estás mostrando el número, ¿pero podrías mostrarme las estrellas?
+nino: y ahí dice siete estrellas, pero ¿y cuál es la resta, no? No entiendo.
+```
+
+Las estrellas estaban. Lo que faltaba era la resta — no había forma de ver el
+«quitar cuatro». El auditor leyó una **petición** como un desmentido, aplicando
+al pie de la letra una regla del prompt que dice «el niño desmintiéndolo es la
+prueba», y sin leer el turno siguiente, donde ella confirma que ya las ve.
+
+Y yo repetí el veredicto en el informe sin contrastarlo. El error de fondo es el
+mismo en los dos casos: **tomar la salida de un agente como dato.**
+
+### La causa: el auditor estaba adivinando el estado de la pantalla
+
+Juzga si el tutor «afirmó algo falso» sobre lo que el niño ve, y solo tenía la
+transcripción. O sea que **infería qué había en pantalla a partir de lo que
+decían** — exactamente lo que la regla dura del proyecto prohíbe: *ningún
+agente afirma nada que no esté en los datos*.
+
+Y el dato existía todo este tiempo: `mostrar_en_pizarra` devuelve
+`en_pantalla: describir(cuadro)`. Vivía en el navegador y no llegaba a ninguna
+parte — hasta que el diario de la voz, abierto ese mismo día, le dio un camino.
+
+Ahora el navegador anota qué quedó en pantalla y en qué orden, y el auditor
+recibe una sección `--- LO QUE EL NIÑO VIO EN LA PIZARRA ---` con los hechos.
+Sin esa sección (sesiones viejas, pestañas que no reportaron) el prompt le
+prohíbe marcar la pizarra como falsa salvo desmentido explícito.
+
+> Un falso positivo en esta auditoría no es un error inocuo. El porcentaje que
+> ve el papá sale de estos veredictos y la cadena de hashes los vuelve
+> verificables — **verificable y equivocado es peor que ausente**. La cadena
+> garantiza que nadie tocó el veredicto, no que el veredicto sea cierto; eso lo
+> tienen que garantizar los datos que entran.
+
+### Y lo que sí era un hallazgo de producto
+
+La queja real de la niña nunca se atendió: **la pizarra no sabe mostrar una
+resta de objetos.** Puede dibujar siete estrellas (`grupos`) o la cuenta `7 − 4`
+(`operacion`), pero no «siete estrellas y cuatro tachadas», que es justo lo que
+ella pedía para entender. Queda en `PENDIENTE.md`.

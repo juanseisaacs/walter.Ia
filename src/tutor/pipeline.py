@@ -334,11 +334,56 @@ def _contexto_habilidades(sesion: Sesion, grafo: GrafoHabilidades | None) -> str
     )
 
 
+def _lo_que_vio_el_nino(diario: list[dict] | None) -> str:
+    """Lo que de verdad quedó en la pizarra, para que el auditor no lo adivine.
+
+    El auditor juzga si el tutor «afirmó algo falso» sobre lo que el niño ve, y
+    hasta el 25/08 lo hacía leyendo la conversación: infería el estado de la
+    pantalla a partir de lo que decían. Eso es exactamente lo que la regla dura
+    del proyecto prohíbe — *ningún agente afirma nada que no esté en los datos*.
+
+    En `ses_60ea3b164f17` le costó un falso positivo. Camila pidió «¿podrías de
+    pronto mostrarme las estrellas?», el auditor lo leyó como un desmentido y
+    acusó al tutor de decir que mostraba unas estrellas que no existían. Pero
+    existían: el turno siguiente de ella es *«y ahí dice siete estrellas»*. Lo
+    que en realidad faltaba era la RESTA, no las estrellas.
+
+    Un falso positivo acá pesa más que uno en cualquier otro campo: el
+    porcentaje que ve el papá sale de estos veredictos, y la cadena de hashes
+    los vuelve verificables. Verificable y equivocado es peor que ausente.
+
+    Devuelve "" si no hay diario — sesiones anteriores al 25/08, o pestañas que
+    no alcanzaron a reportar. Ahí el auditor sigue como antes, y el prompt le
+    dice que sin datos no puede afirmar nada sobre la pantalla.
+    """
+    if not diario:
+        return ""
+    lineas = [
+        f"- se mostró: {e['que']}"
+        if e.get("t") == "pizarra"
+        else f"- NO SE PUDO DIBUJAR: {e.get('args', '')}"
+        for e in diario
+        if e.get("t") in ("pizarra", "pizarra_fallo")
+    ]
+    if not lineas:
+        return (
+            "\n\n--- LO QUE EL NIÑO VIO EN LA PIZARRA ---\n"
+            "NADA: en esta sesión no se dibujó nada. Si el tutor dijo que le "
+            "estaba mostrando algo, es una afirmación falsa."
+        )
+    return (
+        "\n\n--- LO QUE EL NIÑO VIO EN LA PIZARRA ---\n"
+        "Esto lo registró el navegador, no el tutor: es lo que de verdad quedó "
+        "en pantalla, en orden. NO lo deduzcas de la conversación.\n" + "\n".join(lineas)
+    )
+
+
 def analizar_sesion(
     sesion: Sesion,
     transcripcion: str,
     cliente: ClienteLLM | None = None,
     grafo: GrafoHabilidades | None = None,
+    diario: list[dict] | None = None,
 ) -> AnalisisSesion:
     """Dos llamadas sobre la misma transcripción: qué hizo el niño, qué hizo el tutor.
 
@@ -379,7 +424,11 @@ def analizar_sesion(
     cumplimiento = cliente.extraer(
         cfg.MODELO_ANALISTA,
         cargar_prompt("method_auditor"),
-        encabezado,
+        # El auditor recibe lo que el niño VIO, no solo lo que se dijo. Sin
+        # esto tiene que adivinar el estado de la pantalla desde la
+        # conversación, y ya acusó a un tutor de mentir sobre unas estrellas
+        # que sí había dibujado. Ver `_lo_que_vio_el_nino`.
+        encabezado + _lo_que_vio_el_nino(diario),
         AuditoriaCumplimiento,
     )
     datos = señales.model_dump()
@@ -665,7 +714,9 @@ def procesar_sesion(
     transcripcion = repo.obtener_transcripcion(sesion.id)
 
     if nino is not None and transcripcion:
-        analisis = analizar_sesion(sesion, transcripcion, cliente, grafo)
+        analisis = analizar_sesion(
+            sesion, transcripcion, cliente, grafo, repo.leer_diario(sesion.id)
+        )
         _avisar_de_las_senales(sesion, clasificar_senales(analisis, grafo))
         repo.guardar_nino(aplicar_analisis(nino, analisis, grafo, ahora))
         # El veredicto del método queda persistido para el panel del papá: es la

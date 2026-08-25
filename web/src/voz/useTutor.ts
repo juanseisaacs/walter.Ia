@@ -1005,6 +1005,7 @@ export function useTutor(ninoId: string) {
           // mostrando" sobre un tablero vacío (ses_697a02991605): el niño tuvo
           // que contestarle "no veo ninguna pizarra".
           console.warn("[pizarra] no se pudo armar la escena:", args);
+          anotar({ t: "pizarra_fallo", args: JSON.stringify(args) });
 
           // Y QUEDA ESCRITO. Hasta hoy, una pizarra que no dibujaba solo dejaba
           // este `console.warn`: se iba con la pestaña, el backend no se
@@ -1032,6 +1033,14 @@ export function useTutor(ninoId: string) {
         const habia = cuadroRef.current !== null;
         setCuadro(cuadro);
         cuadroRef.current = cuadro;
+        // QUÉ QUEDÓ EN PANTALLA, Y CUÁNDO. El auditor del método juzga si el
+        // tutor «afirmó algo falso» sobre la pizarra, y hasta acá lo hacía
+        // leyendo la conversación — o sea, adivinando el estado de la pantalla.
+        // En `ses_60ea3b164f17` leyó «¿podrías mostrarme las estrellas?» como
+        // un desmentido cuando era una PETICIÓN, y acusó al tutor de mentir
+        // sobre unas estrellas que sí dibujó. Un falso positivo acá pesa: el
+        // porcentaje del panel del papá sale de estos veredictos.
+        anotar({ t: "pizarra", que: describir(cuadro) });
         // Se le devuelve QUÉ quedó en pantalla, no un "ok". Con el "ok" pelado
         // el tutor afirmaba de memoria: mandó un medio, después un tercio, y
         // preguntó "¿ahí ya puedes ver las dos?" con una sola en el tablero.
@@ -1124,7 +1133,7 @@ export function useTutor(ninoId: string) {
       default:
         return { error: `tool desconocido: ${nombre}` };
     }
-  }, [avisarAlTutor, cerrarTurnoAcumulado, encolar]);
+  }, [avisarAlTutor, cerrarTurnoAcumulado, encolar, anotar]);
 
   /* ── El dibujo del niño ───────────────────────────────────────────────── */
 

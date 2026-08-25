@@ -1393,3 +1393,53 @@ def test_sin_tecnicas_el_reporte_no_afirma_nada_del_metodo(tmp_path):
         AHORA,
     )
     assert m.metodo_actual is None and m.porque_cambio is None
+
+
+def test_el_auditor_recibe_lo_que_el_nino_vio_de_verdad():
+    """NO PUEDE ADIVINAR EL ESTADO DE LA PANTALLA DESDE LA CONVERSACIÓN.
+
+    Es la regla dura del proyecto: ningún agente afirma nada que no esté en los
+    datos. El auditor juzga si el tutor «afirmó algo falso» sobre la pizarra, y
+    hasta el 25/08 lo hacía leyendo lo que decían — en `ses_60ea3b164f17` leyó
+    «¿podrías mostrarme las estrellas?» como un desmentido y acusó al tutor de
+    mentir sobre unas estrellas que sí había dibujado.
+    """
+    from tutor.pipeline import _lo_que_vio_el_nino
+
+    texto = _lo_que_vio_el_nino(
+        [
+            {"t": "latencia", "ms": 40},
+            {"t": "pizarra", "que": "7 estrellas"},
+            {"t": "pizarra", "que": "una cuenta 7 − 4"},
+        ]
+    )
+    assert "7 estrellas" in texto and "una cuenta 7 − 4" in texto
+    assert texto.index("7 estrellas") < texto.index("una cuenta"), "el orden importa"
+    assert "latencia" not in texto, "solo lo que el niño VIO"
+
+
+def test_sin_diario_el_auditor_no_recibe_nada_inventado():
+    """Sesiones anteriores al 25/08, o pestañas que no alcanzaron a reportar.
+    Ahí el auditor no tiene el dato — y el prompt le dice que sin dato no puede
+    marcar la pizarra como falsa."""
+    from tutor.pipeline import _lo_que_vio_el_nino
+
+    assert _lo_que_vio_el_nino(None) == ""
+    assert _lo_que_vio_el_nino([]) == ""
+
+
+def test_una_sesion_sin_pizarra_lo_dice_explicito():
+    """Distinto de no tener el dato: acá SABEMOS que no se dibujó nada, y eso es
+    justo lo que convierte un «ahí te lo estoy mostrando» en afirmación falsa."""
+    from tutor.pipeline import _lo_que_vio_el_nino
+
+    texto = _lo_que_vio_el_nino([{"t": "latencia", "ms": 12}])
+    assert "NADA" in texto
+
+
+def test_la_pizarra_que_fallo_tambien_llega():
+    """Es el caso más grave: el tutor cree que dibujó y la pantalla quedó vacía."""
+    from tutor.pipeline import _lo_que_vio_el_nino
+
+    texto = _lo_que_vio_el_nino([{"t": "pizarra_fallo", "args": '{"tipo":"grupos"}'}])
+    assert "NO SE PUDO DIBUJAR" in texto
