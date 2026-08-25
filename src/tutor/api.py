@@ -39,6 +39,7 @@ from .pipeline import (
     primera_pregunta,
     procesar_sesion,
     siguiente_pregunta,
+    vigilante_para_sesion,
 )
 from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
@@ -131,7 +132,6 @@ _grafo = cargar_grafo()
 # contarle al papá qué se eligió y por qué).
 _tecnicas = cargar_biblioteca()
 _emisor = emisor_por_defecto()
-_orquestador = Orquestador(_repo, _grafo, _emisor, tecnicas=_tecnicas)
 _notificador: Notificador = notificador_por_defecto()
 
 # El Analista corre offline con este cliente. Sin ANTHROPIC_API_KEY es un
@@ -139,6 +139,21 @@ _notificador: Notificador = notificador_por_defecto()
 # queda en cola para `scripts/procesar_pendientes.py` cuando haya llave.
 _cliente_analista = cliente_por_defecto()
 _HAY_ANALISTA = type(_cliente_analista).__name__ != "ClienteFalso"
+
+# EL SEGUNDO CAMINO A LA ALARMA, Y LLEVABA SEMANAS APAGADO.
+#
+# La regla dura dice que hay dos caminos independientes: el Vigilante y
+# `escalate_safety`. `vigilante_para_sesion` existía, `Orquestador` sabía
+# usarlo, `evaluar_seguridad` tenía su prompt y sus tests — y **acá no se le
+# pasaba**, así que `self.vigilante` era None y la rama nunca se ejecutaba. Sin
+# excepción, sin log y sin alerta: exactamente la forma de fallar que este
+# proyecto persigue.
+#
+# Sin ANTHROPIC_API_KEY el vigilante no puede mirar nada, y montar uno falso
+# sería peor que no tenerlo: diría OK sobre ventanas que nadie evaluó. El
+# prefiltro en código sigue corriendo igual, que es el camino de 0 ms.
+_vigilante = vigilante_para_sesion(_cliente_analista) if _HAY_ANALISTA else None
+_orquestador = Orquestador(_repo, _grafo, _emisor, tecnicas=_tecnicas, vigilante=_vigilante)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -355,11 +370,22 @@ class TurnosReportados(BaseModel):
 
 
 @app.post("/api/sesiones/{sesion_id}/turnos", tags=["niño"])
-def reportar_turnos(sesion_id: str, cuerpo: TurnosReportados):
+def reportar_turnos(sesion_id: str, cuerpo: TurnosReportados, fondo: BackgroundTasks):
     """Candado #2: reportar es lo que habilita recargar ejercicios.
 
-    Dispara los dos niveles de seguridad. Si alguno escala, se avisa al papá
-    EN EL MOMENTO — no el domingo.
+    Dispara los DOS niveles de seguridad, y cada uno por su camino:
+
+      · **el prefiltro**, acá mismo. Es código puro, 0 ms, y su alerta sale en
+        la respuesta.
+      · **el Vigilante**, en segundo plano. Llama a un modelo, y esto lo espera
+        el navegador con tope: meterlo en el camino haría fallar el reporte, y
+        sin reporte no hay recarga de ejercicios.
+
+    Estuvieron los dos acá adentro, y esa fue exactamente la razón de que el
+    segundo no corriera nunca: no se le podía pasar un vigilante al Orquestador
+    sin arriesgar el POST, así que se construía sin él. La regla —«el Vigilante
+    corre en paralelo, jamás bloquea la respuesta del tutor»— se cumple ahora en
+    los dos sentidos: existe y no estorba.
     """
     try:
         alertas = _orquestador.registrar_turnos(sesion_id, cuerpo.turnos)
@@ -369,7 +395,25 @@ def reportar_turnos(sesion_id: str, cuerpo: TurnosReportados):
     if any(a.requiere_escalamiento for a in alertas):
         _avisar_al_papa(sesion_id)
 
+    fondo.add_task(_correr_vigilante, sesion_id)
     return {"alertas": alertas}
+
+
+def _correr_vigilante(sesion_id: str) -> None:
+    """El nivel 2, fuera del camino de la respuesta. Nunca levanta una excepción.
+
+    Si el Vigilante escala, el papá se entera EN EL MOMENTO — es lo mismo que
+    hace el prefiltro, por el mismo canal. Y si falla, falla callado hacia lo
+    seguro: `evaluar_seguridad` ya devuelve `vigilante_no_disponible` en vez de
+    afirmar que todo está bien cuando no pudo mirar.
+    """
+    try:
+        evaluacion = _orquestador.evaluar_ventana(sesion_id)
+    except Exception as e:  # noqa: BLE001 — una tarea de fondo no puede tumbar nada
+        print(f"[vigilante] falló sobre {sesion_id}: {e}")
+        return
+    if evaluacion is not None and evaluacion.requiere_escalamiento:
+        _avisar_al_papa(sesion_id)
 
 
 class DiarioReportado(BaseModel):

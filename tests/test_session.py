@@ -289,10 +289,55 @@ def test_el_vigilante_mira_una_ventana_no_un_turno_suelto(repo):
     a = orq.abrir("n1", ahora=AHORA)
 
     orq.registrar_turnos(a.sesion_id, _turnos("uno", "dos"))
+    assert orq.evaluar_ventana(a.sesion_id) is None
     assert not vistas, "con 2 turnos todavía no hay ventana"
 
     orq.registrar_turnos(a.sesion_id, _turnos("tres", "cuatro"))
+    orq.evaluar_ventana(a.sesion_id)
     assert vistas == [4], "recién con 4 turnos evalúa"
+
+
+def test_registrar_turnos_NO_llama_al_vigilante(repo):
+    """LA RAZÓN POR LA QUE EL VIGILANTE NO CORRÍA EN PRODUCCIÓN.
+
+    Estaba adentro de `registrar_turnos`, que está en el camino de un POST que
+    el navegador espera con tope de 8 s — y el Vigilante llama a un modelo.
+    Meterlo ahí habría hecho fallar el reporte, y sin reporte no hay recarga de
+    ejercicios (candado #2). Así que el Orquestador de producción se armaba
+    **sin vigilante** y la rama no se ejecutó nunca: sin excepción, sin log y
+    sin alerta.
+
+    Separado, el llamador lo corre en segundo plano. Si alguien lo devuelve
+    adentro, este test falla antes de que la seguridad vuelva a apagarse sola.
+    """
+    llamadas = []
+
+    def vigilante(ventana):
+        llamadas.append(ventana)
+        return EvaluacionSeguridad(nivel=NivelSeguridad.OK)
+
+    orq = Orquestador(repo, cargar_grafo(), EmisorFalso(), vigilante=vigilante)
+    a = orq.abrir("n1", ahora=AHORA)
+    orq.registrar_turnos(a.sesion_id, _turnos("uno", "dos", "tres", "cuatro"))
+
+    assert not llamadas, (
+        "`registrar_turnos` volvió a llamar al Vigilante: eso pone una llamada "
+        "al modelo en el camino del POST que el navegador espera"
+    )
+
+
+def test_el_prefiltro_SI_corre_en_el_camino_de_la_respuesta(repo):
+    """La otra mitad: el nivel 1 es código puro, 0 ms, y su alerta sale ya.
+
+    Los dos niveles hacen falta y son independientes. Que el Vigilante se haya
+    ido a segundo plano no puede haberse llevado al prefiltro con él.
+    """
+    orq = Orquestador(repo, cargar_grafo(), EmisorFalso())
+    a = orq.abrir("n1", ahora=AHORA)
+    alertas = orq.registrar_turnos(a.sesion_id, _turnos("mi papá me pega"))
+
+    assert alertas and alertas[0].requiere_escalamiento
+    assert alertas[0].categoria == "prefiltro"
 
 
 def test_el_vigilante_no_bloquea_ni_cuando_falla(repo):

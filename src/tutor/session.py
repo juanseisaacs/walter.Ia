@@ -481,17 +481,43 @@ class Orquestador:
                 )
                 del patron
 
-        # Nivel 2: Vigilante sobre una VENTANA. Nunca bloquea al tutor: el
-        # llamador lo corre en paralelo.
-        historial = self._turnos[sesion_id]
-        if self.vigilante and len(historial) >= cfg.VENTANA_VIGILANTE:
-            ventana = historial[-cfg.VENTANA_VIGILANTE :]
-            evaluacion = self.vigilante(ventana)
-            if evaluacion.nivel != NivelSeguridad.OK:
-                alertas.append(evaluacion)
-
+        # El nivel 2 —el Vigilante— NO corre acá. Ver `evaluar_ventana`: llama a
+        # un modelo, y esto está en el camino de un POST que el navegador espera
+        # con un tope de 8 s. El llamador lo dispara aparte, en segundo plano.
         self._alertas[sesion_id].extend(alertas)
         return alertas
+
+    def evaluar_ventana(self, sesion_id: str) -> EvaluacionSeguridad | None:
+        """Nivel 2 de seguridad: el Vigilante sobre los últimos turnos.
+
+        **VA APARTE DE `registrar_turnos` A PROPÓSITO, Y NO ES UN DETALLE.**
+
+        Estaba adentro, y adentro no podía correr: `registrar_turnos` está en el
+        camino de un POST que el navegador espera con tope, y esto llama a un
+        modelo. Meter una llamada al LLM ahí habría hecho fallar el reporte —y
+        sin reporte no hay recarga de ejercicios (candado #2)—, así que el
+        Orquestador de producción se construía **sin vigilante** y la rama nunca
+        se ejecutaba. Cero excepciones, cero logs, cero alertas: el segundo de
+        los dos caminos a la alarma llevaba semanas apagado y nada lo decía.
+
+        Separado, el llamador lo corre en segundo plano y se cumplen las dos
+        reglas a la vez: el Vigilante existe y jamás bloquea al tutor.
+
+        Devuelve `None` si no hay nada que evaluar todavía —hacen falta
+        `VENTANA_VIGILANTE` turnos, porque un turno suelto es ambiguo— o si no
+        hay vigilante configurado.
+        """
+        if not self.vigilante:
+            return None
+        historial = self._turnos.get(sesion_id, [])
+        if len(historial) < cfg.VENTANA_VIGILANTE:
+            return None
+
+        evaluacion = self.vigilante(historial[-cfg.VENTANA_VIGILANTE :])
+        if evaluacion.nivel == NivelSeguridad.OK:
+            return None
+        self._alertas[sesion_id].append(evaluacion)
+        return evaluacion
 
     def recargar_ejercicios(self, sesion_id: str, ahora: datetime | None = None) -> list[Ejercicio]:
         """Solo recarga si hubo reporte desde la última vez.

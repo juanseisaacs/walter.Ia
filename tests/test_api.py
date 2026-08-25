@@ -941,3 +941,51 @@ def test_el_diario_nunca_falla_aunque_la_sesion_no_exista(cliente):
     en un error en la pantalla del niño."""
     r = cliente.post("/api/sesiones/ses_que_no_existe/diario", json={"eventos": [{"t": "x"}]})
     assert r.status_code == 204
+
+
+def test_el_vigilante_esta_conectado_de_verdad():
+    """EL SEGUNDO CAMINO A LA ALARMA, Y LLEVABA SEMANAS APAGADO.
+
+    La regla dura dice que hay dos caminos independientes a la alarma: el
+    Vigilante y `escalate_safety`. Todas las piezas existían —`vigilante_para_
+    sesion`, la rama en `Orquestador`, `evaluar_seguridad` con su prompt y sus
+    tests— y al Orquestador de producción **no se le pasaba el vigilante**. La
+    rama nunca se ejecutó: sin excepción, sin log y sin alerta.
+
+    Este test mira el cableado en `api.py`, que es lo único que faltaba. Los
+    tests del Vigilante en sí pasaban todos mientras el producto corría sin él.
+    """
+    import inspect
+
+    fuente = inspect.getsource(api)
+    assert "vigilante=_vigilante" in fuente, (
+        "el Orquestador de producción volvió a armarse sin Vigilante: el segundo "
+        "camino a la alarma queda apagado y nada lo dice"
+    )
+    assert "fondo.add_task(_correr_vigilante" in fuente, (
+        "nadie dispara el Vigilante: existe pero no lo llama ninguna ruta"
+    )
+
+
+def test_el_vigilante_no_corre_en_el_camino_de_la_respuesta(cliente, monkeypatch):
+    """La otra mitad de la regla: jamás bloquea al tutor.
+
+    Si el Vigilante corriera dentro de `registrar_turnos`, cada reporte
+    esperaría una llamada al modelo. El navegador la corta a los 8 s, y sin
+    reporte no hay recarga de ejercicios (candado #2) — o sea que la seguridad
+    le costaría al niño quedarse sin material.
+    """
+    sesion_id = _abrir(cliente)
+    llamadas = []
+    monkeypatch.setattr(
+        api._orquestador, "evaluar_ventana", lambda sid: llamadas.append(sid)
+    )
+
+    r = cliente.post(
+        f"/api/sesiones/{sesion_id}/turnos",
+        json={"turnos": [{"quien": "nino", "texto": "hola"}]},
+    )
+    assert r.status_code == 200
+    # TestClient corre las BackgroundTasks al terminar la respuesta: que haya
+    # llegado prueba el cableado, y que esté en `add_task` prueba que no estorbó.
+    assert llamadas == [sesion_id]
