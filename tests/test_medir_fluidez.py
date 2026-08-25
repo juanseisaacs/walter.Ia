@@ -90,3 +90,26 @@ def test_la_frase_antes_de_una_herramienta_no_es_un_corte():
 def test_un_corte_de_verdad_sigue_contando():
     """El arreglo no puede tapar lo que sí está roto."""
     assert medir("tutor: ¡Dale, no\nnino: nueve.\n", MUDEZ)["cortados"] == 1
+
+
+def test_el_turno_del_nino_que_empieza_a_mitad_se_cuenta():
+    """LA MÉTRICA QUE FALTABA, y por eso el bug duró una semana.
+
+    Las otras tres miran dónde TERMINA la frase. Esta mira dónde empieza, que es
+    donde se veía el defecto del que se quejó RBH el 25/08: «pareciera como que
+    mi audio le llega tarde». El micrófono le tiraba al niño hasta medio segundo
+    de audio cada vez que el tutor terminaba de hablar, por considerarlo eco —
+    y ahí estaba el arranque de su respuesta.
+
+    La señal es la minúscula inicial: el transcriptor abre en mayúscula.
+    """
+    m = medir("tutor: ¿Y entonces?\nnino: respuesta, si era la línea recta.\n", MUDEZ)
+    assert m["descabezados"] == 1
+
+
+def test_una_respuesta_suelta_en_minuscula_no_es_un_descabezado():
+    """«siete», «impar»: el transcriptor las deja en minúscula por ser
+    continuación, y están completas. Sin este piso, la métrica contaría como
+    daño la forma normal en que un niño contesta."""
+    m = medir("tutor: ¿Cuánto da?\nnino: siete\n", MUDEZ)
+    assert m["descabezados"] == 0

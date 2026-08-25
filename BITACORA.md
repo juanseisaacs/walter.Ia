@@ -2201,3 +2201,102 @@ sesión de 11% a 22%.
 
 > Una métrica que penaliza el comportamiento correcto no mide calidad: fabrica
 > trabajo. Y el trabajo que fabrica se ve idéntico al trabajo real.
+
+---
+
+## El stream se alargaba solo (25/08, `ses_31593f90ab26`)
+
+RBH, después de 1,7 minutos con Juan:
+
+> «Como que le llega mi información, como que luego me habla, como que está
+> escuchando, pero al mismo tiempo está hablando. A veces pareciera como que mi
+> audio le llega tarde.»
+
+Tres de ocho turnos del tutor partidos (38%) y los del niño llegando
+descabezados: «hacer», «¿Cuál», «Te escucho». En la transcripción se ve al niño
+contestando a una pregunta de dos turnos atrás —«Sí, es verdad»— mientras el
+tutor ya iba en otra, y al tutor diciendo «uh, parece que el audio se nos corta
+un momentico».
+
+Eran **tres defectos encadenados en el mismo bucle**, y los tres nacidos de los
+arreglos del 23 y el 24.
+
+### 1. Por cada bloque que entraba salían dos
+
+Mientras el tutor sonaba se mandaba silencio del largo del bloque **y además**
+se guardaba una copia del bloque en `retenidos`. Al confirmarse el barge-in, esa
+copia salía **encima del silencio que ya había ocupado su lugar en el tiempo**.
+
+Medio segundo de audio de más en el stream, por cada interrupción. Y el stream
+no lo recupera nunca: **se acumula**. A los pocos barge-ins el servidor está
+procesando lo que el niño dijo turnos atrás mientras el tutor ya habla de otra
+cosa. Eso es, literalmente, «mi audio le llega tarde».
+
+Lo que lo escondía es que cada pieza estaba bien por separado. El silencio hacía
+falta (el reloj del VAD se detiene sin audio, 24/08). El búfer hacía falta (sin
+él, interrumpir cuesta la primera sílaba, 23/08). Nadie miró la suma.
+
+> Cuando dos arreglos correctos tocan el mismo recurso, lo que hay que revisar
+> no es cada uno: es la cuenta. Acá la cuenta cabe en una frase — **entra un
+> bloque, sale un bloque** — y no estaba escrita en ningún lado, así que nada
+> podía violarla en rojo.
+
+Ahora esa invariante vive en `web/src/voz/colaDelMicrofono.ts`, sola y con
+tests que cuentan bloques. La cola dejó de ser una copia de respaldo: es el
+camino por el que pasa el audio.
+
+### 2. El tutor volvía a sonar encima del niño
+
+El barge-in llamaba a `detenerTodo()`, que vacía lo ya programado — pero Gemini
+sigue mandando el resto del turno, y esos bloques iban derecho al reproductor.
+El tutor callaba medio segundo y **retomaba encima del niño**. La otra mitad de
+«al mismo tiempo que me escucha, está hablando», y esta se oye.
+
+Tirarlos sin más no servía: si el barge-in fue un falso positivo —una silla, un
+eco fuerte— el servidor no va a confirmar ningún corte y el tutor se quedaría
+mudo a mitad de frase, que es peor. Así que se retienen: si llega `interrupted`
+o `turnComplete` se descartan; si en `MS_ESPERA_CORTE_SERVIDOR` no llegó nada,
+el barge-in se equivocó y el tutor retoma donde iba.
+
+> Un falso positivo tiene que costar una pausa, no un turno. Si la única
+> respuesta a "puede que me haya equivocado" es tirar, la corrección se vuelve
+> más cara que el error.
+
+### 3. El barge-in no se confirmaba casi nunca
+
+`vozSostenidaMs` se reseteaba a cero en cuanto un bloque caía bajo el umbral. Y
+una frase no es un tono continuo: entre sílaba y sílaba hay bloques de 64 ms por
+debajo. El contador casi nunca llegaba a `MS_PARA_CORTAR`, así que el niño
+hablaba encima del tutor, el barge-in no lo confirmaba, y su audio se iba al
+silencio mientras él veía que no lo escuchaban. Ahora decae al mismo ritmo que
+sube: una frase con pausas normales llega igual, un golpe suelto sigue sin
+alcanzar.
+
+Y el mismo contador miraba `reproductor.hablando` pelado mientras el gate de
+envío miraba `sonandoHace(MS_COLA_ECO)`. En esos 300 ms de diferencia el niño no
+podía ni interrumpir ni ser oído: **tierra de nadie justo donde más se habla**,
+pegado al final del turno del tutor.
+
+### El síntoma que nadie contaba
+
+`medir_fluidez` contaba turnos del niño cortados **por el final** (el VAD
+cerrando temprano) y ninguno cortado **por delante**. Contando los que empiezan
+en minúscula con cuatro palabras o más, sobre las 74 transcripciones:
+
+| día | turnos | descabezados |
+|---|---|---|
+| 20/08 | 165 | 10,3% |
+| 22/08 | 73 | 11,0% |
+| 23/08 | 95 | 8,4% |
+| 24/08 | 59 | 6,8% |
+
+«respuesta, si era que primero se hacía la línea recta», «estadio. Y ahí vieron
+un partido», «lo Espera, no veo nada». Uno de cada diez turnos del niño empezaba
+a mitad, y venía de una línea que lo decía sin disimulo:
+`if (!interrumpioDeVerdad) aSoltar.length = 0;` — al terminar el tutor su turno,
+el búfer entero se tiraba por considerarlo eco. Adentro estaba el arranque de la
+respuesta del niño.
+
+> La queja llevaba días siendo la misma —«no está fluida»— y cada vez se medía
+> lo que ya se sabía medir. El número que faltaba no era más preciso: era **de
+> otra cosa**.

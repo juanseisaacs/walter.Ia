@@ -113,9 +113,11 @@ def test_el_microfono_se_calla_mientras_el_tutor_habla():
     ts = _texto(USE_TUTOR)
     inicio = ts.index("MIENTRAS EL TUTOR HABLA, EL AUDIO NO SALE")
     envio = ts.index("sendRealtimeInput", inicio)
-    retencion = ts.index("retenidos.push(muestras)", inicio)
+    retencion = ts.index("pasarPorLaCola(retenidos, muestras", inicio)
     assert retencion < envio, "el audio vuelve a salir mientras el tutor habla"
-    assert "retenidos.push(muestras)" in ts, "sin buffer, interrumpir cuesta la primera sílaba"
+    assert "silencioPcm16Base64" in ts[retencion:], (
+        "sin buffer, interrumpir cuesta la primera sílaba"
+    )
 
     # `hablando` pelado deja pasar el eco por los huecos: la condición tiene que
     # ser la que aguanta después del último sonido.
@@ -125,12 +127,90 @@ def test_el_microfono_se_calla_mientras_el_tutor_habla():
     )
 
 
-def test_lo_retenido_solo_sale_si_hubo_interrupcion_de_verdad():
-    """Al terminar su turno, esos bloques son el ECO del tutor. Mandarlos le
-    abriría al niño un turno sobre algo que nadie dijo."""
+def test_lo_retenido_sale_como_silencio_mientras_sea_eco():
+    """Mientras el tutor suena, lo que sale de la cola va MUDO.
+
+    Esos bloques son el eco del propio tutor: mandarlos le abriría al niño un
+    turno sobre algo que nadie dijo, y con `START_SENSITIVITY_HIGH` le cortaría
+    la generación a mitad de palabra. Solo salen con su audio de verdad cuando
+    el barge-in ya confirmó que abajo estaba el niño.
+    """
     ts = _texto(USE_TUTOR)
-    assert "interrumpioDeVerdad" in ts
-    assert "if (!interrumpioDeVerdad) aSoltar.length = 0;" in ts
+    assert "interrumpio: interrumpioDeVerdad" in ts, (
+        "la cola ya no sabe si lo que lleva adentro es el niño o el eco del tutor"
+    )
+    cola = _texto(RAIZ / "web" / "src" / "voz" / "colaDelMicrofono.ts")
+    assert "mudo: reteniendo && !interrumpio" in cola, (
+        "la cola dejó de distinguir el eco del tutor de la voz del niño"
+    )
+    # Y del lado de `useTutor`, lo que sale mudo tiene que salir como SILENCIO y
+    # no como nada: si el stream se para, el reloj del VAD se para con él.
+    assert "bloque.mudo" in ts and "silencioPcm16Base64" in ts
+
+
+def test_por_cada_bloque_que_entra_sale_exactamente_uno():
+    """LA INVARIANTE QUE FALTABA, y sin ella el stream se alarga solo.
+
+    `ses_31593f90ab26` (25/08): «creo que a veces mi audio le llega tarde, y
+    como que al mismo tiempo que escucha está hablando».
+
+    La cola era una COPIA: mientras el tutor sonaba se mandaba silencio y además
+    se guardaba el bloque, y al confirmarse el barge-in la copia salía ENCIMA
+    del silencio que ya había ocupado ese lugar en el tiempo. Medio segundo de
+    audio de más por cada interrupción, que el stream no recupera nunca — se
+    acumulan, y el servidor termina procesando lo que el niño dijo turnos atrás
+    mientras el tutor ya está en otra cosa.
+
+    Ahora la cola es el camino, no una copia: entra un bloque, sale un bloque.
+    El test mira las dos mitades de eso — que el bloque enviado salga de la cola
+    (`shift`) y no sea el recién capturado, y que no exista ningún envío del
+    bloque actual en paralelo al de la cola.
+    """
+    ts = _texto(USE_TUTOR)
+    inicio = ts.index("UN BLOQUE ENTRA, UN BLOQUE SALE")
+    fin = ts.index("micRef.current = captura", inicio)
+    bucle = ts[inicio:fin]
+
+    assert "pasarPorLaCola(retenidos, muestras" in bucle, "el audio ya no entra por la cola"
+    assert "aPcm16Base64(muestras)" not in bucle, (
+        "el bloque recién capturado se manda por fuera de la cola: el stream se "
+        "alarga y la voz del niño le llega al servidor cada vez más tarde"
+    )
+
+    # Y la cola en sí, que es donde vive la cuenta.
+    cola = _texto(RAIZ / "web" / "src" / "voz" / "colaDelMicrofono.ts")
+    assert "cola.push(muestras)" in cola and "cola.shift()" in cola, (
+        "la cola dejó de ser el camino del audio y volvió a ser una copia"
+    )
+
+
+def test_el_tutor_callado_no_vuelve_a_sonar_encima_del_nino():
+    """La otra mitad de «al mismo tiempo que me escucha, está hablando».
+
+    El barge-in apaga el parlante, pero Gemini sigue mandando el resto del
+    turno: esos bloques iban derecho al reproductor y el tutor volvía a sonar
+    medio segundo después de que lo callaron.
+
+    Y no se tiran, se retienen: si el barge-in fue un falso positivo el servidor
+    nunca va a confirmar el corte, y tirarlos dejaría al tutor mudo a mitad de
+    frase — peor que el bug. Vencido el plazo, retoma.
+    """
+    ts = _texto(USE_TUTOR)
+    audio = ts.index("parte.inlineData?.data")
+    programa = ts.index("reproductor.programar(parte.inlineData.data)", audio)
+    guarda = ts[audio:programa]
+
+    assert "turnoAbortadoRef.current" in guarda, (
+        "el audio de un turno ya cortado vuelve al parlante encima del niño"
+    )
+    assert "enDudaRef.current.push" in guarda, (
+        "el audio en duda se tira en vez de guardarse: un barge-in equivocado "
+        "deja al tutor mudo a mitad de frase"
+    )
+    # Y las dos formas que tiene el servidor de confirmar el corte lo limpian.
+    assert "turnoAbortadoRef.current = 0" in ts[ts.index("contenido?.interrupted") :], (
+        "el servidor confirma el corte y la duda queda colgada"
+    )
 
 
 def test_el_saludo_tambien_esta_protegido():
@@ -191,8 +271,8 @@ def test_el_stream_de_audio_nunca_se_corta():
     """
     ts = _texto(USE_TUTOR)
     inicio = ts.index("MIENTRAS EL TUTOR HABLA, EL AUDIO NO SALE")
-    # El bloque de retención va desde ahí hasta que se suelta lo retenido.
-    fin = ts.index("Lo retenido sale SOLO si hubo interrupción", inicio)
+    # El bloque de envío va desde ahí hasta el final del callback del micrófono.
+    fin = ts.index("micRef.current = captura", inicio)
     retencion = ts[inicio:fin]
 
     assert "silencioPcm16Base64" in retencion, (

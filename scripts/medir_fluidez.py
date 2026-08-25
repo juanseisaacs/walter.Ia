@@ -23,6 +23,11 @@ que son tres cosas distintas y se confundían entre sí:
               terminara de hablar. «Tengo una tarea de» (`ses_02805f3edba1`) es
               un chico de 7 años pensando cómo seguir, y el sistema decidió por
               él que ya había terminado.
+  · NIÑO✁     el turno del niño EMPIEZA a mitad de frase. Los otros tres miran
+              el final; este mira el principio, y es el que explica «mi audio le
+              llega tarde» (`ses_31593f90ab26`). El micrófono le tiraba hasta
+              medio segundo de audio cada vez que el tutor terminaba de hablar,
+              por considerarlo eco — y ahí estaba el arranque de su respuesta.
 
 No necesita API key ni red: lee `data/transcripts/`. Correrlo después de cada
 sesión es la forma de saber si un cambio mejoró algo o solo lo movió de lugar.
@@ -118,6 +123,23 @@ def medir(texto: str, marca_mudez: str) -> dict:
         and not all(p.isdigit() for p in t.split())
     ]
 
+    # Y la falla que faltaba: el turno del niño cortado POR DELANTE.
+    #
+    # Las otras tres miran el final de la frase. Esta mira el principio, y es la
+    # que explica «mi audio le llega tarde» (`ses_31593f90ab26`, 25/08): el
+    # micrófono le tiraba al niño hasta medio segundo de audio cada vez que el
+    # tutor terminaba de hablar, por considerarlo eco. Adentro estaba el arranque
+    # de su respuesta — «respuesta, si era que primero se hacía la línea recta»,
+    # «estadio. Y ahí vieron un partido», «hacer».
+    #
+    # La señal es la minúscula inicial: el transcriptor abre en mayúscula, así
+    # que una frase que empieza en minúscula empezó antes de lo que se oyó. Se
+    # exigen cuatro palabras para no contar las respuestas sueltas —"siete",
+    # "impar"—, que legítimamente vienen en minúscula por ser continuación.
+    descabezados = [
+        t for t in del_nino if len(t.split()) >= 4 and t[:1].islower()
+    ]
+
     # Dos turnos del tutor seguidos: se cortó y retomó.
     retomas = sum(
         1
@@ -133,8 +155,11 @@ def medir(texto: str, marca_mudez: str) -> dict:
         "retomas": retomas,
         "mudeces": mudeces,
         "cortados_nino": len(cortados_nino),
+        "descabezados": len(descabezados),
+        "turnos_nino": len(del_nino),
         "ejemplos": ["…" + t[-34:] for t in cortados[:2]],
         "ejemplos_nino": ["…" + t[-34:] for t in cortados_nino[:2]],
+        "ejemplos_descabezados": [t[:34] + "…" for t in descabezados[:2]],
     }
 
 
@@ -164,9 +189,18 @@ def main() -> int:
         f"{'niño✂':>8}"
     )
 
-    total = {"turnos": 0, "cortados": 0, "retomas": 0, "mudeces": 0, "cortados_nino": 0}
+    total = {
+        "turnos": 0,
+        "cortados": 0,
+        "retomas": 0,
+        "mudeces": 0,
+        "cortados_nino": 0,
+        "descabezados": 0,
+        "turnos_nino": 0,
+    }
     peores: list[tuple[str, list[str]]] = []
     peores_nino: list[tuple[str, list[str]]] = []
+    peores_cabeza: list[tuple[str, list[str]]] = []
     for f in archivos:
         m = medir(f.read_text(encoding="utf-8"), marca)
         if not m["turnos"]:
@@ -175,12 +209,14 @@ def main() -> int:
             total[k] += m[k]
         print(
             f"{f.stem:22}{m['turnos']:>7}{m['cortados']:>10}{m['retomas']:>9}"
-            f"{m['mudeces']:>7}{m['cortados_nino']:>8}"
+            f"{m['mudeces']:>7}{m['cortados_nino']:>8}{m['descabezados']:>8}"
         )
         if m["ejemplos"]:
             peores.append((f.stem, m["ejemplos"]))
         if m["ejemplos_nino"]:
             peores_nino.append((f.stem, m["ejemplos_nino"]))
+        if m["ejemplos_descabezados"]:
+            peores_cabeza.append((f.stem, m["ejemplos_descabezados"]))
 
     t = max(total["turnos"], 1)
     print("\n" + "-" * 78)
@@ -188,7 +224,8 @@ def main() -> int:
         f"  {total['cortados']}/{total['turnos']} turnos cortados "
         f"({100 * total['cortados'] / t:.0f}%) · "
         f"{total['retomas']} retomas · {total['mudeces']} mudeces · "
-        f"{total['cortados_nino']} turnos del niño cortados"
+        f"{total['cortados_nino']} turnos del niño cortados al final · "
+        f"{total['descabezados']} descabezados"
     )
 
     if peores:
@@ -203,9 +240,16 @@ def main() -> int:
             for e in ejemplos:
                 print(f"    {sesion}  {e}")
 
-    # 20% era el número del 23/08, antes de retener el audio mientras el tutor
-    # habla. Sirve de referencia: si vuelve a subir, algo lo desarmó.
+    if peores_cabeza:
+        print("\n  Dónde empezó a mitad (el micrófono se comió el arranque):")
+        for sesion, ejemplos in peores_cabeza[-3:]:
+            for e in ejemplos:
+                print(f"    {sesion}  {e}")
+
+    # Las dos referencias contra las que se compara un cambio. Si vuelven a
+    # subir, algo desarmó el arreglo que las bajó.
     print("\n  Referencia: 20% de cortes el 23/08 (8 sesiones, antes del arreglo).")
+    print("  Referencia: 10,3% de turnos del niño descabezados el 20/08 (165 turnos).")
     return 0
 
 

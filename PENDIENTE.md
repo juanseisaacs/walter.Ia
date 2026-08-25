@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **662 tests** de Python · **166** del front · **evals 45/45** (los 3 casos
+- **666 tests** de Python · **181** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **~100 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
@@ -50,6 +50,25 @@ El segundo junta en una pantalla lo que estaba en cinco lugares — cierre,
 aprendizaje, método, fluidez y costo. Sin él, diagnosticar una sesión costaba
 media hora y terminaba en una hipótesis; con él, diez segundos. Ese ciclo de
 forense repetida fue lo que se comió los días 23 y 24.
+
+---
+
+## 🔵 Sin verificar con voz real: el arreglo del stream (25/08)
+
+Los tres defectos de `ses_31593f90ab26` están corregidos y con tests
+(`web/src/voz/colaDelMicrofono.ts`, 15 casos), pero **lo único que prueba que la
+conversación se siente fluida es una conversación**. Lo que hay que mirar
+después de la próxima sesión, con `python -m scripts.medir_fluidez`:
+
+| columna | qué significa | contra qué se compara |
+|---|---|---|
+| `cortados` | el tutor partido a mitad de palabra | 38% en `ses_31593f90ab26`; 11% en el acumulado |
+| `niño✁` | el turno del niño que empieza a mitad | 10,3% el 20/08 · 6,8% el 24/08 |
+
+Y en la consola del navegador, dos líneas nuevas que dicen si el barge-in está
+calibrado: `[barge-in] corta al tutor · nivel X` y `[barge-in] el servidor no
+confirmó: el tutor retoma`. Si la segunda aparece seguido, `UMBRAL_BARGE_IN`
+está bajo y el eco lo está disparando.
 
 ---
 

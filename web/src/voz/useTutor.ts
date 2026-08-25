@@ -28,6 +28,7 @@ import {
   silencioPcm16Base64,
 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
+import { pasarPorLaCola, sigueEnDuda, vozSostenida } from "./colaDelMicrofono";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 import { tokenActual } from "../nino";
 import { aCuadro, describir } from "../pizarra/desdeElTutor";
@@ -112,14 +113,31 @@ export const AVISO_DEL_DIBUJO =
 const MS_PARA_CORTAR = 200;
 
 /**
- * Cuántos bloques del micrófono se guardan mientras el tutor está sonando.
+ * Profundidad de la LÍNEA DE RETARDO del micrófono, en bloques de ~64 ms.
  *
- * Son ~64 ms cada uno: ocho dan medio segundo, que es lo que tarda el barge-in
- * en confirmar que la voz es de verdad (`MS_PARA_CORTAR`) más un margen. Sin
- * este buffer, interrumpir al tutor le costaría al niño la primera sílaba de lo
- * que dijo — y a un chico de siete años eso lo obliga a repetirse.
+ * Esto era un buffer "por si acaso": mientras el tutor sonaba se mandaba
+ * silencio Y ADEMÁS se guardaba una copia del bloque, y al confirmarse el
+ * barge-in esa copia salía *encima* del silencio que ya había ocupado su lugar
+ * en el tiempo. Cada interrupción le metía al stream medio segundo de audio de
+ * más, y el servidor quedaba procesando lo que el niño había dicho medio
+ * segundo antes. **La deriva no se recuperaba nunca: se sumaba interrupción
+ * tras interrupción**, hasta que el tutor contestaba a algo de tres turnos
+ * atrás mientras el niño ya estaba en otra cosa. Es lo que RBH describió el
+ * 25/08 como «mi audio le llega tarde, y al mismo tiempo que escucha habla»
+ * (`ses_31593f90ab26`).
+ *
+ * Ahora la cola no es una copia: es el camino. Por cada bloque que entra sale
+ * exactamente uno —silencio si era eco, el audio de verdad si el barge-in se
+ * confirmó—, así que el stream avanza al mismo ritmo que el reloj de pared y no
+ * se alarga nunca.
+ *
+ * El fondo tiene que cubrir lo que tarda el barge-in en confirmar la voz
+ * (`MS_PARA_CORTAR` = 4 bloques) más un margen: el bloque con la primera sílaba
+ * de la interrupción sigue adentro cuando se decide, y por eso sale íntegro.
+ * Más fondo del necesario no ayuda y cuesta: es el hueco que el stream aguanta
+ * mientras la cola se llena, al principio de cada turno del tutor.
  */
-export const BLOQUES_RETENIDOS = 8;
+export const BLOQUES_RETENIDOS = 5;
 
 /**
  * Cuánto se sigue reteniendo el micrófono DESPUÉS de que el tutor dejó de sonar.
@@ -135,6 +153,27 @@ export const BLOQUES_RETENIDOS = 8;
  * confirmado, así que no se le come ninguna interrupción real.
  */
 export const MS_COLA_ECO = 300;
+
+/**
+ * Tras callar al tutor, cuánto se espera a que el servidor lo confirme.
+ *
+ * El barge-in local apaga el parlante, pero Gemini sigue mandando el resto del
+ * turno: **iban derecho al reproductor y el tutor volvía a sonar encima del
+ * niño**, medio segundo después de que lo callaron. Esa es la mitad de
+ * «al mismo tiempo que me escucha, está hablando» — la otra mitad era la
+ * deriva de `BLOQUES_RETENIDOS`.
+ *
+ * No alcanza con tirar esos bloques: si el barge-in fue un falso positivo —una
+ * silla, un eco fuerte— el servidor nunca va a cortar nada y el tutor se
+ * quedaría mudo a mitad de frase, que es peor que el bug que se está tapando.
+ * Así que se RETIENEN: si el servidor confirma el corte (`interrupted`) o el
+ * turno termina, se tiran; si en este plazo no dijo nada, el barge-in se
+ * equivocó y el tutor retoma donde iba.
+ *
+ * Un falso positivo cuesta entonces una pausa, no el turno. El plazo cubre el
+ * viaje del audio hasta el VAD y su decisión, con margen.
+ */
+export const MS_ESPERA_CORTE_SERVIDOR = 900;
 
 /**
  * Techo de lo que se retiene el micro esperando la PRIMERA palabra del tutor.
@@ -311,6 +350,13 @@ export function useTutor(ninoId: string) {
   /** Hasta cuándo se retiene el micro esperando el saludo (`Date.now()` + techo).
       0 = no se está esperando. Ver `MS_RETENER_APERTURA`. */
   const retenerHastaRef = useRef(0);
+  /** Cuándo el barge-in calló al tutor (`Date.now()`), o 0 si no hay nada
+      abortado. Mientras esté puesto, el audio que siga llegando de ESE turno no
+      va al parlante. Ver `MS_ESPERA_CORTE_SERVIDOR`. */
+  const turnoAbortadoRef = useRef(0);
+  /** Lo que llegó del tutor después de que lo callaron, sin reproducir. Vuelve
+      si el servidor no confirma el corte — o sea, si el barge-in se equivocó. */
+  const enDudaRef = useRef<string[]>([]);
   /** Los dos relojes de la sesión: avisar al 90% del tiempo, cortar al 100%. */
   const relojesRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -1077,6 +1123,10 @@ export function useTutor(ninoId: string) {
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
     retenerHastaRef.current = 0;
+    // Un turno abortado que sobreviva se traga el primer audio de la sesión
+    // siguiente, que es el saludo — el turno más caro de perder.
+    turnoAbortadoRef.current = 0;
+    enDudaRef.current.length = 0;
     // EL TABLERO TAMPOCO SOBREVIVE.
     //
     // `ses_97d5b112a122` empezó así, antes de que nadie dijera nada:
@@ -1387,8 +1437,37 @@ export function useTutor(ninoId: string) {
               );
             }
 
+            // ── ¿ESTE AUDIO TODAVÍA TIENE DERECHO A SONAR? ──────────────────
+            //
+            // El barge-in calló al tutor, pero Gemini sigue mandando el resto
+            // del turno: esos bloques iban derecho al reproductor y **el tutor
+            // volvía a sonar encima del niño** medio segundo después de que lo
+            // callaron. Es la mitad de «al mismo tiempo que me escucha, está
+            // hablando» (`ses_31593f90ab26`, 25/08).
+            //
+            // No se tiran: se guardan. Si el barge-in fue un falso positivo el
+            // servidor no va a confirmar nada, y tirar sería dejar al tutor
+            // mudo a mitad de frase — peor que el bug. Ver
+            // `MS_ESPERA_CORTE_SERVIDOR`.
+            if (
+              turnoAbortadoRef.current &&
+              !sigueEnDuda(turnoAbortadoRef.current, Date.now(), MS_ESPERA_CORTE_SERVIDOR)
+            ) {
+              // El servidor nunca cortó: no había a quién oír. El tutor retoma
+              // donde iba, y el falso positivo costó una pausa.
+              console.info("[barge-in] el servidor no confirmó: el tutor retoma");
+              turnoAbortadoRef.current = 0;
+              for (const guardado of enDudaRef.current.splice(0)) {
+                reproductor.programar(guardado);
+              }
+            }
+
             for (const parte of contenido?.modelTurn?.parts ?? []) {
               if (parte.inlineData?.data) {
+                if (turnoAbortadoRef.current) {
+                  enDudaRef.current.push(parte.inlineData.data);
+                  continue;
+                }
                 // EL NÚMERO QUE FALTABA. "Se siente lento" se discutió tres
                 // veces sin un solo dato, y las tres el problema estaba en otro
                 // lado. Esto mide lo que el niño de verdad siente: desde su
@@ -1420,6 +1499,10 @@ export function useTutor(ninoId: string) {
             // El niño habló encima: cortar YA todo lo programado.
             if (contenido?.interrupted) {
               reproductor.detenerTodo();
+              // El servidor confirma lo que el barge-in ya había decidido acá:
+              // lo que quedó en duda era el turno que el niño cortó y no vuelve.
+              turnoAbortadoRef.current = 0;
+              enDudaRef.current.length = 0;
               setEstado("escuchando");
             }
 
@@ -1451,6 +1534,11 @@ export function useTutor(ninoId: string) {
 
             if (contenido?.turnComplete) {
               tutorContesto();
+              // El turno terminó: lo que quedó en duda ya no tiene dónde
+              // encajar. Reproducirlo ahora sería el tutor hablando solo,
+              // encima de lo que venga.
+              turnoAbortadoRef.current = 0;
+              enDudaRef.current.length = 0;
               const dichoTutor = acumTutorRef.current;
 
               // Lo que el Analista va a LEER, visible en el momento. La
@@ -1550,10 +1638,10 @@ export function useTutor(ninoId: string) {
       liveRef.current = live;
 
       let vozSostenidaMs = 0;
-      /** Lo que el niño dijo mientras el tutor sonaba, por si era una
-          interrupción de verdad. Ver el bloque de envío, más abajo. */
+      /** La línea de retardo del micrófono. NO es una copia del audio que ya
+          salió: es el único camino por el que sale. Ver `BLOQUES_RETENIDOS`. */
       const retenidos: Float32Array[] = [];
-      /** ¿Lo retenido es una interrupción confirmada, o es eco para tirar? */
+      /** ¿Lo que sale de la cola es una interrupción confirmada, o eco a callar? */
       let interrumpioDeVerdad = false;
 
       const { captura } = await abrirMicrofono((muestras, nivel) => {
@@ -1578,22 +1666,44 @@ export function useTutor(ninoId: string) {
         // El umbral va por encima del eco residual que deja la cancelación del
         // navegador, y se exige que se sostenga: un golpe en la mesa dura un
         // bloque, una sílaba dura varios.
-        const tutorSonando = reproductor.hablando;
+        // `sonandoHace` y no `hablando` pelado: entre chunk y chunk la cola se
+        // vacía a mitad de frase, y con `hablando` el barge-in se apagaba justo
+        // en esos huecos. Peor todavía en la cola del final: el niño que
+        // arranca a hablar pegado al último sonido —o sea, casi siempre—
+        // quedaba en tierra de nadie, sin barge-in que lo confirmara y sin
+        // stream que lo dejara salir. Sus primeras sílabas se tiraban.
+        const tutorSonando = reproductor.sonandoHace(MS_COLA_ECO);
 
         if (tutorSonando && nivel > UMBRAL_BARGE_IN) {
-          vozSostenidaMs += (muestras.length / SAMPLE_RATE_ENTRADA) * 1000;
+          vozSostenidaMs = vozSostenida(vozSostenidaMs, {
+            hayVoz: true,
+            bloqueMs: (muestras.length / SAMPLE_RATE_ENTRADA) * 1000,
+          });
           if (vozSostenidaMs >= MS_PARA_CORTAR) {
             // El nivel va al log para poder calibrar el umbral con un número la
             // próxima vez, en vez de moverlo a ojo: si acá aparecen cortes con
             // niveles apenas por encima de 0,045, es eco y el umbral sube.
             console.info(`[barge-in] corta al tutor · nivel ${nivel.toFixed(3)}`);
             reproductor.detenerTodo(); // desde acá `hablando` es false
+            // Y lo que el servidor siga mandando de ESTE turno no vuelve al
+            // parlante: el tutor no puede resucitar encima del niño.
+            turnoAbortadoRef.current = Date.now();
             setEstado("escuchando");
             vozSostenidaMs = 0;
             interrumpioDeVerdad = true;
           }
         } else if (nivel <= UMBRAL_BARGE_IN) {
-          vozSostenidaMs = 0;
+          // DECAE, no se resetea. Una frase no es un tono continuo: entre
+          // sílabas hay bloques de 64 ms por debajo del umbral, y ponerlo en
+          // cero con cada uno hacía que el contador casi nunca llegara a
+          // `MS_PARA_CORTAR`. El niño hablaba encima del tutor y el barge-in no
+          // se confirmaba nunca — su audio se iba al silencio mientras él veía
+          // que no lo escuchaban. Un golpe suelto sigue sin alcanzar: decae al
+          // mismo ritmo que sube. Ver `vozSostenida`.
+          vozSostenidaMs = vozSostenida(vozSostenidaMs, {
+            hayVoz: false,
+            bloqueMs: (muestras.length / SAMPLE_RATE_ENTRADA) * 1000,
+          });
         }
 
         // Callado mientras el tutor mira una imagen: este flujo le mantendría
@@ -1619,95 +1729,66 @@ export function useTutor(ninoId: string) {
         //
         // El barge-in local no lo evitaba: solo callaba el altavoz de acá.
         //
-        // Ahora, mientras el tutor suena, los bloques se GUARDAN en vez de
-        // enviarse. Si el barge-in confirma voz de verdad, `detenerTodo()` deja
-        // `hablando` en false y este mismo bloque ya sale por el camino normal,
-        // soltando primero lo retenido — así el niño no pierde la primera
-        // sílaba de su interrupción. Y si era eco, se descarta y nadie corta
-        // nada.
+        // Y el stream TAMPOCO se corta, que fue el arreglo del 24/08. Va
+        // silencio, no "nada". La Live API: «`silenceDurationMs` only works
+        // within a continuous stream — it measures quiet periods, not stream
+        // interruptions.» Sin audio el reloj del VAD se detiene, el turno del
+        // niño se queda colgado sin cerrar, y al volver el micrófono lo nuevo
+        // se pega con lo viejo (`ses_02805f3edba1`: 25 turnos, la sesión
+        // muerta).
         //
-        // `sonandoHace` y no `hablando`: quedaban dos huecos por los que el eco
-        // se escapaba igual —entre chunk y chunk, y la cola del parlante
-        // después de la última muestra—, y por ahí siguió cortándose el tutor
-        // (`ses_0a6036dedf55`, 2 de 8 turnos partidos). Ver `MS_COLA_ECO`.
+        // ── UN BLOQUE ENTRA, UN BLOQUE SALE ────────────────────────────────
         //
-        // Se lee DESPUÉS del barge-in a propósito: si el niño interrumpió de
-        // verdad, `detenerTodo()` ya apagó la cola de guarda y su voz sale en
-        // este mismo bloque en vez de esperar 300 ms más.
+        // Todo el audio del micrófono pasa por `retenidos`, que NO es una copia
+        // de respaldo: es el camino. Por cada bloque capturado se envía
+        // exactamente uno —silencio si era eco del tutor, el audio de verdad si
+        // el barge-in confirmó que abajo estaba el niño—, y así el stream avanza
+        // al mismo ritmo que el reloj de pared.
         //
+        // ESA INVARIANTE ES EL ARREGLO DEL 25/08, y lo que faltaba de los otros
+        // dos. Hasta acá se mandaba silencio Y ADEMÁS se guardaba una copia del
+        // bloque; al confirmarse la interrupción, la copia salía ENCIMA del
+        // silencio que ya había ocupado su lugar en el tiempo. Cada barge-in le
+        // metía al stream medio segundo de audio de más y dejaba al servidor
+        // medio segundo atrás. **No se recuperaba nunca**: se sumaba
+        // interrupción tras interrupción hasta que el tutor contestaba a un
+        // turno viejo mientras el niño ya estaba en otro. `ses_31593f90ab26`,
+        // 25/08: «mi audio le llega tarde, y al mismo tiempo que escucha está
+        // hablando».
+        //
+        // `sonandoHace` y no `hablando`: el eco se escapaba por dos huecos
+        // —entre chunk y chunk, y la cola del parlante después de la última
+        // muestra— y por ahí siguió cortándose el tutor (`ses_0a6036dedf55`).
         // Y el saludo entra por la otra mitad de la condición: hasta que el
-        // tutor suelte su primer bloque de audio no hay reproductor que retenga
-        // nada, y ese es justo el turno que se partió. Ver `MS_RETENER_APERTURA`.
+        // tutor suelte su primer bloque no hay reproductor que retenga nada, y
+        // ese es justo el turno que se partió. Ver `MS_RETENER_APERTURA`.
         const esperandoElSaludo = retenerHastaRef.current > Date.now();
-        if (reproductor.sonandoHace(MS_COLA_ECO) || esperandoElSaludo) {
-          retenidos.push(muestras);
-          if (retenidos.length > BLOQUES_RETENIDOS) retenidos.shift();
+        const reteniendo = reproductor.sonandoHace(MS_COLA_ECO) || esperandoElSaludo;
 
-          // ── Y EN SU LUGAR VA SILENCIO. NO "nada". ──────────────────────────
-          //
-          // ESTA LÍNEA ES LA CAUSA RAÍZ DE QUE LA CONVERSACIÓN SE ENREDARA Y
-          // TERMINARA CAYÉNDOSE (`ses_02805f3edba1`: 25 turnos, la voz del niño
-          // llegando tarde, y al final dos mudeces seguidas y sesión muerta).
-          //
-          // Hasta acá había un `return` pelado: mientras el tutor hablaba, el
-          // stream se CORTABA. La documentación de la Live API dice por qué eso
-          // no se puede hacer:
-          //
-          //   «`silenceDurationMs` only works within a continuous stream — it
-          //    measures quiet periods, not stream interruptions.»
-          //   «when the audio stream is paused for more than a second… an
-          //    `audioStreamEnd` event should be sent to flush any cached audio.»
-          //
-          // O sea: el VAD del servidor no mide el paso del tiempo, mide el
-          // audio que le llega. Sin audio, su reloj SE DETIENE. El turno del
-          // niño que estaba a medio cerrar se quedaba colgado en el buffer del
-          // servidor, y cuando el micrófono volvía —varios segundos después— lo
-          // nuevo se pegaba con lo viejo como si fueran contiguos.
-          //
-          // Eso es exactamente lo que se sintió: «parecía como si mi voz
-          // llegara tarde, y entonces como que se enredaba». Y es también por
-          // qué la sesión terminó muerta: un turno que nunca se cierra es un
-          // turno que nunca se contesta.
-          //
-          // Mandar silencio en lugar de nada resuelve las dos cosas a la vez:
-          //   · el eco del tutor NO viaja — sigue en pie el arreglo del 23/08;
-          //   · el reloj del VAD sigue corriendo y ve lo que de verdad hay que
-          //     mostrarle: silencio. El turno del niño se cierra a tiempo.
-          //
-          // Y no cuesta más que antes del 23/08, cuando se mandaba el audio
-          // crudo el 100% del tiempo: es el mismo caudal, con ceros adentro.
-          try {
-            live.sendRealtimeInput({
-              audio: {
-                data: silencioPcm16Base64(muestras.length),
-                mimeType: "audio/pcm;rate=16000",
-              },
-            });
-          } catch {
-            /* sesión cerrada a mitad de un lote */
-          }
-          return;
-        }
-        retenerHastaRef.current = 0; // el techo venció: el saludo no llegó
-
-        // Lo retenido sale SOLO si hubo interrupción de verdad. Cuando el
-        // tutor termina su turno solo, esos bloques son el eco de su propia voz
-        // y mandarlos le abriría un turno al niño sobre algo que nadie dijo.
-        const aSoltar = retenidos.splice(0);
-        if (!interrumpioDeVerdad) aSoltar.length = 0;
-        interrumpioDeVerdad = false;
+        // La regla vive en `colaDelMicrofono`, aparte y con sus propios tests:
+        // acá un error no se ve, se SIENTE tres turnos después.
+        const aEnviar = pasarPorLaCola(retenidos, muestras, {
+          reteniendo,
+          interrumpio: interrumpioDeVerdad,
+          fondo: BLOQUES_RETENIDOS,
+        });
 
         try {
-          for (const antiguo of aSoltar) {
-            live.sendRealtimeInput({
-              audio: { data: aPcm16Base64(antiguo), mimeType: "audio/pcm;rate=16000" },
-            });
+          for (const bloque of aEnviar) {
+            const data = bloque.mudo
+              ? silencioPcm16Base64(bloque.muestras.length)
+              : aPcm16Base64(bloque.muestras);
+            live.sendRealtimeInput({ audio: { data, mimeType: "audio/pcm;rate=16000" } });
           }
-          live.sendRealtimeInput({
-            audio: { data: aPcm16Base64(muestras), mimeType: "audio/pcm;rate=16000" },
-          });
         } catch {
           /* sesión cerrada a mitad de un lote */
+        }
+
+        if (!reteniendo) {
+          retenerHastaRef.current = 0; // el techo venció: el saludo no llegó
+          // Se apaga con la cola vacía, nunca antes: si sobreviviera al próximo
+          // turno del tutor, el eco de ESE turno saldría como si fuera el niño.
+          interrumpioDeVerdad = false;
         }
       });
       micRef.current = captura;
