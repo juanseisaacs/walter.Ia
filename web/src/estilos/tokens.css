@@ -74,6 +74,9 @@
   --pizarra-vivo-3: #3f6fb5;
   --pizarra-vivo-4: #d4a017;
   --pizarra-vivo-5: #9b5aa8;
+  /* Lo que se quita en una resta dibujada. Rojo y no gris: tachar es una
+     acción, y el niño tiene que ver CUÁLES se fueron, no que se apagaron. */
+  --pizarra-tachado: #d1495b;
 
   /* ── El tutor ────────────────────────────────────────────────────────────
      Un oso de anteojos: andino, colombiano, no humano. El porqué está en

@@ -64,26 +64,40 @@ TRANSCRIPTS = cfg.RAIZ / "data" / "transcripts"
 # había buen comportamiento.
 CIERRES = '.!?"»)]…:'
 
-# Lo que el navegador escribe cuando algo sale mal. Vive en `useTutor.ts` y se
-# lee de ahí para que no se desincronice.
-def _marca(nombre: str, respaldo: str) -> str:
+# Lo que el navegador escribe cuando algo sale mal. Vive en `perillas.ts` y se
+# lee de ahí para que las dos puntas no se desincronicen.
+#
+# SIN RESPALDO, Y A PROPÓSITO. Había uno —un prefijo escrito a mano— y el 25/08
+# hizo justo lo que hacen los respaldos: tapó una desincronización de verdad. Al
+# mudar las constantes de `useTutor.ts` a `perillas.ts` el regex dejó de
+# encontrarlas y esto empezó a contar contra un prefijo cableado acá; siguió
+# "funcionando" porque el prefijo casualmente coincidía, y los tests siguieron
+# en verde. Un instrumento que se degrada en silencio miente con la autoridad de
+# un número. Si la constante se mueve otra vez, esto revienta y se arregla.
+def _marca(nombre: str) -> str:
     import re  # noqa: PLC0415
 
-    ts = (cfg.RAIZ / "web" / "src" / "voz" / "useTutor.ts").read_text(encoding="utf-8")
-    m = re.search(rf'{nombre}\s*=\s*"([^"]*)"', ts)
-    return m.group(1) if m else respaldo
+    ruta = cfg.RAIZ / "web" / "src" / "voz" / "perillas.ts"
+    m = re.search(rf'{nombre}\s*=\s*"([^"]*)"', ruta.read_text(encoding="utf-8"))
+    if m is None:
+        raise SystemExit(
+            f"No encuentro {nombre} en {ruta.name}. Si la constante se movió, "
+            f"actualizá la ruta acá: si no, esto cuenta contra un texto que ya "
+            f"nadie escribe y el número que muestra es mentira."
+        )
+    return m.group(1)
 
 
 def _marca_de_mudez() -> str:
-    return _marca("MARCA_DE_MUDEZ", "[el tutor no contestó")
+    return _marca("MARCA_DE_MUDEZ")
 
 
 def _marca_de_voz_muda() -> str:
-    return _marca("MARCA_DE_VOZ_MUDA", "[el niño no oyó esto")
+    return _marca("MARCA_DE_VOZ_MUDA")
 
 
 def _marca_de_sordera() -> str:
-    return _marca("MARCA_DE_SORDERA", "[el niño habló acá")
+    return _marca("MARCA_DE_SORDERA")
 
 
 def _turnos(texto: str) -> list[tuple[str, str]]:

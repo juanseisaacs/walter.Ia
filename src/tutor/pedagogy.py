@@ -21,7 +21,7 @@ from datetime import datetime
 from enum import IntEnum, StrEnum
 
 from .curriculum import GrafoHabilidades
-from .models import Calendario, Habilidad, Materia, Nino, RegistroDominio, TipoObservacion
+from .models import Calendario, Habilidad, Materia, Nino, RegistroDominio
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parámetros del modelo de aprendizaje
@@ -432,14 +432,6 @@ def siguiente_pista(intentos_fallidos: int) -> NivelPista:
     Nunca pasa de EJEMPLO_PARALELO: la escalera no llega a la respuesta.
     """
     return NivelPista(min(max(intentos_fallidos, 0), NivelPista.EJEMPLO_PARALELO))
-
-
-def hay_frustracion(observaciones: list[TipoObservacion], pistas_seguidas: int) -> bool:
-    """¿Conviene bajar la exigencia antes de que abandone?
-
-    Frustración explícita, o tres pistas seguidas sin salir adelante.
-    """
-    return TipoObservacion.FRUSTRACION in observaciones or pistas_seguidas >= 3
 
 
 # ─────────────────────────────────────────────────────────────────────────────

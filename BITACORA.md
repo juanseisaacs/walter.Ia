@@ -2590,3 +2590,100 @@ La queja real de la niña nunca se atendió: **la pizarra no sabe mostrar una
 resta de objetos.** Puede dibujar siete estrellas (`grupos`) o la cuenta `7 − 4`
 (`operacion`), pero no «siete estrellas y cuatro tachadas», que es justo lo que
 ella pedía para entender. Queda en `PENDIENTE.md`.
+
+---
+
+## Auditoría completa del proyecto (25/08)
+
+Cinco hallazgos, de mayor a menor. El primero es el que importa.
+
+### 1. El segundo camino a la alarma llevaba semanas apagado
+
+La regla dura dice que hay **dos caminos independientes** a la alarma: el
+Vigilante y `escalate_safety`. Todas las piezas del Vigilante existían y estaban
+probadas —`vigilante_para_sesion`, la rama en `Orquestador`, `evaluar_seguridad`
+con su prompt, sus tests en verde— y en `api.py` el Orquestador de producción se
+construía **sin pasarle el vigilante**:
+
+```python
+_orquestador = Orquestador(_repo, _grafo, _emisor, tecnicas=_tecnicas)
+```
+
+`self.vigilante` era `None`, la rama nunca se ejecutó. Sin excepción, sin log y
+sin alerta. Quedaba un solo camino donde la regla exige dos, y los tests del
+Vigilante seguían pasando todos mientras el producto corría sin él.
+
+Y no fue un olvido: **no se le podía pasar.** La evaluación vivía dentro de
+`registrar_turnos`, que está en el camino de un POST que el navegador espera con
+tope de 8 s — y el Vigilante llama a un modelo. Conectarlo ahí habría hecho
+fallar el reporte, y sin reporte no hay recarga de ejercicios (candado #2). La
+única forma de que el producto anduviera era dejar la seguridad apagada.
+
+> Cuando una pieza correcta no se puede conectar sin romper otra cosa, lo que
+> hay no es una pieza suelta: es un diseño mal cortado. El síntoma —"existe pero
+> nadie la llama"— parece descuido y es estructura.
+
+`evaluar_ventana` quedó separado y la ruta lo dispara con `BackgroundTasks`. Las
+dos mitades de la regla se cumplen a la vez: el Vigilante existe y jamás bloquea
+la respuesta del tutor.
+
+### 2. El hook de la voz llegó a 2.317 líneas
+
+La regla del repo dice que un archivo se parte a las ~400 y que **se organiza
+cuando duele**. Dolió el 25/08: dos regresiones seguidas ahí adentro, las dos
+por no poder ver el archivo entero.
+
+Primer corte: las 271 líneas de perillas —umbrales, techos, marcas— salieron a
+`perillas.ts`. Es donde vive el "por qué vale esto" de cada número, y ahora se
+puede leer sin cargar el hook.
+
+**Y al moverlas se rompió algo en silencio**, que es la lección de verdad:
+`medir_fluidez` leía las marcas de la transcripción con un regex sobre
+`useTutor.ts`, con un **respaldo** cableado por si no las encontraba. Al mudarse
+las constantes, el regex dejó de encontrarlas y el medidor empezó a contar
+contra el respaldo. Siguió en verde porque el respaldo casualmente era un
+prefijo del valor real.
+
+> Un respaldo silencioso no protege: tapa. Y tapa exactamente la clase de fallo
+> para la que se puso. El instrumento se degradó y siguió dando números con la
+> misma autoridad.
+
+Ahora no hay respaldo: se lee la constante entera o el script se cae diciendo
+dónde mirar.
+
+### 3. La pizarra no sabía dibujar una resta
+
+Camila la pidió dos veces el mismo día, con dos números distintos y las mismas
+palabras — «siete estrellitas menos cinco, muéstrame visualmente cómo sería»
+(`ses_4e68937a1aed`) y «ahí dice siete estrellas, pero ¿y cuál es la resta? No
+entiendo» (`ses_60ea3b164f17`). Las dos veces recibió la cuenta escrita en
+columna, que es justo lo que no estaba pidiendo.
+
+`grupos` sabía dibujar montones y sumarlos; `operacion` sabía escribir dígitos.
+El puente entre lo concreto y lo simbólico —que es donde vive la resta en 1° y
+2°— no existía. Ahora `quitar` tacha las que se van **sin borrarlas**: el niño
+cuenta las que se fueron y las que quedan en el mismo dibujo. Y `describir` le
+dice al tutor que están tachadas y **no** cuántas quedan, que es la respuesta
+del ejercicio que el niño está resolviendo.
+
+### 4. Un experimento que podía tumbar el producto
+
+`PROMPTS_DIR` permite apuntar los prompts a otro directorio. El alternativo que
+hay en el repo (`prompts_ab_flaco`, ignorado por git) **no tiene los quince**:
+le faltan cinco, entre ellos `apertura`. Activarlo no fallaba al arrancar —
+fallaba en `abrir()`, con el niño ya mirando la pantalla y el botón apretado.
+
+`verificar_prompts()` corre ahora en el arranque. Y un segundo test compara la
+lista de requeridos contra los `cargar_prompt(...)` que hay en el código, porque
+el riesgo real de una lista escrita a mano es que alguien agregue un prompt y no
+la actualice: entonces el chequeo pasa, el producto se sigue rompiendo, y ahora
+hay un test en verde diciendo lo contrario.
+
+### 5. Lo chico
+
+- `"audio/pcm;rate=16000"` estaba cableado en el hook mientras `SAMPLE_RATE_
+  ENTRADA` vivía en `audio.ts`. Mover uno dejaba al otro mintiendo, y el
+  resultado no es un error: es un tutor que oye al niño a otra velocidad. El
+  backend ya lo derivaba; esta punta no. Ahora sale de `MIME_ENTRADA`.
+- `pedagogy.hay_frustracion` no la llamaba nadie: la frustración la detecta el
+  Analista. Borrada.

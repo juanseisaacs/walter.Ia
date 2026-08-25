@@ -259,3 +259,23 @@
 .pz-lista-4 {
   fill: var(--pizarra-vivo-4);
 }
+
+/* LA RESTA DIBUJADA: lo que se quita se TACHA, no desaparece.
+ *
+ * Camila lo pidió dos veces el mismo día —«siete estrellitas menos cinco,
+ * muéstrame visualmente»— y las dos recibió la cuenta escrita en columna. Ver
+ * `Grupos.quitar`.
+ *
+ * Se atenúa pero se sigue viendo, y esa es la idea entera: el niño cuenta las
+ * que se van y las que quedan en el MISMO dibujo. Si desaparecieran, estaría
+ * viendo el resultado en vez de la resta. */
+.pz-quitado > text,
+.pz-quitado > circle {
+  opacity: 0.35;
+}
+
+.pz-quitado line {
+  stroke: var(--pizarra-tachado, #d1495b);
+  stroke-width: 3;
+  stroke-linecap: round;
+}

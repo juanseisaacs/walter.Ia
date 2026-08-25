@@ -123,3 +123,24 @@ def test_la_sordera_se_cuenta():
 
     m = medir(f"tutor: ¿cuánto da?\nnino: {_marca_de_sordera()}\n", MUDEZ)
     assert m["sordera"] == 1
+
+
+def test_las_marcas_se_leen_del_codigo_de_verdad_y_no_de_un_respaldo():
+    """UN INSTRUMENTO QUE SE DEGRADA EN SILENCIO MIENTE CON AUTORIDAD.
+
+    Estas marcas las escribe el navegador y las cuenta este script: son dos
+    puntas que se pueden desincronizar sin que nada avise. Había un respaldo
+    —un prefijo cableado acá— y el 25/08 hizo exactamente lo que hacen los
+    respaldos: al mudarse las constantes a `perillas.ts`, el regex dejó de
+    encontrarlas, esto empezó a contar contra el prefijo, y siguió en verde
+    porque el prefijo casualmente coincidía.
+
+    Ahora no hay respaldo: se lee la constante completa o se cae.
+    """
+    from scripts.medir_fluidez import _marca_de_mudez, _marca_de_sordera, _marca_de_voz_muda
+
+    for leer in (_marca_de_mudez, _marca_de_voz_muda, _marca_de_sordera):
+        marca = leer()
+        assert marca.startswith("[") and marca.endswith("]"), (
+            f"{marca!r} está truncada: se está leyendo un respaldo, no la constante"
+        )

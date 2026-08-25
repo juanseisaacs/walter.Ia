@@ -262,6 +262,11 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
   // palabras — ver `emojis.ts`. Sin coincidencia, el punto de siempre.
   const dibujo = dibujoDe(e.nombre);
 
+  // LA RESTA DIBUJADA. Se tachan las ÚLTIMAS, contando de corrido por todas las
+  // cajas: así el niño ve de dónde salen las que se van. Ver `Grupos.quitar`.
+  const total = cuantos.reduce((a, b) => a + b, 0);
+  const desdeDondeSeTacha = e.quitar ? total - Math.min(e.quitar, total) : total;
+
   return (
     <>
       <Trazo paso={0}>
@@ -269,9 +274,11 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
           {/* Con cantidades distintas el rótulo ES la cuenta: "5 + 3 + 6
               pollitos". Decir "3 grupos de 5" sobre cajas desiguales sería
               describirle mal lo que tiene delante. */}
-          {e.cantidades?.length
-            ? `${e.cantidades.join(" + ")} ${e.nombre ?? "en total"}`
-            : `${e.grupos} ${e.nombre ?? "grupos"} de ${e.porGrupo}`}
+          {e.quitar
+            ? `${total} ${e.nombre ?? "cosas"} − ${Math.min(e.quitar, total)}`
+            : e.cantidades?.length
+              ? `${e.cantidades.join(" + ")} ${e.nombre ?? "en total"}`
+              : `${e.grupos} ${e.nombre ?? "grupos"} de ${e.porGrupo}`}
         </text>
       </Trazo>
 
@@ -292,15 +299,31 @@ function VistaGrupos({ e }: { e: import("./escenas").Grupos }) {
               Array.from({ length: cuantas }, (_, p) => {
                 const px = cx + (cajaAncho / (pCols + 1)) * ((p % pCols) + 1);
                 const py = cy + (cajaAlto / (pFilas + 1)) * (Math.floor(p / pCols) + 1);
+                // Cuál es este contando de corrido, para saber si le toca
+                // tacharse. Sin esto el tachado empezaría en cada caja.
+                const indice = cuantos.slice(0, g).reduce((a, b) => a + b, 0) + p;
+                const tachado = indice >= desdeDondeSeTacha;
                 // El emoji se ancla por su centro; el punto, por el suyo. Sin
                 // el `dy` los dibujitos quedan medio renglón por encima de
                 // donde estaban los puntos.
-                return dibujo ? (
-                  <text key={p} x={px} y={py} dy="0.35em" className="pz-dibujo">
+                const cosa = dibujo ? (
+                  <text x={px} y={py} dy="0.35em" className="pz-dibujo">
                     {dibujo}
                   </text>
                 ) : (
-                  <circle key={p} cx={px} cy={py} r="6" className="pz-punto" />
+                  <circle cx={px} cy={py} r="6" className="pz-punto" />
+                );
+                // TACHADA, NO BORRADA: el niño tiene que poder contar las que
+                // se van y las que quedan en el mismo dibujo. Esa es la
+                // diferencia entre ver una resta y ver un resultado.
+                return tachado ? (
+                  <g key={p} className="pz-quitado">
+                    {cosa}
+                    <line x1={px - 9} y1={py - 9} x2={px + 9} y2={py + 9} />
+                    <line x1={px + 9} y1={py - 9} x2={px - 9} y2={py + 9} />
+                  </g>
+                ) : (
+                  <g key={p}>{cosa}</g>
                 );
               })
             ) : (

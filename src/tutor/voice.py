@@ -403,7 +403,8 @@ DECLARACIONES_TOOLS: list[dict] = [
                         "operacion: una cuenta en columna (SOLO dos números) · "
                         "grupos: montones de cosas para contar — iguales con "
                         "grupos/por_grupo, o distintos con cantidades, que es como "
-                        "se dibuja una suma de varios sumandos · "
+                        "se dibuja una suma de varios sumandos; con `quitar` se "
+                        "dibuja una RESTA, tachando las que se van · "
                         "recta: recta numérica · fraccion: una fracción "
                         "partida · texto: UNA letra o palabra grande, escrita a "
                         "mano en letra de imprenta suelta — NO hay cursiva ni letra "
@@ -448,6 +449,19 @@ DECLARACIONES_TOOLS: list[dict] = [
                     ),
                 },
                 "nombre": {"type": "string", "description": "grupos: 'cajas', 'bolsas'"},
+                "quitar": {
+                    "type": "number",
+                    "description": (
+                        "grupos: LA RESTA DIBUJADA. Cuántos de los que dibujaste "
+                        "se quitan: salen TACHADOS, no desaparecen, para que el "
+                        "niño cuente los que se van y los que quedan en el mismo "
+                        "dibujo. «7 estrellitas menos 5» → por_grupo=7, "
+                        "nombre='estrellitas', quitar=5. Úsalo siempre que te "
+                        "pidan ver una resta de cosas: `operacion` escribe la "
+                        "cuenta en dígitos, que es justo lo que NO te están "
+                        "pidiendo cuando dicen «muéstramelo»."
+                    ),
+                },
                 "desde": {"type": "number", "description": "recta: número inicial"},
                 "hasta": {"type": "number", "description": "recta: número final"},
                 "marca": {"type": "number", "description": "recta: dónde está parado"},
@@ -831,3 +845,45 @@ def emisor_por_defecto() -> EmisorDeTokens:
 def ruta_prompts_existentes(idioma: str = cfg.IDIOMA_POR_DEFECTO) -> list[Path]:
     """Para diagnóstico: qué prompts hay cargados."""
     return sorted(cfg.PROMPTS.glob(f"*.{idioma}.md"))
+
+
+# Todo prompt que alguien carga en algún camino del producto. Si falta uno, el
+# fallo no aparece al arrancar: aparece cuando un niño ya está en la pantalla.
+PROMPTS_REQUERIDOS = (
+    "apertura",
+    "apertura_primer_dia",
+    "exercise_generator",
+    "exercise_generator_lengua",
+    "method_auditor",
+    "parent_companion",
+    "parent_interview",
+    "parent_interview_apertura",
+    "primer_encuentro",
+    "safety_policy",
+    "session_analyst",
+    "socratic_playbook",
+    "tutor_persona",
+    "valores",
+    "vigilante",
+)
+
+
+def verificar_prompts(idioma: str = cfg.IDIOMA_POR_DEFECTO) -> list[str]:
+    """Cuáles de los prompts requeridos faltan en `cfg.PROMPTS`. Vacía = todo bien.
+
+    Existe por `PROMPTS_DIR`, que permite apuntar los prompts a otro directorio
+    para comparar dos versiones sin tocar código. El directorio alternativo que
+    hay en el repo (`knowledge/prompts_ab_flaco`, ignorado por git) **no tiene
+    los quince**: le faltan cinco, entre ellos `apertura`. Activarlo no da un
+    error al arrancar — da un `FileNotFoundError` en `abrir()`, o sea con el
+    niño ya mirando la pantalla y el botón apretado.
+
+    Un experimento que se puede activar y romper el producto en el peor momento
+    no es un experimento: es una trampa. Esto lo convierte en un fallo al
+    arrancar, que es donde se puede arreglar.
+    """
+    faltan = []
+    for nombre in PROMPTS_REQUERIDOS:
+        if not (cfg.PROMPTS / f"{nombre}.{idioma}.md").exists():
+            faltan.append(nombre)
+    return faltan

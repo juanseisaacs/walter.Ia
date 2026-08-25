@@ -1036,3 +1036,40 @@ def test_la_pregunta_de_vuelta_no_puede_ser_retorica():
         "el playbook no nombra la pregunta retórica, que es la que el modelo usa"
     )
     assert 'se contesta\ncon "sí"' in playbook or 'se contesta con "sí"' in playbook
+
+
+def test_estan_todos_los_prompts_que_el_producto_carga():
+    """Un prompt que falta no falla al arrancar: falla con el niño en pantalla.
+
+    `cargar_prompt` levanta `FileNotFoundError` en el momento de usarse, o sea
+    dentro de `abrir()` — botón apretado, pantalla abierta, y un 500. Esto lo
+    convierte en un fallo al arrancar, que es donde se puede arreglar.
+    """
+    from tutor.voice import verificar_prompts
+
+    assert verificar_prompts() == [], "faltan prompts que algún camino del producto carga"
+
+
+def test_la_lista_de_requeridos_no_se_queda_vieja():
+    """El riesgo real de una lista escrita a mano es que alguien agregue un
+    `cargar_prompt("x")` y no la actualice: entonces el chequeo pasa y el
+    producto sigue rompiéndose en el peor momento, pero ahora con un test en
+    verde que dice lo contrario.
+
+    Se lee del código quién carga qué, y se compara.
+    """
+    import re
+    from pathlib import Path
+
+    from tutor.voice import PROMPTS_REQUERIDOS
+
+    raiz = Path(__file__).resolve().parent.parent
+    usados = set()
+    for py in list((raiz / "src" / "tutor").glob("*.py")) + list((raiz / "scripts").glob("*.py")):
+        fuente = py.read_text(encoding="utf-8")
+        usados |= set(re.findall(r'cargar_prompt\(\s*"([a-z_]+)"', fuente))
+        # El de apertura se elige con un condicional adentro de la llamada.
+        usados |= set(re.findall(r'cargar_prompt\(\s*"([a-z_]+)" if ', fuente))
+
+    faltan = usados - set(PROMPTS_REQUERIDOS)
+    assert not faltan, f"alguien carga estos prompts y no están en PROMPTS_REQUERIDOS: {faltan}"

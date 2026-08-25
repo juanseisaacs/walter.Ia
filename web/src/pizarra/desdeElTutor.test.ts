@@ -446,3 +446,49 @@ describe("cuando la etiqueta y los campos se contradicen, mandan los campos", ()
     expect(c?.escena).toMatchObject({ tipo: "operacion", a: 56, b: 38 });
   });
 });
+
+describe("la resta dibujada", () => {
+  // Camila la pidió dos veces el mismo día, con dos números distintos y las
+  // mismas palabras: «siete estrellitas menos cinco, muéstrame visualmente cómo
+  // sería» (ses_4e68937a1aed) y «ahí dice siete estrellas, pero ¿y cuál es la
+  // resta? No entiendo» (ses_60ea3b164f17). Las dos veces recibió la cuenta
+  // escrita en columna, que es justo lo que NO estaba pidiendo.
+  it("tacha las que se quitan en vez de escribir la cuenta", () => {
+    const c = aCuadro({ tipo: "grupos", por_grupo: 7, nombre: "estrellitas", quitar: 5 });
+    expect(c?.escena).toMatchObject({
+      tipo: "grupos",
+      porGrupo: 7,
+      quitar: 5,
+      nombre: "estrellitas",
+    });
+  });
+
+  it("sin `quitar` la escena queda igual que siempre", () => {
+    const c = aCuadro({ tipo: "grupos", por_grupo: 7, nombre: "estrellitas" });
+    expect(c?.escena).not.toHaveProperty("quitar");
+  });
+
+  it("no se puede quitar más de lo que hay", () => {
+    // "quítale ocho a cinco" no es un dibujo que se pueda hacer. Se acota en
+    // vez de devolver null: un tablero vacío deja al niño sin nada y al tutor
+    // diciendo que le está mostrando algo.
+    const c = aCuadro({ tipo: "grupos", por_grupo: 5, quitar: 8 })?.escena as any;
+    expect(c.quitar).toBeLessThanOrEqual(5);
+  });
+
+  it("el tutor se entera de que están TACHADAS, no borradas", () => {
+    // Es lo que le impide decir «ya no están». Si el tutor cree que
+    // desaparecieron, le habla al niño de una pantalla que no existe.
+    const c = aCuadro({ tipo: "grupos", por_grupo: 7, nombre: "estrellitas", quitar: 5 })!;
+    const dicho = describir(c);
+    expect(dicho).toContain("TACHADAS");
+    expect(dicho).toContain("7 estrellitas");
+  });
+
+  it("NO le dice al tutor cuántas quedan: esa es la respuesta del ejercicio", () => {
+    // El niño está resolviendo justo eso. Dárselo masticado al tutor es ponerle
+    // la respuesta en la boca en el único momento en que no puede darla.
+    const dicho = describir(aCuadro({ tipo: "grupos", por_grupo: 7, quitar: 5 })!);
+    expect(dicho).not.toMatch(/\bquedan 2\b|\bson 2\b|= ?2\b/);
+  });
+});

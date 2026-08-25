@@ -169,7 +169,19 @@ function aEscena(args: any): Escena | null {
       // Al revés NO se asume: `grupos: 3` sin `por_grupo` es "tres cajas de no
       // se sabe cuánto", y ahí no hay dibujo que adivinar.
       if (grupos === undefined || porGrupo === undefined) return null;
-      return { tipo: "grupos", grupos, porGrupo, nombre };
+
+      // LA RESTA DIBUJADA. Ver `Grupos.quitar`: Camila la pidió dos veces el
+      // mismo día y las dos recibió la cuenta en columna.
+      //
+      // SE ACOTA, NO SE RECHAZA. "Quítale ocho a cinco estrellas" no es un
+      // dibujo que se pueda hacer, y `entero()` fuera de rango devuelve
+      // undefined — o sea que el `quitar` se caía y quedaban cinco estrellas
+      // SIN tachar, con el tutor diciéndole al niño que ahí estaba la resta.
+      // Tacharlas todas es lo honesto: `describir` le cuenta al tutor qué quedó
+      // y puede hablar de eso, incluso de que el enunciado no da.
+      const pedido = entero(args.quitar, 1, Number.MAX_SAFE_INTEGER);
+      const quitar = pedido === undefined ? undefined : Math.min(pedido, grupos * porGrupo);
+      return { tipo: "grupos", grupos, porGrupo, nombre, ...(quitar ? { quitar } : {}) };
     }
 
     case "recta": {
@@ -291,6 +303,18 @@ export function describir(cuadro: Cuadro): string {
       // son tres montones diferentes.
       if (e.cantidades?.length) {
         return `${e.cantidades.join(" + ")} ${e.nombre ?? "cosas"} en montones separados${con}`;
+      }
+      // LA RESTA DIBUJADA, dicha como la ve el niño. Y con el resultado
+      // AFUERA: lo que el tachado enseña es a contar las que quedan, y
+      // decírselo al tutor sería ponerle la respuesta en la boca justo en el
+      // ejercicio que el niño está resolviendo.
+      if (e.quitar) {
+        const total = e.grupos * e.porGrupo;
+        return (
+          `${total} ${e.nombre ?? "cosas"}, de las cuales ${e.quitar} están ` +
+          `TACHADAS para quitarlas${con}. Las tachadas se siguen viendo: el niño ` +
+          `puede contar las que quedan sin tachar`
+        );
       }
       // Un montón solo no son "1 grupos con 9 en cada uno". Se lo decimos como
       // lo ve el niño —nueve galletas juntas—, porque de esto sale la frase con

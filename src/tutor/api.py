@@ -45,7 +45,7 @@ from .session import ErrorPresupuesto, ErrorSesion, Orquestador, Turno
 from .storage import RepositorioSQLite
 from .tecnicas import cambio_de_metodo, cargar_biblioteca
 from .tools import Veredicto, check_answer, verify_arithmetic, verify_language
-from .voice import emisor_por_defecto
+from .voice import emisor_por_defecto, verificar_prompts
 
 
 @asynccontextmanager
@@ -59,6 +59,18 @@ async def _ciclo_de_vida(_app: FastAPI):
     Que falle no puede tumbar el arranque: sin llave el emisor es el falso, y un
     error de red acá solo significa que la primera sesión paga lo de antes.
     """
+    # ANTES QUE NADA: ¿están los prompts que este producto necesita?
+    #
+    # `PROMPTS_DIR` deja apuntarlos a otro directorio, y el alternativo que hay
+    # en el repo no tiene los quince. Sin este chequeo, activarlo no falla al
+    # arrancar: falla en `abrir()`, con el niño ya mirando la pantalla. Un
+    # experimento que revienta en el peor momento no es un experimento.
+    if faltan := verificar_prompts():
+        raise RuntimeError(
+            f"Faltan prompts en {cfg.PROMPTS}: {', '.join(faltan)}. "
+            f"Si estás usando PROMPTS_DIR, ese directorio está incompleto."
+        )
+
     if (calentar := getattr(_emisor, "_obtener", None)) is not None:
         try:
             calentar()

@@ -77,6 +77,28 @@ export interface Grupos {
    * Cuando viene, manda sobre `grupos`/`porGrupo`.
    */
   cantidades?: number[];
+  /**
+   * Cuántos de esos se QUITAN: se dibujan tachados, no desaparecen.
+   *
+   * Es el hueco que Camila encontró dos veces el mismo día, con dos números
+   * distintos y las mismas palabras:
+   *
+   *   «Ayúdame con restas de estrellitas. Siete estrellitas menos cinco
+   *    estrellitas, muéstrame visualmente cómo sería.» (`ses_4e68937a1aed`)
+   *   «ahí dice siete estrellas, pero ¿y cuál es la resta? No entiendo.»
+   *    (`ses_60ea3b164f17`)
+   *
+   * La pizarra sabía dibujar siete estrellas (`grupos`) y sabía escribir la
+   * cuenta `7 − 5` en columna (`operacion`), y ninguna de las dos es lo que
+   * ella pedía. Las dos veces el tutor le puso la cuenta y le dijo que le
+   * estaba mostrando las estrellitas.
+   *
+   * **Tachadas y no borradas**, que es la diferencia entre ver una resta y ver
+   * un resultado: el niño tiene que poder contar las que se van y las que
+   * quedan en el mismo dibujo. Es el puente entre lo concreto y lo simbólico,
+   * que es exactamente donde vive la resta en 1° y 2°.
+   */
+  quitar?: number;
 }
 
 /** Hasta acá los puntos se cuentan de un vistazo. Pasado esto, va el número.

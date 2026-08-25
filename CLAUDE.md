@@ -145,6 +145,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Agregar un dibujito a la pizarra | `web/src/pizarra/emojis.ts` |
 | Cambiar qué medios dice el tutor que tiene (y cuáles no) | `knowledge/prompts/tutor_persona.es.md`, §«Lo que tienes para darle». Ofrecer lo que no hay es una promesa rota |
 | Saber por qué una conversación se sintió lenta o enredada | El **diario de la voz**: `web/src/voz/diario.ts` lo escribe, `POST /sesiones/{id}/diario` lo recibe, `revisar_sesion` lo muestra. El backend responde en 4 ms y no ve nada de ese camino |
+| Mover un umbral, un techo o una marca de la voz | `web/src/voz/perillas.ts`. Cada número tiene escrito por qué vale eso — moverlo sin leerlo devuelve un bug que ya costó un día |
 | Cambiar qué pasa cuando el niño habla y NADIE LO OYE | `MS_VOZ_SIN_ACUSE` y `destrabarElOido` en `useTutor.ts`. Primero `audioStreamEnd` (flush del turno colgado), después la escalera de la mudez |
 | Cambiar qué pasa cuando el tutor habla y NO SE OYE | `MS_VOZ_MUDA` y `vigilarVoz` en `useTutor.ts`, `ReproductorContinuo.vozMuda` en `audio.ts`. Vigila el síntoma, no la causa: ya hubo tres causas distintas |
 | Cambiar cuándo el micrófono manda audio y cuándo silencio | `web/src/voz/colaDelMicrofono.ts`. **Entra un bloque, sale un bloque**: el stream ni se corta ni se alarga. Los umbrales viven en `useTutor.ts` |
@@ -183,10 +184,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 683 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 690 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
-| `cd web && npm test` | 195 tests del front: audio, micrófono, cola del micrófono, pizarra, hoja, mudez | no |
+| `cd web && npm test` | 200 tests del front: audio, micrófono, cola del micrófono, pizarra, hoja, mudez | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
@@ -262,7 +263,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **683** de Python + **195** del front, en verde. Lint en cero |
+| Tests | **690** de Python + **200** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

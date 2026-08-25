@@ -14,6 +14,14 @@
 export const SAMPLE_RATE_SALIDA = 24_000; // lo que devuelve Gemini
 export const SAMPLE_RATE_ENTRADA = 16_000; // lo que Gemini espera
 
+/** Lo que viaja en cada bloque. DERIVADO de la constante, no escrito a mano.
+ *
+ * Estaba cableado como `"audio/pcm;rate=16000"` en el hook mientras el sample
+ * rate vivía acá arriba: mover uno dejaba al otro mintiendo, y el resultado no
+ * es un error sino un tutor que oye al niño a otra velocidad. El backend ya lo
+ * derivaba (`voice.MIME_ENTRADA`); esta punta no. */
+export const MIME_ENTRADA = `audio/pcm;rate=${SAMPLE_RATE_ENTRADA}`;
+
 /** Colchón por si venimos con retraso: arrancar ya en vez de rellenar un hueco. */
 const COLCHON_SEG = 0.015;
 
