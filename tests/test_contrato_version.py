@@ -270,6 +270,58 @@ def test_alguien_vigila_que_la_voz_SUENE_y_no_solo_que_llegue():
     )
 
 
+def test_el_diario_de_la_voz_esta_conectado_de_punta_a_punta():
+    """LA TERCERA VEZ QUE UN DIAGNÓSTICO TERMINÓ EN UNA HIPÓTESIS (25/08).
+
+    Todo lo que decide si una conversación se siente fluida pasa en el
+    navegador —cuánto tardó el modelo, cuánto tardó un tool, si el barge-in
+    disparó, si el audio no sonó— y vivía solo en su consola: se iba con la
+    pestaña. El backend responde en 4 ms y no ve nada de ese camino, y la
+    transcripción llega por otro lado, así que una sesión que se sintió pésima
+    se ve idéntica a una sana.
+
+    Son tres piezas y cada una sola es inútil: el que anota, el que recibe y el
+    que lo lee. Este test las cruza.
+    """
+    ts = _texto(USE_TUTOR)
+    api_ts = _texto(API_TS)
+    api_py = (RAIZ / "src" / "tutor" / "api.py").read_text(encoding="utf-8")
+    revisar = (RAIZ / "scripts" / "revisar_sesion.py").read_text(encoding="utf-8")
+
+    # 1. El navegador anota los eventos que solo él ve.
+    for evento in ("latencia", "tool", "mudez", "barge_in", "voz_muda"):
+        assert f'"{evento}"' in ts, f"el diario dejó de anotar `{evento}`"
+
+    # 2. Y los manda por una ruta que el backend sirve.
+    assert "/diario" in api_ts, "el front no tiene cómo mandar el diario"
+    assert "/diario" in api_py, "el backend no recibe el diario que el front manda"
+
+    # 3. Fuera del camino del audio: sin await y con su propio catch. Un
+    #    diagnóstico que le cueste latencia al niño es peor que no tenerlo.
+    envio = ts[ts.index("new Diario(") : ts.index("new Diario(") + 400]
+    assert "void api.anotarDiario" in envio and ".catch(" in envio, (
+        "el diario se manda esperándolo: eso lo pone en el camino del niño"
+    )
+
+    # 4. Y alguien lo LEE. Un dato que no se mira no es observabilidad.
+    assert "leer_diario" in revisar, "`revisar_sesion` dejó de mostrar el diario"
+
+
+def test_el_diario_se_drena_al_cerrar():
+    """El lote que falta es siempre el que explica por qué se cayó.
+
+    Se manda en lotes para no llamar por evento, así que al cerrar siempre
+    quedan pendientes — y son los del final de la sesión, o sea justo el tramo
+    que después hace falta leer.
+    """
+    ts = _texto(USE_TUTOR)
+    soltar = ts.index("const soltarRecursos")
+    fin = ts.index("EL TABLERO TAMPOCO SOBREVIVE", soltar)
+    assert "diarioRef.current?.drena()" in ts[soltar:fin], (
+        "el final de la sesión se pierde: es el único tramo que siempre importa"
+    )
+
+
 def test_el_saludo_tambien_esta_protegido():
     """EL TURNO MÁS EXPUESTO DE LA SESIÓN, y era el único sin cubrir.
 

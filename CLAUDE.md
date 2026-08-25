@@ -144,6 +144,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | Cambiar con qué materia arranca un niño nuevo | `pedagogy.ORDEN_DE_MATERIAS` |
 | Agregar un dibujito a la pizarra | `web/src/pizarra/emojis.ts` |
 | Cambiar qué medios dice el tutor que tiene (y cuáles no) | `knowledge/prompts/tutor_persona.es.md`, §«Lo que tienes para darle». Ofrecer lo que no hay es una promesa rota |
+| Saber por qué una conversación se sintió lenta o enredada | El **diario de la voz**: `web/src/voz/diario.ts` lo escribe, `POST /sesiones/{id}/diario` lo recibe, `revisar_sesion` lo muestra. El backend responde en 4 ms y no ve nada de ese camino |
 | Cambiar qué pasa cuando el tutor habla y NO SE OYE | `MS_VOZ_MUDA` y `vigilarVoz` en `useTutor.ts`, `ReproductorContinuo.vozMuda` en `audio.ts`. Vigila el síntoma, no la causa: ya hubo tres causas distintas |
 | Cambiar cuándo el micrófono manda audio y cuándo silencio | `web/src/voz/colaDelMicrofono.ts`. **Entra un bloque, sale un bloque**: el stream ni se corta ni se alarga. Los umbrales viven en `useTutor.ts` |
 | Cambiar cuánto se espera antes de dar al tutor por mudo | `MS_MUDEZ` en `web/src/voz/useTutor.ts`. El tope de las tools (`api.ts`) tiene que quedar por debajo |
@@ -181,10 +182,10 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 
 | Comando | Qué cubre | ¿Gasta cuota? |
 |---|---|---|
-| `pytest` | 668 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
+| `pytest` | 676 tests: lógica, agentes con cliente falso, contratos. Sin red | no |
 | `ruff check .` | Lint. Tiene que quedar en cero — `F811` ya escondió un test que no corría | no |
 | `python -m scripts.verificar_cadena` | Que ningún veredicto del método se haya tocado. `--sembrar` ancla los que ya existían | no |
-| `cd web && npm test` | 189 tests del front: audio, micrófono, cola del micrófono, pizarra, hoja, mudez | no |
+| `cd web && npm test` | 195 tests del front: audio, micrófono, cola del micrófono, pizarra, hoja, mudez | no |
 | `cd web && npm run build` | Que TypeScript compile. Necesario para hablar con el tutor | no |
 | _(automático)_ | Un **hook** valida `knowledge/` en cuanto se edita: currículum → `test_curriculum`, prompts → `test_voice`. Ver `.claude/settings.json` y `scripts/hook_validar_knowledge.py` | no |
 | `python -m scripts.demo_planificador` | El cerebro con datos realistas. Detectó lo que la suite no vio (fase 2) | no |
@@ -192,7 +193,7 @@ Estas no se negocian. Cada una viene de una decisión razonada en
 | `python -m scripts.demo_tecnicas` | El motor de técnicas sesión a sesión, con tres niños simulados | no |
 | `python -m scripts.demo_verificacion` | `check_answer` con respuestas habladas | no |
 | `python -m scripts.listo_para_hablar` | **Antes de entregar un enlace.** ¿El servidor responde Y Gemini acepta una sesión Live? Un `POST /api/sesiones` con 200 no prueba nada: el 24/08 los cuatro enlaces daban 200 y el producto estaba caído por créditos agotados | **sí** (una conexión de 1 s) |
-| `python -m scripts.revisar_sesion` | **Lo primero después de cada sesión.** Cierre, aprendizaje, método, fluidez y costo de la última sesión, en una pantalla. Existe para no volver a reconstruir a mano lo que ya está en cinco lugares | no |
+| `python -m scripts.revisar_sesion` | **Lo primero después de cada sesión.** Cierre, aprendizaje, método, fluidez, **el diario de la voz** (latencias, tools, mudez, barge-in, con el minuto en que pasaron) y costo, en una pantalla. Existe para no volver a reconstruir a mano lo que ya está en cinco lugares | no |
 | `python -m scripts.medir_fluidez` | Cuánto se traba la conversación: turnos cortados **del tutor y del niño**, los del niño **descabezados** (empiezan a mitad: el micrófono se comió el arranque), retomas y mudeces. Es el número que le faltaba a «no está fluida» | no |
 | `python -m scripts.verificar_tokens` | Si `totalTokenCount` es acumulado o por request. **Abre sesión Live real** — el techo del prompt lo cubre `pytest tests/test_voice.py`, que no gasta nada | **sí** |
 | `python -m scripts.build_exercise_bank` | Reconstruye el banco. El validador impide voseo y enunciados largos — eso no lo sostiene el prompt | **sí** |
@@ -260,7 +261,7 @@ evidencia de hoy → el reporte semanal lo cuenta → el papá lo lee en el pane
 |---|---|
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
-| Tests | **668** de Python + **189** del front, en verde. Lint en cero |
+| Tests | **676** de Python + **195** del front, en verde. Lint en cero |
 | Casos de eval en las 4 suites de YC | **48** |
 | Sesiones de prueba corridas | **62**, todas nuestras — ningún niño externo todavía |
 

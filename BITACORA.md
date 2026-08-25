@@ -2383,3 +2383,63 @@ mudo.
 una columna nueva (`sin voz`). Sin esa marca, una sesión que el niño no oyó se
 ve **idéntica** a una sana: el texto llega igual, por otro camino. Era el único
 de los cinco síntomas de fluidez que no dejaba ninguna huella.
+
+---
+
+## Tres diagnósticos, tres hipótesis, cero datos (25/08, `ses_fd1b97ff577e`)
+
+La sesión fue la mejor del día: método impecable en la auditoría, el niño
+dedujo solo la regla de par e impar —«o sea que cuando se puede repartir las
+galletas en cantidades iguales es par»— y la fluidez cayó a 7% de cortes y **0
+turnos descabezados**, contra 38% y 10% de la mañana. Los dos arreglos
+anteriores funcionaron.
+
+Y aun así se rompió al final. Después del segundo dibujo:
+
+```
+nino:  Pero el título dice dos unicornios de 12, creo que ese título está mal…
+tutor: [el tutor no contestó: se quedó callado]
+tutor: Uy, Juan, perdóname, se me fue el sonido un momentico.
+nino:  Ya los conté y dan 12, pero no me estás hablando, solo te estoy
+```
+
+RBH lo describió así: *«pareciera que de un momento a otro se va a buscar la
+respuesta o la siguiente interacción, y ya luego llega tarde y ahí es donde se
+empieza a enredar»*.
+
+**Y no pude decir por qué.** Todo lo que contesta esa pregunta —cuánto tardó el
+modelo en arrancar, cuánto tardó el tool de la pizarra, si el barge-in disparó—
+existía, medido y con su número, en `console.info`. O sea: **se fue con la
+pestaña.**
+
+Fue la tercera vez en el mismo día. Las dos anteriores se resolvieron por
+lectura del código y salió bien, pero las tres empezaron igual: sin el dato que
+importaba.
+
+> El backend responde en 4 ms y no ve nada del camino de la voz. La
+> transcripción llega por un camino distinto del audio, así que una sesión que
+> se sintió pésima se ve **idéntica** a una sana. Con esas dos fuentes, "no está
+> fluida" no es diagnosticable: es una conversación sobre sensaciones.
+
+### El diario de la voz
+
+`web/src/voz/diario.ts` acumula lo que solo la pestaña sabe y lo manda en lotes
+a `POST /api/sesiones/{id}/diario`; se guarda junto a la transcripción y
+`revisar_sesion` lo muestra como una línea de tiempo — con el minuto en que
+pasó cada cosa, no un promedio. «Se enredó al final» se prueba viendo que a los
+3:42 un tool tardó seis segundos; el promedio lo esconde.
+
+Tres cuidados, y los tres son la razón de que sea una pieza aparte:
+
+- **nunca en el camino del audio.** Sale sin `await` y con su propio `catch`. Un
+  diagnóstico que le cueste latencia al niño es peor que no tenerlo.
+- **con techo, y tirando los viejos.** Cuando una sesión se rompe, lo que
+  explica por qué está al final; guardar el principio sería quedarse con la
+  única parte que no hace falta.
+- **muere con su transcripción.** Es dato de la conversación de un menor. Un
+  diario que sobreviva a la política de retención es un agujero en la política.
+
+Y el contrato lo cruzan las tres piezas juntas (`test_contrato_version.py`):
+el que anota, el que recibe y el que lo lee. Cada una sola es inútil — un
+backend que guarda un diario que nadie mira es exactamente el mismo silencio de
+antes, pero con más código.

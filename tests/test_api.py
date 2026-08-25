@@ -917,3 +917,27 @@ def test_cerrar_acepta_el_cuerpo_que_manda_sendBeacon(cliente):
     assert r.status_code == 200
     assert r.json()["estado"] == "interrumpida"
     assert r.json()["tokens_consumidos"] == 4200
+
+
+def test_el_diario_de_la_voz_se_guarda(cliente):
+    """El camino que convierte «se enreda» en un dato.
+
+    Todo lo que decide si una conversación se siente fluida pasa en el
+    navegador: latencias, tools, mudez, barge-in. El backend responde en 4 ms y
+    no ve nada de eso, así que sin este endpoint una sesión que se sintió pésima
+    se ve igual de sana que una buena.
+    """
+    sesion_id = _abrir(cliente)
+    r = cliente.post(
+        f"/api/sesiones/{sesion_id}/diario",
+        json={"eventos": [{"t": "latencia", "ms": 1400}, {"t": "tool", "nombre": "x", "ms": 30}]},
+    )
+    assert r.status_code == 204
+    assert [e["t"] for e in api._repo.leer_diario(sesion_id)] == ["latencia", "tool"]
+
+
+def test_el_diario_nunca_falla_aunque_la_sesion_no_exista(cliente):
+    """Igual que el latido: perder un lote de diagnóstico no puede convertirse
+    en un error en la pantalla del niño."""
+    r = cliente.post("/api/sesiones/ses_que_no_existe/diario", json={"eventos": [{"t": "x"}]})
+    assert r.status_code == 204

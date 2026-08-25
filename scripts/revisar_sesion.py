@@ -41,6 +41,62 @@ def _marca(ok: bool | None, si: str, no: str) -> str:
     return f"  OK  {si}" if ok else f"  --  {no}"
 
 
+def _diario(sesion_id: str) -> None:
+    """La línea de tiempo de la VOZ: latencias, tools, mudez, barge-in.
+
+    Lo que se busca acá es dónde se rompió el ritmo. Por eso se muestran los
+    números y no un promedio: «se enredó al final» se prueba viendo que a los
+    3:42 un tool tardó seis segundos, no viendo que la media fue de 900 ms.
+    """
+    from tutor.storage import RepositorioSQLite  # noqa: PLC0415
+
+    repo = RepositorioSQLite(cfg.DB, cfg.RAIZ / "data")
+    eventos = repo.leer_diario(sesion_id)
+
+    print("\n LO QUE SOLO EL NAVEGADOR SABE  (diario de la voz)")
+    if not eventos:
+        print("  ??  sin diario: la pestaña es anterior al 25/08, o no alcanzó a reportar")
+        return
+
+    inicio = eventos[0].get("en", 0)
+    latencias = [e["ms"] for e in eventos if e.get("t") == "latencia" and "ms" in e]
+    tools = [e for e in eventos if e.get("t") == "tool"]
+
+    if latencias:
+        peor = max(latencias)
+        print(
+            f"  latencia del tutor: mediana {sorted(latencias)[len(latencias) // 2]:,} ms · "
+            f"peor {peor:,} ms  ({len(latencias)} turnos)"
+        )
+    if tools:
+        peor_tool = max(tools, key=lambda e: e.get("ms", 0))
+        print(
+            f"  tools: {len(tools)} llamadas · la más lenta "
+            f"{peor_tool.get('nombre')} {peor_tool.get('ms', 0):,} ms"
+        )
+
+    # Y los que rompen el ritmo, con el minuto en que pasaron: son los que
+    # explican un «de un momento a otro se dañó».
+    RUIDOSOS = {"mudez", "reconexion", "voz_muda", "barge_in_falso", "interrupted"}
+    quiebres = [e for e in eventos if e.get("t") in RUIDOSOS]
+    LENTO_MS = 2_000
+    lentos = [
+        e for e in eventos if e.get("t") in ("tool", "latencia") and e.get("ms", 0) >= LENTO_MS
+    ]
+
+    interesantes = sorted(quiebres + lentos, key=lambda e: e.get("en", 0))
+    if not interesantes:
+        print("  OK  ni un quiebre: sin mudez, sin cortes falsos y sin esperas largas")
+        return
+
+    print(f"\n  dónde se rompió el ritmo ({len(interesantes)}):")
+    for e in interesantes[-12:]:
+        seg = (e.get("en", inicio) - inicio) / 1000
+        detalle = e.get("nombre") or e.get("rescate") or e.get("intento") or e.get("nivel") or ""
+        ms = f" {e['ms']:,} ms" if "ms" in e else ""
+        print(f"    {int(seg) // 60:d}:{int(seg) % 60:02d}  {e.get('t'):<16}{detalle}{ms}")
+
+
 def main() -> int:
     con = sqlite3.connect(cfg.DB)
     con.row_factory = sqlite3.Row
@@ -135,6 +191,15 @@ def main() -> int:
         )
     else:
         print("  ??  sin transcripción")
+
+    # ── Lo que solo el navegador sabe ─────────────────────────────────────
+    #
+    # Hasta el 25/08 esto vivía en la consola del navegador y se iba con la
+    # pestaña. Tres diagnósticos seguidos ese día terminaron en una hipótesis
+    # por eso: el backend responde en 4 ms y no ve nada de este camino, y la
+    # transcripción llega por otro lado — una sesión que se sintió pésima se ve
+    # igual de sana que una buena.
+    _diario(fila["id"])
 
     # ── Cuánto costó ──────────────────────────────────────────────────────
     print("\n COSTO")

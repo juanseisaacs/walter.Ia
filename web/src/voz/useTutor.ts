@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ErrorApi,
+  MI_BUILD,
   api,
   recargarSiEstoyViejo,
   type Ejercicio,
@@ -29,6 +30,7 @@ import {
 } from "./audio";
 import { abrirCamara, capturarCuadro, cerrarCamara, explicarFallo } from "./camara";
 import { pasarPorLaCola, sigueEnDuda, vozSostenida } from "./colaDelMicrofono";
+import { Diario } from "./diario";
 import { abrirMicrofono, type CapturaMicrofono } from "./microfono";
 import { tokenActual } from "../nino";
 import { aCuadro, describir } from "../pizarra/desdeElTutor";
@@ -504,12 +506,20 @@ export function useTutor(ninoId: string) {
       volver a montarlo en cada cambio. */
   const hojaRef = useRef<string | null>(null);
   const camaraAbiertaRef = useRef(false);
+  /** El diario de la voz. Ver `diario.ts`: nunca en el camino del audio. */
+  const diarioRef = useRef<Diario | null>(null);
   /** El reloj del vigilante de la voz. Ver `MS_VOZ_MUDA`. */
   const vozRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /** Cuántas veces se intentó recuperar la voz en esta sesión. Al segundo
       intento fallido se le dice al niño: seguir intentando en silencio es
       exactamente lo que lo dejaba media sesión hablándole a nadie. */
   const rescatesDeVozRef = useRef(0);
+
+  /** Anota en el diario de la voz. Barato y a prueba de todo: si no hay diario
+      —la sesión todavía no abrió— se pierde el evento y no pasa nada. */
+  const anotar = useCallback((evento: { t: string; [k: string]: unknown }) => {
+    diarioRef.current?.anota(evento);
+  }, []);
 
   /** El tutor dio señales de vida: audio, turno cerrado o un tool pedido. */
   const tutorContesto = useCallback(() => {
@@ -555,6 +565,7 @@ export function useTutor(ninoId: string) {
         if (reconexionesRef.current < RECONEXIONES_ANTES_DE_RENDIRSE) {
           reconexionesRef.current += 1;
           console.warn(`[mudez] canal roto: reconexión ${reconexionesRef.current}`);
+          anotar({ t: "reconexion", intento: reconexionesRef.current });
           reconectandoRef.current = true;
           setEstado("conectando");
           void empezarRef.current?.(modoRef.current)
@@ -582,6 +593,7 @@ export function useTutor(ninoId: string) {
 
       empujonesRef.current += 1;
       console.warn(`[mudez] ${MS_MUDEZ} ms sin respuesta: empujón ${empujonesRef.current}`);
+      anotar({ t: "mudez", empujon: empujonesRef.current });
       // Primero se cierra lo que hay acumulado, para que la marca quede DESPUÉS
       // del turno que se quedó sin contestar y no encima de él.
       cerrarTurnoAcumulado();
@@ -596,7 +608,7 @@ export function useTutor(ninoId: string) {
       }
       vigilarMudezRef.current?.(MS_MUDEZ_TRAS_EMPUJON); // y se sigue mirando el reloj
     }, espera);
-  }, [cerrarTurnoAcumulado, encolar]);
+  }, [cerrarTurnoAcumulado, encolar, anotar]);
 
   /** Para llamarse a sí misma sin depender del orden de los closures. */
   const vigilarMudezRef = useRef<((espera?: number) => void) | null>(null);
@@ -635,6 +647,7 @@ export function useTutor(ninoId: string) {
       console.error(
         `[voz] hay audio programado y no suena: rescate ${rescatesDeVozRef.current}`,
       );
+      anotar({ t: "voz_muda", rescate: rescatesDeVozRef.current });
       // Que quede en la transcripción, y por lo tanto en `revisar_sesion`.
       cerrarTurnoAcumuladoRef.current?.();
       encolar({ quien: "tutor", texto: MARCA_DE_VOZ_MUDA });
@@ -650,7 +663,7 @@ export function useTutor(ninoId: string) {
         setEstado("error");
       }
     }, MS_ENTRE_CHEQUEOS_DE_VOZ);
-  }, [encolar]);
+  }, [encolar, anotar]);
 
   /**
    * Le muestra una imagen al tutor. La ÚNICA puerta: dibujo y foto entran igual.
@@ -769,7 +782,11 @@ export function useTutor(ninoId: string) {
     // herramienta y le desobedeció" de "nunca la llamó y lo dijo de memoria".
     const t0 = performance.now();
     const medir = (r: object) => {
-      console.info(`[tool] ${nombre}: ${Math.round(performance.now() - t0)}ms`, r);
+      const ms = Math.round(performance.now() - t0);
+      console.info(`[tool] ${nombre}: ${ms}ms`, r);
+      // El silencio del tool es el que el niño lee como «se fue a buscar la
+      // respuesta»: sin este número no hay forma de saber si duró 40 ms o 6 s.
+      anotar({ t: "tool", nombre, ms });
       return r;
     };
 
@@ -1218,6 +1235,10 @@ export function useTutor(ninoId: string) {
       clearInterval(vozRef.current);
       vozRef.current = null;
     }
+    // EL LOTE QUE FALTA ES SIEMPRE EL QUE EXPLICA POR QUÉ SE CAYÓ. Se drena
+    // antes de soltar nada más: lo que quedó pendiente es el final de la
+    // sesión, que es justo el tramo que después hace falta leer.
+    diarioRef.current?.drena();
     // Y esta bandera menos: dejaría el micrófono mudo en la sesión siguiente.
     esperandoMiradaRef.current = false;
     retenerHastaRef.current = 0;
@@ -1463,6 +1484,13 @@ export function useTutor(ninoId: string) {
           ? await api.reconectar(previa.sesion_id)
           : await api.abrirSesion(ninoId, modo, tokenActual());
       sesionRef.current = sesion;
+      // El diario de la voz arranca con la sesión y muere con ella. Sale sin
+      // esperar respuesta y con su propio catch: es diagnóstico, y no puede
+      // costarle nada al niño ni romper la sesión si el POST falla.
+      diarioRef.current = new Diario((eventos) => {
+        void api.anotarDiario(sesion.sesion_id, eventos).catch(() => {});
+      });
+      anotar({ t: reconectandoRef.current ? "reconectada" : "abierta", build: MI_BUILD });
       // El banco solo se reemplaza si vino uno. Al reconectar llega vacío A
       // PROPÓSITO: el navegador ya lo tiene y puede haber usado la mitad —
       // pisarlo le devolvería al niño ejercicios que ya resolvió.
@@ -1557,6 +1585,7 @@ export function useTutor(ninoId: string) {
               // El servidor nunca cortó: no había a quién oír. El tutor retoma
               // donde iba, y el falso positivo costó una pausa.
               console.info("[barge-in] el servidor no confirmó: el tutor retoma");
+              anotar({ t: "barge_in_falso" });
               turnoAbortadoRef.current = 0;
               for (const guardado of enDudaRef.current.splice(0)) {
                 reproductor.programar(guardado);
@@ -1579,6 +1608,7 @@ export function useTutor(ninoId: string) {
                   const espera = Math.round(performance.now() - callóRef.current);
                   callóRef.current = null;
                   console.info(`[latencia] ${espera} ms de silencio antes de contestar`);
+                  anotar({ t: "latencia", ms: espera });
                 }
                 setMirandoFoto(false); // ya está contestando
                 setEstado("hablando");
@@ -1599,6 +1629,7 @@ export function useTutor(ninoId: string) {
 
             // El niño habló encima: cortar YA todo lo programado.
             if (contenido?.interrupted) {
+              anotar({ t: "interrupted" });
               reproductor.detenerTodo();
               // El servidor confirma lo que el barge-in ya había decidido acá:
               // lo que quedó en duda era el turno que el niño cortó y no vuelve.
@@ -1811,6 +1842,7 @@ export function useTutor(ninoId: string) {
             // próxima vez, en vez de moverlo a ojo: si acá aparecen cortes con
             // niveles apenas por encima de 0,045, es eco y el umbral sube.
             console.info(`[barge-in] corta al tutor · nivel ${nivel.toFixed(3)}`);
+            anotar({ t: "barge_in", nivel: Number(nivel.toFixed(3)) });
             reproductor.detenerTodo(); // desde acá `hablando` es false
             // Y lo que el servidor siga mandando de ESTE turno no vuelve al
             // parlante: el tutor no puede resucitar encima del niño.

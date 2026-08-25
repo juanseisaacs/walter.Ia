@@ -16,7 +16,7 @@ tutor usa el banco, `check_answer` verifica, el Analista escribe el dominio, el
 planificador de mañana arranca con la evidencia de hoy, el reporte lo cuenta y
 el papá lo lee en el panel. Más la cámara, la pizarra y la hoja de dibujo.
 
-- **668 tests** de Python · **189** del front · **evals 45/45** (los 3 casos
+- **676 tests** de Python · **195** del front · **evals 45/45** (los 3 casos
   agregados después no se han corrido) · lint en cero
 - **~100 sesiones de voz**, todas nuestras — ningún niño ajeno todavía
 - La pantalla del niño tiene prueba de punta a punta con navegador y sesión
@@ -66,10 +66,15 @@ después de la próxima sesión, con `python -m scripts.medir_fluidez`:
 | `niño✁` | el turno del niño que empieza a mitad | 10,3% el 20/08 · 6,8% el 24/08 |
 | `sin voz` | turnos que el niño NO OYÓ | tiene que ser **cero**. Si aparece, el vigilante de la voz hizo su trabajo y hay que leer por qué |
 
-Y en la consola del navegador, dos líneas nuevas que dicen si el barge-in está
-calibrado: `[barge-in] corta al tutor · nivel X` y `[barge-in] el servidor no
-confirmó: el tutor retoma`. Si la segunda aparece seguido, `UMBRAL_BARGE_IN`
-está bajo y el eco lo está disparando.
+Y ya no hace falta ir a la consola del navegador: **`revisar_sesion` muestra el
+diario de la voz** — latencias, tools con su duración, mudez, barge-in y voz
+muda, con el minuto en que pasó cada cosa. Lo que hay que mirar ahí:
+
+- **`barge_in_falso` repetido** → `UMBRAL_BARGE_IN` está bajo y el eco lo dispara.
+- **un `tool` de más de 2 s** → ese es el silencio que el niño lee como «se fue
+  a buscar la respuesta». Es la hipótesis abierta de `ses_fd1b97ff577e`, todavía
+  sin confirmar con datos.
+- **`voz_muda`** → tiene que ser cero.
 
 ---
 

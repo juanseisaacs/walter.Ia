@@ -132,6 +132,24 @@ class Repositorio(ABC):
         """Insumo del Analista. Puede no existir si ya pasó la retención."""
 
     @abstractmethod
+    def anotar_en_diario(self, sesion_id: str, eventos: list[dict]) -> None:
+        """El diario de la VOZ, que solo el navegador puede escribir.
+
+        Todo lo que decide si una conversación se siente fluida pasa en la
+        pestaña —cuánto tardó el modelo en contestar, cuánto tardó un tool, si
+        el barge-in disparó, si el audio no sonó— y hasta el 25/08 vivía solo en
+        la consola del navegador: se iba con la pestaña.
+
+        Tres diagnósticos seguidos ese día terminaron en una hipótesis por eso.
+        El backend responde en 4 ms y no ve nada de esto; la transcripción llega
+        por otro camino y se ve igual de sana. Ver `revisar_sesion`.
+        """
+
+    @abstractmethod
+    def leer_diario(self, sesion_id: str) -> list[dict]:
+        """Los eventos que reportó la pestaña, en orden. Vacío si no hay."""
+
+    @abstractmethod
     def borrar_transcripciones_anteriores_a(self, fecha: datetime) -> int:
         """Política de retención de datos de menores (Ley 1581 CO / COPPA US).
 
@@ -716,12 +734,48 @@ class RepositorioSQLite(Repositorio):
         ruta = self._ruta_transcripcion(sesion_id)
         return ruta.read_text(encoding="utf-8") if ruta.exists() else None
 
+    def _ruta_diario(self, sesion_id: str) -> Path:
+        return self.ruta_transcripciones / f"{Path(sesion_id).name}.eventos.jsonl"
+
+    def anotar_en_diario(self, sesion_id: str, eventos: list[dict]) -> None:
+        """Se APENDA, no se reescribe: llegan de a lotes durante la sesión.
+
+        Y va en el mismo directorio que la transcripción a propósito: es dato de
+        la conversación de un menor, así que tiene que morir con ella cuando
+        corra la retención. Un diario que sobreviva a la transcripción sería una
+        política de datos con un agujero.
+        """
+        if not eventos:
+            return
+        with self._ruta_diario(sesion_id).open("a", encoding="utf-8") as f:
+            for e in eventos:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+
+    def leer_diario(self, sesion_id: str) -> list[dict]:
+        ruta = self._ruta_diario(sesion_id)
+        if not ruta.exists():
+            return []
+        salida = []
+        for linea in ruta.read_text(encoding="utf-8").splitlines():
+            if not linea.strip():
+                continue
+            try:
+                salida.append(json.loads(linea))
+            except json.JSONDecodeError:
+                # Una línea a medio escribir no puede tirar el diario entero:
+                # esto se lee justo cuando algo salió mal.
+                continue
+        return salida
+
     def borrar_transcripciones_anteriores_a(self, fecha: datetime) -> int:
         """Retención de datos de menores.
 
         La fecha de la sesión manda (es el dato real), no la fecha del archivo.
         Los archivos huérfanos —sin sesión asociada— se barren por mtime, para
         que nada quede sin borrar por un hueco en la base.
+
+        El diario de la voz se va con su transcripción: es dato de la misma
+        conversación, y dejarlo vivo sería un agujero en la política.
         """
         with self._conectar() as con:
             viejas = {
@@ -735,13 +789,24 @@ class RepositorioSQLite(Repositorio):
         borradas = 0
         for ruta in self.ruta_transcripciones.glob("*.txt"):
             sesion_id = ruta.stem
-            if sesion_id in viejas:
+            vencida = sesion_id in viejas or (
+                sesion_id not in conocidas  # huérfano: manda el mtime
+                and datetime.fromtimestamp(ruta.stat().st_mtime) < fecha
+            )
+            if vencida:
                 ruta.unlink()
                 borradas += 1
-            elif sesion_id not in conocidas:  # huérfano
-                if datetime.fromtimestamp(ruta.stat().st_mtime) < fecha:
-                    ruta.unlink()
-                    borradas += 1
+                self._ruta_diario(sesion_id).unlink(missing_ok=True)
+
+        # Y los diarios que quedaron sin transcripción (una sesión que murió
+        # antes de cerrar): mismo dato, misma política.
+        for ruta in self.ruta_transcripciones.glob("*.eventos.jsonl"):
+            sesion_id = ruta.name.removesuffix(".eventos.jsonl")
+            if sesion_id in viejas or (
+                sesion_id not in conocidas
+                and datetime.fromtimestamp(ruta.stat().st_mtime) < fecha
+            ):
+                ruta.unlink()
         return borradas
 
     # ── Reportes (archivos) ──────────────────────────────────────────────────

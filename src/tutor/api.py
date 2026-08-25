@@ -372,6 +372,27 @@ def reportar_turnos(sesion_id: str, cuerpo: TurnosReportados):
     return {"alertas": alertas}
 
 
+class DiarioReportado(BaseModel):
+    eventos: list[dict]
+
+
+@app.post("/api/sesiones/{sesion_id}/diario", status_code=204, tags=["niño"])
+def anotar_diario(sesion_id: str, cuerpo: DiarioReportado):
+    """Lo que solo la pestaña sabe: latencias, tools, mudez, barge-in, voz muda.
+
+    Todo lo que decide si una conversación se siente fluida pasa en el
+    navegador, y hasta el 25/08 vivía solo en su consola: se iba al cerrar la
+    pestaña. Tres diagnósticos seguidos ese día terminaron en una hipótesis por
+    eso — el backend responde en 4 ms y no ve nada de esto, y la transcripción
+    llega por otro camino, así que una sesión que se sintió pésima se ve igual
+    de sana que una buena.
+
+    No falla NUNCA, igual que el latido: perder un lote de diagnóstico no puede
+    convertirse en un error en la pantalla del niño.
+    """
+    _orquestador.anotar_diario(sesion_id, cuerpo.eventos)
+
+
 @app.post("/api/sesiones/{sesion_id}/recargar", tags=["niño"])
 def recargar(sesion_id: str) -> list[Ejercicio]:
     try:

@@ -177,6 +177,21 @@ export const api = {
       MS_TOPE_SESION,
     ),
 
+  /** El diario de la voz: lo que solo esta pestaña sabe.
+   *
+   *  Latencias, tools con su duración, mudez, barge-in, voz que no sonó. Todo
+   *  eso decide si la conversación se siente fluida y hasta el 25/08 vivía solo
+   *  en la consola del navegador — o sea, se perdía al cerrar la pestaña. El
+   *  backend responde en 4 ms y no ve nada de esto.
+   *
+   *  Va FUERA del camino del audio y sin esperar respuesta: es diagnóstico, y
+   *  no puede costarle un milisegundo al niño. Si se pierde un lote, se pierde. */
+  anotarDiario: (sesionId: string, eventos: object[]) =>
+    pedir<void>(`/sesiones/${sesionId}/diario`, {
+      method: "POST",
+      body: JSON.stringify({ eventos }),
+    }),
+
   /** Reportar habilita recargar ejercicios. Sin esto la sesión se queda sin material. */
   reportarTurnos: (sesionId: string, turnos: Turno[]) =>
     pedir<{ alertas: unknown[] }>(`/sesiones/${sesionId}/turnos`, {

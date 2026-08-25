@@ -5,6 +5,7 @@ candados que definimos en la arquitectura: idempotencia y retención.
 """
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -556,3 +557,49 @@ def test_el_modelo_del_nino_y_la_tabla_no_se_desincronizan(tmp_path):
         f"guarda(n) sin error y vuelve(n) vacío(s) al leer. Agregá una "
         f"migración, como la v5 para `email_papa`."
     )
+
+
+def test_el_diario_de_la_voz_se_apenda_y_se_lee(tmp_path):
+    """Llega de a lotes durante la sesión: reescribir perdería los anteriores."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.anotar_en_diario("s1", [{"t": "latencia", "ms": 900}])
+    repo.anotar_en_diario("s1", [{"t": "tool", "nombre": "check_answer", "ms": 12}])
+
+    diario = repo.leer_diario("s1")
+    assert [e["t"] for e in diario] == ["latencia", "tool"]
+    assert diario[0]["ms"] == 900
+
+
+def test_un_diario_sin_eventos_no_crea_archivo(tmp_path):
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.anotar_en_diario("s1", [])
+    assert repo.leer_diario("s1") == []
+
+
+def test_una_linea_rota_no_tira_el_diario_entero(tmp_path):
+    """Esto se lee justo cuando algo salió mal: un lote a medio escribir no
+    puede llevarse por delante los eventos que sí sirven."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.anotar_en_diario("s1", [{"t": "mudez"}])
+    with (tmp_path / "transcripts" / "s1.eventos.jsonl").open("a", encoding="utf-8") as f:
+        f.write('{"t": "voz_mud\n')
+    repo.anotar_en_diario("s1", [{"t": "reconexion"}])
+
+    assert [e["t"] for e in repo.leer_diario("s1")] == ["mudez", "reconexion"]
+
+
+def test_el_diario_muere_con_su_transcripcion(tmp_path):
+    """Es dato de la conversación de un menor. Un diario que sobreviva a la
+    transcripción sería un agujero en la política de retención."""
+    repo = RepositorioSQLite(tmp_path / "t.db", tmp_path)
+    repo.guardar_transcripcion("vieja", "nino: hola")
+    repo.anotar_en_diario("vieja", [{"t": "latencia", "ms": 100}])
+
+    # Huérfana (sin fila en sesiones) y con mtime viejo: la barre por mtime.
+    antiguo = (datetime.now() - timedelta(days=400)).timestamp()
+    for nombre in ("vieja.txt", "vieja.eventos.jsonl"):
+        os.utime(tmp_path / "transcripts" / nombre, (antiguo, antiguo))
+
+    repo.borrar_transcripciones_anteriores_a(datetime.now() - timedelta(days=30))
+    assert repo.obtener_transcripcion("vieja") is None
+    assert repo.leer_diario("vieja") == []

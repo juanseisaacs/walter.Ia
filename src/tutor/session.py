@@ -737,6 +737,21 @@ class Orquestador:
         if sesion_id in self._ultima_actividad:
             self._ultima_actividad[sesion_id] = ahora or datetime.now()
 
+    def anotar_diario(self, sesion_id: str, eventos: list[dict]) -> None:
+        """Guarda lo que solo la pestaña sabe. Ver `Repositorio.anotar_en_diario`.
+
+        Igual que el latido, esto NO falla: si la sesión ya no existe, perder un
+        lote de diagnóstico no puede convertirse en un error en la pantalla del
+        niño. Y también cuenta como señal de vida — un niño que genera eventos
+        es un niño que está ahí.
+        """
+        if sesion_id in self._ultima_actividad:
+            self._ultima_actividad[sesion_id] = datetime.now()
+        try:
+            self.repo.anotar_en_diario(sesion_id, eventos)
+        except OSError:  # disco lleno, permisos: nunca en el camino del niño
+            pass
+
     def cerrar_huerfanas_de_arranque(self, ahora: datetime | None = None) -> list[Sesion]:
         """Al arrancar, cierra lo que quedó ACTIVA de procesos anteriores.
 
