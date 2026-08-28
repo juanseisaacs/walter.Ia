@@ -484,7 +484,9 @@ class Orquestador:
         # El nivel 2 —el Vigilante— NO corre acá. Ver `evaluar_ventana`: llama a
         # un modelo, y esto está en el camino de un POST que el navegador espera
         # con un tope de 8 s. El llamador lo dispara aparte, en segundo plano.
-        self._alertas[sesion_id].extend(alertas)
+        # Mismo motivo que en `evaluar_ventana`: un lote de turnos puede llegar
+        # con la sesión ya cerrada, y el prefiltro es el OTRO camino a la alarma.
+        self._alertas.setdefault(sesion_id, []).extend(alertas)
         return alertas
 
     def evaluar_ventana(self, sesion_id: str) -> EvaluacionSeguridad | None:
@@ -516,7 +518,15 @@ class Orquestador:
         evaluacion = self.vigilante(historial[-cfg.VENTANA_VIGILANTE :])
         if evaluacion.nivel == NivelSeguridad.OK:
             return None
-        self._alertas[sesion_id].append(evaluacion)
+        # `setdefault` y no `[sesion_id]`: esto corre en segundo plano y puede
+        # llegar DESPUÉS de que `cerrar` haya pasado por `_olvidar`, que saca la
+        # sesión de `_alertas`. Con el acceso directo el KeyError salía justo
+        # acá —o sea pasado el `return None` del nivel OK, con una alerta real
+        # en la mano— y el `except` del llamador se comía la evaluación sin
+        # avisarle al papá. Visto en ses_3e68ef8e9ff6 el 28/08. Una alerta no se
+        # descarta porque el niño cerró la pestaña: cerrarla de golpe es
+        # plausible justo después de decir algo grave.
+        self._alertas.setdefault(sesion_id, []).append(evaluacion)
         return evaluacion
 
     def recargar_ejercicios(self, sesion_id: str, ahora: datetime | None = None) -> list[Ejercicio]:

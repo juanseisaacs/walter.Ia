@@ -35,3 +35,9 @@ web/dist/
 # Artefacto de build de TypeScript
 web/tsconfig.tsbuildinfo
 prompts_ab_flaco/
+
+# Tunel del hackaton: binario de 55 MB, se redescarga
+cloudflared.exe
+
+# Respaldo puntual del README
+README.md.bak-gofest

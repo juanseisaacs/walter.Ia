@@ -55,6 +55,14 @@ Escuela cerrada → el cuidador no puede volver a trabajar → cae el ingreso fa
 Sostener la continuidad educativa **libera adultos para la reactivación
 productiva** y protege el capital humano del municipio.
 
+**Y el costo de atenderlo está acotado por diseño.** El techo de costo variable
+por niño es **US$8 al mes**, puesto en código y no en una hoja de cálculo
+(`MAX_COSTO_MES_USD_POR_NINO`, con tope de 45 minutos por sesión). No es una
+proyección: es un límite que el sistema hace cumplir, sesión por sesión. Contra
+un tutor humano en zona rural dispersa —al que además hay que transportar— la
+diferencia no es de margen, es de si el servicio existe o no existe. La capa
+offline lleva ese variable a **cero**: sin red no hay tokens que pagar.
+
 ### La solución, en dos capas
 
 El mismo tutor, el mismo currículo y el mismo método, con dos cerebros
@@ -82,16 +90,55 @@ sin leer, sin escribir.
 
 ### Las herramientas de Google que ya corren
 
-| Tecnología | Para qué | Estado |
-|---|---|---|
-| **Gemini Live** (`gemini-3.1-flash-live-preview`) | El tutor entero: audio nativo bidireccional, el niño lo puede interrumpir a media frase, más las 4 tools que le dan pizarra, cámara y verificación | ✅ en producción |
-| **Gemini · visión** | Mira la hoja del niño y la pizarra, y responde sobre lo que hay ahí | ✅ en producción |
-| **Google AI Studio · Voice Library** | La voz de Walter, elegida y fijada por descriptor de tono | ✅ en producción |
-| Modelo abierto de Google on-device | El cerebro de la capa offline | 🚧 en desarrollo |
+Walter no le pide seis cosas a seis proveedores. **Le pide seis cosas a una sola
+API**: la sesión Live de Gemini es el tutor entero, y todo lo demás cuelga de
+ahí. Es lo que hace que la conversación se sienta como una conversación y no
+como una cadena de servicios encadenados con latencia.
 
-Los agentes de fondo —Analista, Vigilante, Generador y Compañero del papá— no
-son de Google: corren sobre Claude. Se dice acá y no en una nota al pie porque
-el criterio de este proyecto es que **lo que se afirma se puede verificar**.
+| Lo que hace | Cómo, exactamente |
+|---|---|
+| **Habla y escucha a la vez** | `ai.live.connect` con `responseModalities: [AUDIO]` — audio nativo en los dos sentidos. El navegador manda PCM 16 kHz y recibe 24 kHz sin pasar por nuestro backend |
+| **Se deja interrumpir** | `realtimeInputConfig`: la detección de fin de turno y el corte los resuelve Gemini en el mismo canal. Por eso el niño puede hablarle encima y Walter calla a media frase |
+| **Su voz** | `speechConfig.prebuiltVoiceConfig` — voz elegida del catálogo de AI Studio y fijada en código |
+| **Entiende «dos» y no «32»** | `inputAudioTranscription` con `languageCodes` fijo y `adaptationPhrases` sesgadas a aritmética. El `{}` vacío dejaba autodetectar idioma y el ruido salía en coreano |
+| **Ve la hoja y la pizarra** | La imagen viaja **dentro del turno**, no por `sendRealtimeInput({video})`. Medido el 21/08: por el canal de streaming inventaba cuatro de cuatro veces; dentro del turno leyó el 7, el triángulo y el «8 + 5» del cuaderno |
+| **Actúa: verifica, pinta, escala** | **8 tools** por function calling — `check_answer`, `verify_arithmetic`, `verify_language`, `get_next_problem`, `request_camera`, `mostrar_en_pizarra`, `pedir_dibujo` y `escalate_safety` |
+
+Y una pieza que no se ve pero decide si esto se puede repartir: la **Ephemeral
+Tokens API** (`auth_tokens.create`). El backend firma un token de vida corta y
+**solo eso** llega al navegador; la `GOOGLE_API_KEY` nunca sale del servidor. Es
+lo que permite mandarle un enlace público a un jurado sin mandarle la llave.
+
+SDKs: `google-genai` (Python, backend) y `@google/genai` (TypeScript, navegador).
+
+**Lo que no es de Google, dicho de frente.** Los cuatro agentes de fondo
+—Analista, Vigilante, Generador y Compañero del papá— corren sobre Claude. Va
+en el cuerpo y no en una nota al pie porque el criterio de este proyecto es que
+**lo que se afirma se pueda verificar**.
+
+### Y las que sostendrían la capa offline
+
+Todavía no está construida, así que esto es el plan y no un logro. Importa
+decir **por qué no es solo cambiar el cerebro**: Gemini Live es voz-a-voz
+nativa, y hoy ningún modelo abierto que corra en un dispositivo hace eso. Sin
+red, la pieza que hoy es una se parte en tres, y con ella se pierden cosas que
+Walter da por sentadas — la interrupción a media frase, la transcripción
+sesgada a números, el function calling durante la conversación.
+
+| Pieza | Candidata de Google | Qué resuelve, y qué cuesta |
+|---|---|---|
+| Cerebro | **Gemma 3n** | Pesos abiertos, pensada para on-device, y acepta **audio como entrada** — que es lo que evitaría meter un transcriptor aparte, hoy el eslabón más lento de cualquier tutor offline |
+| Runtime | **LiteRT** · **MediaPipe LLM Inference** | La vía oficial para llevar Gemma a Android sin reescribir el producto |
+| Voz | **Motor TTS de Android** | Habla sin red una vez descargadas las voces |
+
+**El riesgo real de esta capa no es técnico, es pedagógico.** Un modelo de mil
+millones de parámetros redacta bien y razona poco, y el método socrático de
+Walter —sostener la escalera de pistas cuando un niño insiste «decime la
+respuesta»— es exactamente lo que un modelo pequeño no aguanta. Por eso la
+apuesta offline no es «el mismo Walter, más chico»: es el mismo currículo y el
+mismo guion determinista, con el modelo haciendo menos y el código haciendo
+más. Lo que ya está construido ayuda: **el modelo nunca calcula ni decide
+derivar** — eso lo hace el código, y eso no cambia sin red.
 
 ### Lo que todavía no hace, dicho sin adornos
 
@@ -204,14 +251,14 @@ el niño habla → el tutor usa el banco y check_answer → la sesión cierra
 | Habilidades (1° a 5°) | **78** — 54 de matemáticas, 13 de lectura, 11 de escritura, con triple anclaje verificado contra los documentos primarios |
 | Ejercicios validados en banco | **2.052** — ~26 por habilidad, ninguna vacía |
 | Técnicas de enseñanza, en pares rivales | **6** — el motor prueba, mide y cambia |
-| Tests de Python | **587**, en verde |
-| Tests del front | **83**, en verde |
+| Tests de Python | **690**, en verde (corridos el 28/08) |
+| Tests del front | **200**, en verde (corridos el 28/08) |
 | Casos de eval en las 4 suites de YC | **48** — la última corrida completa dio 45/45 el 20/08; los 3 casos agregados después no se han corrido |
-| Sesiones de voz corridas | **62** · 71 transcripciones · 41 auditorías del método |
+| Sesiones de voz corridas | **116** · 137 transcripciones · 78 auditorías del método |
 
 Probado con voz real, cámara, pizarra y hoja de dibujo. Lint en cero.
 
-**Y las 62 sesiones son nuestras.** Ningún niño ajeno ha usado esto todavía. Lo
+**Y las 116 sesiones son nuestras.** Ningún niño ajeno ha usado esto todavía. Lo
 que demuestran es que el sistema aguanta en vivo — de ahí salieron el "dos" que
 se transcribía "32", el turno que no se abría cuando alguien contesta bajito, y
 el tutor inventando lo que veía por la cámara. **No demuestran que un niño
@@ -277,7 +324,7 @@ criterio**.
 
 | Agente | Cuándo | Modelo |
 |---|---|---|
-| **Tutor** | En vivo | Gemini Live + 4 tools |
+| **Tutor** | En vivo | Gemini Live + 8 tools |
 | **Vigilante** | En vivo, en paralelo | Haiku 4.5 |
 | **Analista de sesión** | Post-sesión, 100% | Haiku 4.5 |
 | **Compañero del Papá** | Onboarding + semanal | Sonnet 5 |
@@ -456,7 +503,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env            # y completar ANTHROPIC_API_KEY y GOOGLE_API_KEY
 
-pytest                          # 587 tests, rápidos, sin red
+pytest                          # 690 tests, rápidos, sin red
 ```
 
 ### Para hablar con el tutor
