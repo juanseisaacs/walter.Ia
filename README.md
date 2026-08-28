@@ -12,7 +12,109 @@ abre la página, dice "hola" y empieza la clase.
 
 ---
 
-## El problema
+## 🐻 GoFest 26 — Rebuild Colombia
+
+> Hackathon **GoFest 26 — Rebuild Colombia** · Google Developers · Google
+> DeepMind · Platzi.
+
+Walter se presenta como la **capa online de REBUILD**: la mitad del sistema que
+ya funciona, con voz real y sobre herramientas de Google. La capa offline —el
+mismo tutor corriendo dentro del dispositivo, sin red— **está en desarrollo**, y
+más abajo se dice exactamente qué falta.
+
+### El problema
+
+El 10 de agosto de 2026, un sismo de magnitud 7,4 con epicentro en **San José
+del Palmar, Chocó** dejó a la región con escuelas inhabilitadas e
+infraestructura de telecomunicaciones dañada.
+
+Cuando eso pasa se abren **dos brechas al mismo tiempo**, y hoy nadie las
+atiende junto:
+
+| # | Brecha | Qué significa para el niño |
+|---|---|---|
+| 1 | **Educativa** | Pierde meses de continuidad escolar. En primaria, una interrupción larga no se recupera sola: se vuelve rezago permanente y, con frecuencia, deserción |
+| 2 | **Contención emocional** | Miedo, alteración del sueño, ansiedad. La atención psicosocial profesional llega tarde, es escasa y se concentra en las cabeceras urbanas |
+
+**Por qué las soluciones existentes no llegan.** Toda la educación digital de
+emergencia asume conectividad, y Chocó es el peor lugar del país para asumir
+eso: el departamento con mayor pobreza multidimensional de Colombia, una de las
+coberturas de internet fijo más bajas del país, y un municipio rural y disperso.
+
+> Una plataforma que necesita internet, en un territorio sin internet, después
+> de un sismo que además tumbó las telecomunicaciones, **no existe para quien la
+> necesita**.
+
+**Y su costo no es solo educativo:**
+
+```
+Escuela cerrada → el cuidador no puede volver a trabajar → cae el ingreso familiar
+                → el niño pierde el año escolar          → capital humano perdido a 10 años
+```
+
+Sostener la continuidad educativa **libera adultos para la reactivación
+productiva** y protege el capital humano del municipio.
+
+### La solución, en dos capas
+
+El mismo tutor, el mismo currículo y el mismo método, con dos cerebros
+intercambiables según lo que haya en el territorio:
+
+| Capa | Cerebro | Dónde sirve | Estado |
+|---|---|---|---|
+| 🌐 **Online — Walter** | **Gemini Live** (voz nativa, full-duplex) | Cabeceras, albergues y escuelas con señal; el docente con un celular compartido | ✅ **Funcionando** — probado con voz real, cámara, pizarra y panel del papá |
+| 🔌 **Offline** | Modelo abierto de Google en el dispositivo | Zona rural dispersa, sin red y sin costo por token | 🚧 **En desarrollo** |
+
+La capa online no es una maqueta ni una vitrina para el jurado: es el producto
+funcionando. Un niño abre un enlace, dice *"hola"* y tiene clase — sin botones,
+sin leer, sin escribir.
+
+### Qué atiende Walter hoy, brecha por brecha
+
+| Brecha | Qué hace Walter | Dónde está en este README |
+|---|---|---|
+| **Educativa** | 78 habilidades de 1° a 5° ancladas a los **DBA del MEN** —el currículo colombiano, no uno traducido— con 2.052 ejercicios validados y un planificador que arranca el día con la evidencia del día anterior | [El currículum](#el-currículum) · [Estado](#estado) |
+| **Educativa** | Método socrático que **nunca regala la respuesta**, sostenido por arquitectura y no por un prompt: el niño que perdió meses necesita reconstruir el razonamiento, no copiar resultados | [El problema de método](#el-problema-de-método-ayudar-con-la-tarea--hacer-la-tarea) |
+| **Educativa** | Entra por **voz**. Un niño de 6 años que todavía no lee ni escribe usa el tutor igual que uno de 10 | [El audio no pasa por el backend](#el-audio-no-pasa-por-el-backend) |
+| **Emocional** | **Vigilante independiente + prefiltro en código**: dos caminos separados a la alarma, y ninguno depende de que el modelo decida bien | [Los agentes](#los-agentes) |
+| **Emocional** | **Ficha longitudinal**: el tutor recuerda al niño sesión a sesión. Un niño desplazado por el sismo no vuelve a presentarse cada día ante un desconocido | [Los agentes](#los-agentes) |
+| **Emocional** | **Panel del papá** con reportes verificados en código contra los datos, y auditoría de **toda** sesión que deje transcripción — no de una muestra | [Lo que este proyecto afirma, y lo que no](#lo-que-este-proyecto-afirma-y-lo-que-no) |
+
+### Las herramientas de Google que ya corren
+
+| Tecnología | Para qué | Estado |
+|---|---|---|
+| **Gemini Live** (`gemini-3.1-flash-live-preview`) | El tutor entero: audio nativo bidireccional, el niño lo puede interrumpir a media frase, más las 4 tools que le dan pizarra, cámara y verificación | ✅ en producción |
+| **Gemini · visión** | Mira la hoja del niño y la pizarra, y responde sobre lo que hay ahí | ✅ en producción |
+| **Google AI Studio · Voice Library** | La voz de Walter, elegida y fijada por descriptor de tono | ✅ en producción |
+| Modelo abierto de Google on-device | El cerebro de la capa offline | 🚧 en desarrollo |
+
+Los agentes de fondo —Analista, Vigilante, Generador y Compañero del papá— no
+son de Google: corren sobre Claude. Se dice acá y no en una nota al pie porque
+el criterio de este proyecto es que **lo que se afirma se puede verificar**.
+
+### Lo que todavía no hace, dicho sin adornos
+
+- **No corre sin internet.** Es exactamente la brecha que cierra la capa
+  offline, y es la razón por la que este proyecto no está terminado. Hoy Walter
+  sirve al niño que tiene señal; el que no la tiene sigue esperando.
+- **Ningún niño ajeno lo ha usado.** Todas las sesiones son nuestras. Lo que
+  demuestran es que el sistema aguanta en vivo, **no que un niño aprenda** — y
+  no vamos a decir que sí hasta medirlo. Ver [Estado](#estado).
+- **Hoy hay aritmética.** Lectura y escritura están en el grafo de habilidades,
+  esperando una decisión de método.
+- **La contención emocional de Walter es supervisión y alarma, no terapia.** El
+  camino a un profesional humano es parte del diseño, no un reemplazo que se
+  intente evitar.
+
+> El criterio que ordena todo lo anterior está escrito completo en
+> [Lo que este proyecto afirma, y lo que no](#lo-que-este-proyecto-afirma-y-lo-que-no).
+> Un tutor para niños que acaban de vivir un desastre es el último lugar del
+> mundo donde vale la pena exagerar lo que un sistema hace.
+
+---
+
+## El problema de método: ayudar con la tarea ≠ hacer la tarea
 
 YC lo dice sin rodeos: *"el cementerio del edtech está lleno de 'ChatGPT para
 la tarea'."*
